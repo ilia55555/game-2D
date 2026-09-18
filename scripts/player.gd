@@ -36,6 +36,8 @@ var jump_was_pressed := false
 var spawn_position := Vector2.ZERO
 var bullet_scene_owner: Node = null
 var sprite: Sprite2D
+var collision_node: CollisionShape2D
+var crouching := false
 
 func _ready() -> void:
 	add_to_group("player")
@@ -44,17 +46,17 @@ func _ready() -> void:
 	collision_mask = 2 | 4
 	floor_snap_length = 8.0
 
-	var shape_node := CollisionShape2D.new()
+	collision_node = CollisionShape2D.new()
 	var capsule := CapsuleShape2D.new()
 	capsule.radius = 17.0
 	capsule.height = 64.0
-	shape_node.shape = capsule
-	shape_node.position = Vector2(0, -4)
-	add_child(shape_node)
+	collision_node.shape = capsule
+	collision_node.position = Vector2(0, -4)
+	add_child(collision_node)
 
 	sprite = Sprite2D.new()
-	sprite.texture = load("res://assets/characters/hero.svg")
-	sprite.scale = Vector2(0.58, 0.58)
+	sprite.texture = load("res://assets/characters/hero.png")
+	sprite.scale = Vector2(0.78, 0.78)
 	sprite.position = Vector2(0, -36)
 	add_child(sprite)
 
@@ -100,8 +102,12 @@ func _physics_process(delta: float) -> void:
 	var left := Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT) or touch_left
 	var right := Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT) or touch_right
 	var run_pressed := Input.is_key_pressed(KEY_SHIFT) or touch_run
+	var crouch_pressed := Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN)
+	crouching = crouch_pressed and is_on_floor()
+	update_crouch_state()
+
 	var direction := float(int(right) - int(left))
-	var target_speed := direction * (RUN_SPEED if run_pressed else WALK_SPEED)
+	var target_speed := direction * (135.0 if crouching else (RUN_SPEED if run_pressed else WALK_SPEED))
 	var accel := ACCELERATION if is_on_floor() else AIR_ACCELERATION
 
 	if direction != 0.0:
@@ -110,7 +116,7 @@ func _physics_process(delta: float) -> void:
 	else:
 		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
 
-	var keyboard_jump := Input.is_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP)
+	var keyboard_jump := Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP)
 	if (keyboard_jump and not jump_was_pressed) or touch_jump:
 		jump_buffer_timer = JUMP_BUFFER_TIME
 		touch_jump = false
@@ -124,7 +130,7 @@ func _physics_process(delta: float) -> void:
 		jump_buffer_timer = 0.0
 		coyote_timer = 0.0
 
-	if (Input.is_key_pressed(KEY_J) or Input.is_key_pressed(KEY_K) or touch_shoot) and shoot_timer <= 0.0:
+	if (Input.is_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_J) or Input.is_key_pressed(KEY_K) or touch_shoot) and shoot_timer <= 0.0:
 		shoot()
 		shoot_timer = SHOOT_COOLDOWN
 
@@ -136,12 +142,29 @@ func _physics_process(delta: float) -> void:
 
 func shoot() -> void:
 	if bullet_scene_owner != null and bullet_scene_owner.has_method("spawn_bullet"):
-		bullet_scene_owner.call("spawn_bullet", global_position + Vector2(35.0 * facing, -35.0), facing)
+		var muzzle_y := 7.0 if crouching else -14.0
+		bullet_scene_owner.call("spawn_bullet", global_position + Vector2(38.0 * facing, muzzle_y), facing)
 		if sprite:
 			var old_scale := sprite.scale
 			sprite.scale = Vector2(old_scale.x * 1.06, old_scale.y * 0.95)
 			var recoil := create_tween()
 			recoil.tween_property(sprite, "scale", old_scale, 0.08)
+
+func update_crouch_state() -> void:
+	if collision_node == null or sprite == null:
+		return
+	var capsule := collision_node.shape as CapsuleShape2D
+	if capsule == null:
+		return
+	if crouching:
+		capsule.height = 42.0
+		collision_node.position.y = 7.0
+		sprite.position.y = -20.0
+		sprite.scale = Vector2(0.82, 0.60)
+	else:
+		capsule.height = 64.0
+		collision_node.position.y = -4.0
+		sprite.scale = Vector2(0.78, 0.78)
 
 func take_damage(amount: int, source_x: float = 0.0) -> void:
 	if invulnerability_timer > 0.0:
