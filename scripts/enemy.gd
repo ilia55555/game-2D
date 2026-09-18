@@ -43,13 +43,15 @@ func _ready() -> void:
 		shape_node.shape = shape
 	else:
 		var shape := RectangleShape2D.new()
-		shape.size = Vector2(46, 48)
+		shape.size = Vector2(60, 74)
 		shape_node.shape = shape
+	if mode == "ground":
+		shape_node.position = Vector2(0, -10)
 	add_child(shape_node)
 
 	sprite = Sprite2D.new()
-	sprite.texture = load("res://assets/enemies/drone.svg" if mode == "fly" else "res://assets/enemies/scout.svg")
-	sprite.scale = Vector2(0.58, 0.58)
+	sprite.texture = load("res://assets/enemies/drone.png" if mode == "fly" else "res://assets/enemies/scout.png")
+	sprite.scale = Vector2(0.72, 0.72)
 	sprite.position = Vector2(0, -19 if mode == "ground" else 0)
 	add_child(sprite)
 
