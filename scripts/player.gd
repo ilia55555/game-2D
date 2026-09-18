@@ -1,6 +1,8 @@
 extends CharacterBody2D
 class_name Player
 
+const HeroModel3DScript = preload("res://scripts/hero_model_3d.gd")
+
 signal health_changed(value: int)
 signal coins_changed(value: int)
 signal died
@@ -36,6 +38,8 @@ var jump_was_pressed := false
 var spawn_position := Vector2.ZERO
 var bullet_scene_owner: Node = null
 var sprite: Sprite2D
+var model_viewport: SubViewport
+var hero_model: HeroModel3D
 var collision_node: CollisionShape2D
 var crouching := false
 
@@ -54,11 +58,7 @@ func _ready() -> void:
 	collision_node.position = Vector2(0, -4)
 	add_child(collision_node)
 
-	sprite = Sprite2D.new()
-	sprite.texture = load("res://assets/characters/hero.png")
-	sprite.scale = Vector2(0.78, 0.78)
-	sprite.position = Vector2(0, -36)
-	add_child(sprite)
+	build_live_3d_character()
 
 	health_changed.emit(health)
 	queue_redraw()
@@ -69,27 +69,69 @@ func _process(delta: float) -> void:
 
 	if sprite:
 		sprite.flip_h = facing < 0.0
-		var speed_ratio := clampf(absf(velocity.x) / RUN_SPEED, 0.0, 1.0)
-		if crouching:
-			sprite.position.y = -20.0
-			sprite.rotation = lerpf(sprite.rotation, 0.0, 0.22)
-		elif is_on_floor():
-			sprite.position.y = -36.0 + sin(visual_time * 17.0) * 2.4 * speed_ratio
-			sprite.rotation = lerpf(sprite.rotation, velocity.x / RUN_SPEED * 0.055, 0.18)
-		else:
-			sprite.position.y = -38.0
-			sprite.rotation = lerpf(sprite.rotation, velocity.x / RUN_SPEED * 0.12, 0.12)
+		sprite.visible = int(invulnerability_timer * 18.0) % 2 == 0 if invulnerability_timer > 0.0 else true
 
-		if invulnerability_timer > 0.0:
-			sprite.visible = int(invulnerability_timer * 18.0) % 2 == 0
-		else:
-			sprite.visible = true
+	if hero_model:
+		var fire_pulse := 1.0 if shoot_timer > SHOOT_COOLDOWN * 0.55 else 0.0
+		hero_model.set_motion(velocity.x / RUN_SPEED, velocity.y, is_on_floor(), crouching, fire_pulse)
 
-		if is_on_floor() and absf(velocity.x) > 430.0 and afterimage_timer <= 0.0:
-			spawn_afterimage()
-			afterimage_timer = 0.075
+	if is_on_floor() and absf(velocity.x) > 430.0 and afterimage_timer <= 0.0:
+		spawn_afterimage()
+		afterimage_timer = 0.075
 
 	queue_redraw()
+
+func build_live_3d_character() -> void:
+	model_viewport = SubViewport.new()
+	model_viewport.name = "Hero3DViewport"
+	model_viewport.size = Vector2i(320, 320)
+	model_viewport.transparent_bg = true
+	model_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	model_viewport.own_world_3d = true
+	add_child(model_viewport)
+
+	var environment := Environment.new()
+	environment.background_mode = Environment.BG_COLOR
+	environment.background_color = Color(0, 0, 0, 0)
+	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
+	environment.ambient_light_color = Color("b8e9e5")
+	environment.ambient_light_energy = 1.15
+
+	var world_environment := WorldEnvironment.new()
+	world_environment.environment = environment
+	model_viewport.add_child(world_environment)
+
+	var key_light := DirectionalLight3D.new()
+	key_light.light_color = Color("d8ffff")
+	key_light.light_energy = 1.35
+	key_light.rotation_degrees = Vector3(-28, -32, 0)
+	model_viewport.add_child(key_light)
+
+	var rim_light := OmniLight3D.new()
+	rim_light.light_color = Color("39fff0")
+	rim_light.light_energy = 2.0
+	rim_light.omni_range = 6.0
+	rim_light.position = Vector3(-2.4, 2.3, 2.8)
+	model_viewport.add_child(rim_light)
+
+	hero_model = HeroModel3DScript.new()
+	hero_model.position = Vector3(0, -0.15, 0)
+	model_viewport.add_child(hero_model)
+
+	var camera := Camera3D.new()
+	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
+	camera.size = 4.7
+	model_viewport.add_child(camera)
+	camera.position = Vector3(0.15, 0.55, 6.5)
+	camera.look_at(Vector3(0.0, 0.45, 0.0), Vector3.UP)
+	camera.current = true
+
+	sprite = Sprite2D.new()
+	sprite.name = "Live3DCharacter"
+	sprite.texture = model_viewport.get_texture()
+	sprite.position = Vector2(0, -46)
+	sprite.scale = Vector2(0.34, 0.34)
+	add_child(sprite)
 
 func _physics_process(delta: float) -> void:
 	shoot_timer = maxf(0.0, shoot_timer - delta)
@@ -154,7 +196,7 @@ func shoot() -> void:
 			recoil.tween_property(sprite, "scale", old_scale, 0.08)
 
 func update_crouch_state() -> void:
-	if collision_node == null or sprite == null:
+	if collision_node == null:
 		return
 	var capsule := collision_node.shape as CapsuleShape2D
 	if capsule == null:
@@ -162,12 +204,9 @@ func update_crouch_state() -> void:
 	if crouching:
 		capsule.height = 42.0
 		collision_node.position.y = 7.0
-		sprite.position.y = -20.0
-		sprite.scale = Vector2(0.82, 0.60)
 	else:
 		capsule.height = 64.0
 		collision_node.position.y = -4.0
-		sprite.scale = Vector2(0.78, 0.78)
 
 func take_damage(amount: int, source_x: float = 0.0) -> void:
 	if invulnerability_timer > 0.0:
@@ -228,15 +267,14 @@ func spawn_afterimage() -> void:
 	ghost.texture = sprite.texture
 	ghost.scale = sprite.scale
 	ghost.flip_h = sprite.flip_h
-	ghost.rotation = sprite.rotation
 	ghost.global_position = global_position + sprite.position
-	ghost.modulate = Color(0.25, 1.0, 0.92, 0.24)
+	ghost.modulate = Color(0.25, 1.0, 0.92, 0.20)
 	ghost.z_index = z_index - 1
 	get_parent().add_child(ghost)
 	var fade := ghost.create_tween()
 	fade.set_parallel(true)
-	fade.tween_property(ghost, "modulate:a", 0.0, 0.23)
-	fade.tween_property(ghost, "scale", ghost.scale * 1.08, 0.23)
+	fade.tween_property(ghost, "modulate:a", 0.0, 0.18)
+	fade.tween_property(ghost, "scale", ghost.scale * 1.04, 0.18)
 	fade.chain().tween_callback(ghost.queue_free)
 
 func _draw() -> void:
