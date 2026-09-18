@@ -65,7 +65,7 @@ func _physics_process(delta: float) -> void:
 		velocity.y += gravity * delta
 
 	if player == null:
-		player = get_tree().get_first_node_in_group("player")
+		player = get_tree().get_first_node_in_group("player") as CharacterBody2D
 		if player == null:
 			return
 
