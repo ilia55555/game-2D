@@ -21,12 +21,16 @@ jobs:
           ref: games
           fetch-depth: 0
 
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13.5"
+
       - name: Build exact GLB
         shell: bash
         run: |
           set -euo pipefail
           base64 -d model/generator.py.gz.b64 | gzip -d > /tmp/generate_hero_model.py
-          python -m pip install --disable-pip-version-check -q numpy scipy trimesh
+          python -m pip install --disable-pip-version-check -q numpy==2.3.5 scipy==1.17.0 trimesh==4.11.1
           python /tmp/generate_hero_model.py
           test "$(stat -c%s model/velocity_hero_rigged.glb)" -eq 248792
           echo "c8f38557c923a9bc9e9bee32f46362505555a8fe8340b39fbc02d1cd89f2adbd  model/velocity_hero_rigged.glb" | sha256sum -c -
