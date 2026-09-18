@@ -4,14 +4,13 @@ class_name VarkonBoss
 signal health_changed(current: int, maximum: int)
 signal defeated
 
-var max_health := 48
-var health := 48
+var max_health := 72
+var health := 72
 var active := false
 var gravity := 1600.0
 var attack_timer := 1.4
 var attack_index := 0
 var charge_timer := 0.0
-var invulnerable := false
 var arena_left := 24750.0
 var arena_right := 27300.0
 
@@ -75,15 +74,16 @@ func _physics_process(delta: float) -> void:
 		charge_timer -= delta
 	else:
 		var dx := player.global_position.x - global_position.x
-		velocity.x = move_toward(velocity.x, signf(dx) * 105.0, 360.0 * delta)
+		var chase_speed := 140.0 if health <= max_health / 2 else 105.0
+		velocity.x = move_toward(velocity.x, signf(dx) * chase_speed, 380.0 * delta)
 
 	if attack_timer <= 0.0:
 		perform_attack()
-		attack_timer = 1.9 if health > max_health / 2 else 1.25
+		attack_timer = 1.25 if health <= max_health / 2 else 1.85
 
 	move_and_slide()
 	global_position.x = clampf(global_position.x, arena_left, arena_right)
-	sprite.rotation = lerpf(sprite.rotation, clampf(velocity.x / 1100.0, -0.06, 0.06), 0.12)
+	sprite.rotation = lerpf(sprite.rotation, clampf(velocity.x / 1100.0, -0.07, 0.07), 0.12)
 
 func perform_attack() -> void:
 	attack_index = (attack_index + 1) % 3
@@ -92,26 +92,28 @@ func perform_attack() -> void:
 			fire_spread()
 		1:
 			var dx := player.global_position.x - global_position.x
-			velocity.x = signf(dx) * (510.0 if health <= max_health / 2 else 410.0)
+			velocity.x = signf(dx) * (540.0 if health <= max_health / 2 else 430.0)
 			charge_timer = 0.72
 		2:
-			velocity.y = -570.0
+			velocity.y = -590.0
 			fire_spread()
 
 func fire_spread() -> void:
 	if world == null or not world.has_method("spawn_enemy_bullet"):
 		return
 	var base := (player.global_position - (global_position + Vector2(0, -80))).normalized()
-	for angle in [-0.28, -0.14, 0.0, 0.14, 0.28]:
-		var dir := base.rotated(angle)
-		world.call("spawn_enemy_bullet", global_position + Vector2(-55 * signf(base.x), -78), dir, 330.0 if health > max_health / 2 else 410.0)
+	var spread := [-0.34, -0.17, 0.0, 0.17, 0.34]
+	for angle in spread:
+		var dir := base.rotated(float(angle))
+		var bullet_speed := 430.0 if health <= max_health / 2 else 340.0
+		world.call("spawn_enemy_bullet", global_position + Vector2(-55 * signf(base.x), -78), dir, bullet_speed)
 
 func _on_player_contact(body: Node) -> void:
 	if active and body.has_method("take_damage"):
 		body.call("take_damage", 2, global_position.x)
 
 func hit(amount: int) -> void:
-	if not active or invulnerable or health <= 0:
+	if not active or health <= 0:
 		return
 	health = maxi(0, health - amount)
 	health_changed.emit(health, max_health)
