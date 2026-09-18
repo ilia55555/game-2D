@@ -1,10 +1,13 @@
-name: Build model binary
+name: Build rigged hero model
 
 on:
   push:
     branches: [games]
     paths:
-      - "model/.parts/**"
+      - "model/generator.py.gz.b64"
+      - "model/BUILD_MODEL"
+      - ".github/workflows/build-model-binary.yml"
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -18,21 +21,18 @@ jobs:
           ref: games
           fetch-depth: 0
 
-      - name: Rebuild GLB when all parts exist
+      - name: Build exact GLB
         shell: bash
         run: |
           set -euo pipefail
-          shopt -s nullglob
-          parts=(model/.parts/velocity_hero_rigged.glb.gz.b64.part*)
-          if [ "${#parts[@]}" -ne 9 ]; then
-            echo "Waiting for all 9 parts; found ${#parts[@]}."
-            exit 0
-          fi
-          cat "${parts[@]}" | base64 -d | gzip -d > model/velocity_hero_rigged.glb
+          base64 -d model/generator.py.gz.b64 | gzip -d > /tmp/generate_hero_model.py
+          python -m pip install --disable-pip-version-check -q numpy trimesh
+          python /tmp/generate_hero_model.py
           test "$(stat -c%s model/velocity_hero_rigged.glb)" -eq 248792
+          echo "c8f38557c923a9bc9e9bee32f46362505555a8fe8340b39fbc02d1cd89f2adbd  model/velocity_hero_rigged.glb" | sha256sum -c -
           rm -rf model/.parts
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add model/velocity_hero_rigged.glb model/.parts
+          git add -A model
           git commit -m "افزودن مدل سه‌بعدی Rigged قهرمان" || exit 0
           git push origin HEAD:games
