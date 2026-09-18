@@ -15,14 +15,14 @@ var arena_left := 24750.0
 var arena_right := 27300.0
 
 var sprite: Sprite2D
-var player: Node
+var player: CharacterBody2D
 var world: Node
 
 func _ready() -> void:
 	collision_layer = 4
 	collision_mask = 2
 	world = get_parent()
-	player = get_tree().get_first_node_in_group("player")
+	player = get_tree().get_first_node_in_group("player") as CharacterBody2D
 
 	var collision := CollisionShape2D.new()
 	var capsule := CapsuleShape2D.new()
@@ -73,7 +73,7 @@ func _physics_process(delta: float) -> void:
 	if charge_timer > 0.0:
 		charge_timer -= delta
 	else:
-		var dx := player.global_position.x - global_position.x
+		var dx: float = player.global_position.x - global_position.x
 		var chase_speed := 140.0 if health <= max_health / 2 else 105.0
 		velocity.x = move_toward(velocity.x, signf(dx) * chase_speed, 380.0 * delta)
 
@@ -91,7 +91,7 @@ func perform_attack() -> void:
 		0:
 			fire_spread()
 		1:
-			var dx := player.global_position.x - global_position.x
+			var dx: float = player.global_position.x - global_position.x
 			velocity.x = signf(dx) * (540.0 if health <= max_health / 2 else 430.0)
 			charge_timer = 0.72
 		2:
@@ -101,10 +101,10 @@ func perform_attack() -> void:
 func fire_spread() -> void:
 	if world == null or not world.has_method("spawn_enemy_bullet"):
 		return
-	var base := (player.global_position - (global_position + Vector2(0, -80))).normalized()
-	var spread := [-0.34, -0.17, 0.0, 0.17, 0.34]
-	for angle in spread:
-		var dir := base.rotated(float(angle))
+	var base: Vector2 = (player.global_position - (global_position + Vector2(0, -80))).normalized()
+	var spread: Array[float] = [-0.34, -0.17, 0.0, 0.17, 0.34]
+	for angle: float in spread:
+		var dir: Vector2 = base.rotated(angle)
 		var bullet_speed := 430.0 if health <= max_health / 2 else 340.0
 		world.call("spawn_enemy_bullet", global_position + Vector2(-55 * signf(base.x), -78), dir, bullet_speed)
 
