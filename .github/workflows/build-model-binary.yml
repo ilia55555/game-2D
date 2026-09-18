@@ -26,7 +26,7 @@ jobs:
         run: |
           set -euo pipefail
           base64 -d model/generator.py.gz.b64 | gzip -d > /tmp/generate_hero_model.py
-          python -m pip install --disable-pip-version-check -q numpy trimesh
+          python -m pip install --disable-pip-version-check -q numpy scipy trimesh
           python /tmp/generate_hero_model.py
           test "$(stat -c%s model/velocity_hero_rigged.glb)" -eq 248792
           echo "c8f38557c923a9bc9e9bee32f46362505555a8fe8340b39fbc02d1cd89f2adbd  model/velocity_hero_rigged.glb" | sha256sum -c -
