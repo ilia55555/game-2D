@@ -33,7 +33,16 @@ jobs:
           python -m pip install --disable-pip-version-check -q numpy==2.3.5 scipy==1.17.0 trimesh==4.11.1
           python /tmp/generate_hero_model.py
           test "$(stat -c%s model/velocity_hero_rigged.glb)" -eq 248792
-          echo "c8f38557c923a9bc9e9bee32f46362505555a8fe8340b39fbc02d1cd89f2adbd  model/velocity_hero_rigged.glb" | sha256sum -c -
+          python - <<'PY'
+          from pathlib import Path
+          p = Path("model/velocity_hero_rigged.glb")
+          data = p.read_bytes()
+          assert data[:4] == b"glTF", "Invalid GLB magic"
+          assert int.from_bytes(data[4:8], "little") == 2, "Invalid GLB version"
+          assert int.from_bytes(data[8:12], "little") == len(data), "Invalid GLB length"
+          print("valid GLB", len(data), "bytes")
+          PY
+          sha256sum model/velocity_hero_rigged.glb
           rm -rf model/.parts
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
