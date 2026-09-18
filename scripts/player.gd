@@ -70,7 +70,10 @@ func _process(delta: float) -> void:
 	if sprite:
 		sprite.flip_h = facing < 0.0
 		var speed_ratio := clampf(absf(velocity.x) / RUN_SPEED, 0.0, 1.0)
-		if is_on_floor():
+		if crouching:
+			sprite.position.y = -20.0
+			sprite.rotation = lerpf(sprite.rotation, 0.0, 0.22)
+		elif is_on_floor():
 			sprite.position.y = -36.0 + sin(visual_time * 17.0) * 2.4 * speed_ratio
 			sprite.rotation = lerpf(sprite.rotation, velocity.x / RUN_SPEED * 0.055, 0.18)
 		else:
