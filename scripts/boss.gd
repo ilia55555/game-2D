@@ -33,8 +33,8 @@ func _ready() -> void:
 	add_child(collision)
 
 	sprite = Sprite2D.new()
-	sprite.texture = load("res://assets/bosses/varkon.svg")
-	sprite.scale = Vector2(0.55, 0.55)
+	sprite.texture = load("res://assets/bosses/varkon.png")
+	sprite.scale = Vector2(1.35, 1.35)
 	sprite.position = Vector2(0, -58)
 	add_child(sprite)
 
