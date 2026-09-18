@@ -1,38 +1,85 @@
-# Project Velocity
+# پروژه‌ی بازی دوبعدی
 
-Fast original 2D action-platformer prototype built with Godot 4 and GDScript.
+این مخزن مربوط به یک بازی اکشن-پلتفرمر دوبعدی سریع است که با **Godot 4** و زبان **GDScript** ساخته می‌شود.
 
-## Current prototype
-- Fast horizontal movement
-- Run modifier
-- Jump with coyote time and jump buffering
-- Shooting
-- Patrol enemies
-- Collectible orbs
-- Camera smoothing
-- Finish flag
-- Keyboard controls
-- Touch controls for mobile testing
+هدف پروژه ساخت یک بازی اورجینال با حس سرعت، پرش، تیراندازی و مرحله‌های پرتحرک است. طراحی شخصیت‌ها، دشمن‌ها، محیط، موسیقی و مراحل باید هویت مستقل خودشان را داشته باشند.
 
-## Run on PC
-1. Install Godot 4.x.
-2. Clone or download this repository.
-3. In Godot Project Manager choose Import.
-4. Select project.godot.
-5. Press F6/F5 or Run Project.
+## وضعیت فعلی پروژه
 
-## Keyboard controls
-- Move: A/D or Left/Right
-- Run: Shift
-- Jump: Space/W/Up
-- Shoot: J/K
+نسخه‌ی اولیه‌ی قابل تست شامل این بخش‌هاست:
 
-## Current art
-Placeholder vector art is drawn directly by code so gameplay can be tested before final sprites and animations are ready.
+- حرکت به چپ و راست
+- راه رفتن و دویدن سریع
+- پرش
+- قابلیت Coyote Time برای بهتر شدن حس پرش
+- Jump Buffer برای کنترل روان‌تر
+- تیراندازی
+- دشمن گشتی
+- آیتم‌های قابل جمع‌آوری
+- دوربین دنبال‌کننده
+- رابط کاربری ساده
+- نقطه‌ی پایان مرحله
+- کنترل با کیبورد
+- کنترل لمسی اولیه برای موبایل
 
-## Target platforms
-- Windows
-- Linux
-- macOS
-- Android
-- iOS
+## موتور و زبان
+
+- موتور بازی: **Godot 4.x**
+- زبان برنامه‌نویسی: **GDScript**
+- هدف: Windows و Android، و در ادامه Linux / macOS / iOS
+
+برای اجرای پروژه لازم نیست برنامه‌نویسی بلد باشی. کار اصلی تو فعلاً اجرای نسخه‌ها، تست بازی و گزارش مشکلات یا چیزهایی است که باید بهتر شوند.
+
+## کنترل‌های نسخه‌ی فعلی روی کامپیوتر
+
+| کار | کلید |
+|---|---|
+| حرکت | A / D یا کلیدهای جهت چپ و راست |
+| دویدن سریع | Shift |
+| پرش | Space یا W یا جهت بالا |
+| تیراندازی | J یا K |
+
+## چطور بازی را تست کنم؟
+
+راهنمای کامل نصب، اجرا، گرفتن خروجی ویندوز و اندروید در فایل زیر نوشته شده است:
+
+**[راهنمای اجرای بازی و گرفتن بیلد](docs/راهنمای-اجرا-و-بیلد.md)**
+
+خلاصه‌ی خیلی کوتاه:
+
+1. Godot 4 را نصب کن.
+2. این مخزن را دانلود یا Clone کن.
+3. در Godot گزینه‌ی Import را بزن.
+4. فایل `project.godot` را انتخاب کن.
+5. دکمه‌ی اجرای پروژه را بزن یا F6/F5 را امتحان کن.
+
+## ساختار فعلی پروژه
+
+- `project.godot` تنظیمات اصلی پروژه
+- `scenes/main.tscn` صحنه‌ی اصلی
+- `scripts/main.gd` ساخت مرحله و رابط کاربری
+- `scripts/player.gd` کنترل بازیکن
+- `scripts/enemy.gd` منطق دشمن
+- `scripts/bullet.gd` منطق تیر
+- `scripts/coin.gd` آیتم قابل جمع‌آوری
+
+## وضعیت گرافیک
+
+گرافیک فعلی موقت است و بیشتر با شکل‌های ساده داخل کد رسم می‌شود. این کار عمدی است تا اول حرکت، سرعت، پرش و تیراندازی را درست کنیم.
+
+بعد از تثبیت گیم‌پلی، بخش‌های زیر طراحی و جایگزین می‌شوند:
+
+- شخصیت اصلی و انیمیشن‌ها
+- دشمن‌ها
+- محیط و Tile Set
+- افکت‌های تیراندازی و برخورد
+- منوها و HUD نهایی
+- آیکن بازی
+- صفحه‌ی شروع
+- پس‌زمینه‌ها و جلوه‌های بصری
+
+## روش کار پروژه
+
+شاخه‌ی `games` شاخه‌ای است که نسخه‌ی فعلی بازی روی آن توسعه داده می‌شود.
+
+هر بار نسخه‌ی جدید آماده شد، کافی است پروژه را به‌روز کنی، اجرا کنی و مشکلات یا پیشنهادهایت را گزارش بدهی.
