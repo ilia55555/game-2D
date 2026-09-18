@@ -24,6 +24,12 @@ var boss_panel: ColorRect
 var boss_health_bar: ProgressBar
 var boss_health_label: Label
 var touch_buttons: Array[Button] = []
+var pause_layer: CanvasLayer
+var pause_root: Control
+var pause_menu_panel: Panel
+var controls_panel: Panel
+var settings_panel: Panel
+var gate_labels := {}
 
 var gates := {}
 var section_remaining := {0: 4, 1: 4, 2: 4, 3: 4, 4: 4}
@@ -33,6 +39,7 @@ var boss_started := false
 var stage_complete := false
 
 func _ready() -> void:
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	RenderingServer.set_default_clear_color(Color("071722"))
 	build_environment()
 	build_stage_geometry()
@@ -45,6 +52,7 @@ func _ready() -> void:
 	build_player()
 	build_camera()
 	build_hud()
+	build_pause_ui()
 	build_boss_trigger()
 
 func _process(_delta: float) -> void:
@@ -347,6 +355,30 @@ func add_energy_gate(x: float, section: int, corrupted: bool) -> void:
 	beam.color = Color("ff4938") if corrupted else Color("52fff1")
 	gate.add_child(beam)
 
+	var gate_label := Label.new()
+	gate_label.position = Vector2(-115, -280)
+	gate_label.size = Vector2(230, 50)
+	gate_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	gate_label.text = "ENERGY GATE  •  4 ENEMIES LEFT"
+	gate_label.add_theme_font_size_override("font_size", 15)
+	gate_label.modulate = Color("ff9a80") if corrupted else Color("7ffff3")
+	gate.add_child(gate_label)
+
+	var hint_area := Area2D.new()
+	hint_area.collision_layer = 0
+	hint_area.collision_mask = 1
+	var hint_shape_node := CollisionShape2D.new()
+	var hint_shape := RectangleShape2D.new()
+	hint_shape.size = Vector2(420, 500)
+	hint_shape_node.shape = hint_shape
+	hint_area.add_child(hint_shape_node)
+	hint_area.body_entered.connect(func(body: Node):
+		if body == player:
+			show_gate_hint(section)
+	)
+	gate.add_child(hint_area)
+
+	gate_labels[section] = gate_label
 	gates[section] = gate
 	add_child(gate)
 
@@ -397,6 +429,10 @@ func build_enemies() -> void:
 func _on_small_enemy_defeated(section: int) -> void:
 	defeated_small_enemies += 1
 	section_remaining[section] = maxi(0, int(section_remaining[section]) - 1)
+	if gate_labels.has(section):
+		var remaining := int(section_remaining[section])
+		var label: Label = gate_labels[section]
+		label.text = "ENERGY GATE  •  %d ENEMIES LEFT" % remaining
 	if hud_enemies:
 		hud_enemies.text = "ENEMIES  %d / 20" % defeated_small_enemies
 	if int(section_remaining[section]) == 0:
@@ -407,6 +443,7 @@ func open_gate(section: int) -> void:
 		return
 	var gate: Node = gates[section]
 	gates.erase(section)
+	gate_labels.erase(section)
 	if gate == null:
 		return
 	var tween := create_tween()
@@ -530,7 +567,7 @@ func build_hud() -> void:
 	info_label.position = Vector2(420, 24)
 	info_label.size = Vector2(440, 44)
 	info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	info_label.text = "RUN • JUMP • SHOOT • CLEAR EACH SECTOR"
+	info_label.text = "W JUMP  •  SPACE FIRE  •  S CROUCH / LOW FIRE"
 	info_label.add_theme_font_size_override("font_size", 16)
 	info_label.modulate = Color("d9fffb")
 	layer.add_child(info_label)
@@ -542,6 +579,22 @@ func build_hud() -> void:
 	stage_progress.max_value = 100
 	stage_progress.show_percentage = false
 	layer.add_child(stage_progress)
+
+	var pause_button := Button.new()
+	pause_button.text = "II  PAUSE"
+	pause_button.position = Vector2(1080, 22)
+	pause_button.size = Vector2(92, 42)
+	pause_button.add_theme_font_size_override("font_size", 14)
+	pause_button.pressed.connect(open_pause_menu)
+	layer.add_child(pause_button)
+
+	var settings_button := Button.new()
+	settings_button.text = "SETTINGS"
+	settings_button.position = Vector2(1178, 22)
+	settings_button.size = Vector2(92, 42)
+	settings_button.add_theme_font_size_override("font_size", 13)
+	settings_button.pressed.connect(open_settings)
+	layer.add_child(settings_button)
 
 	boss_panel = ColorRect.new()
 	boss_panel.position = Vector2(330, 620)
@@ -640,3 +693,211 @@ func show_stage_complete() -> void:
 	label.add_theme_font_size_override("font_size", 28)
 	label.modulate = Color("7ffff1")
 	layer.add_child(label)
+
+
+func show_gate_hint(section: int) -> void:
+	if info_label == null:
+		return
+	var remaining := int(section_remaining.get(section, 0))
+	if remaining > 0:
+		info_label.text = "ENERGY GATE LOCKED  •  DEFEAT %d MORE ENEMIES" % remaining
+	else:
+		info_label.text = "SECTOR CLEARED  •  GATE OPENING"
+
+func _unhandled_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_ESCAPE or event.keycode == KEY_P:
+			if get_tree().paused:
+				close_pause_menu()
+			else:
+				open_pause_menu()
+
+func build_pause_ui() -> void:
+	pause_layer = CanvasLayer.new()
+	pause_layer.layer = 50
+	pause_layer.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(pause_layer)
+
+	pause_root = Control.new()
+	pause_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	pause_root.mouse_filter = Control.MOUSE_FILTER_STOP
+	pause_root.visible = false
+	pause_root.process_mode = Node.PROCESS_MODE_ALWAYS
+	pause_layer.add_child(pause_root)
+
+	var shade := ColorRect.new()
+	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	shade.color = Color(0.005, 0.015, 0.025, 0.86)
+	shade.mouse_filter = Control.MOUSE_FILTER_STOP
+	pause_root.add_child(shade)
+
+	pause_menu_panel = Panel.new()
+	pause_menu_panel.position = Vector2(430, 120)
+	pause_menu_panel.size = Vector2(420, 490)
+	pause_root.add_child(pause_menu_panel)
+
+	var title := Label.new()
+	title.position = Vector2(40, 30)
+	title.size = Vector2(340, 58)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.text = "GAME PAUSED"
+	title.add_theme_font_size_override("font_size", 34)
+	title.modulate = Color("72fff1")
+	pause_menu_panel.add_child(title)
+
+	var subtitle := Label.new()
+	subtitle.position = Vector2(40, 86)
+	subtitle.size = Vector2(340, 36)
+	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	subtitle.text = "ESC / P  =  PAUSE"
+	subtitle.add_theme_font_size_override("font_size", 15)
+	subtitle.modulate = Color("a8c7ce")
+	pause_menu_panel.add_child(subtitle)
+
+	var resume := make_menu_button("RESUME", Vector2(85, 145))
+	resume.pressed.connect(close_pause_menu)
+	pause_menu_panel.add_child(resume)
+
+	var controls := make_menu_button("CONTROLS", Vector2(85, 215))
+	controls.pressed.connect(show_controls_panel)
+	pause_menu_panel.add_child(controls)
+
+	var settings := make_menu_button("SETTINGS", Vector2(85, 285))
+	settings.pressed.connect(show_settings_panel)
+	pause_menu_panel.add_child(settings)
+
+	var restart := make_menu_button("RESTART CHECKPOINT", Vector2(85, 355))
+	restart.pressed.connect(restart_checkpoint)
+	pause_menu_panel.add_child(restart)
+
+	build_controls_panel()
+	build_settings_panel()
+
+func make_menu_button(text_value: String, pos: Vector2) -> Button:
+	var button := Button.new()
+	button.text = text_value
+	button.position = pos
+	button.size = Vector2(250, 52)
+	button.add_theme_font_size_override("font_size", 17)
+	return button
+
+func build_controls_panel() -> void:
+	controls_panel = Panel.new()
+	controls_panel.position = Vector2(350, 95)
+	controls_panel.size = Vector2(580, 535)
+	controls_panel.visible = false
+	pause_root.add_child(controls_panel)
+
+	var title := Label.new()
+	title.position = Vector2(40, 24)
+	title.size = Vector2(500, 50)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.text = "KEYBOARD CONTROLS"
+	title.add_theme_font_size_override("font_size", 30)
+	title.modulate = Color("72fff1")
+	controls_panel.add_child(title)
+
+	var controls_text := Label.new()
+	controls_text.position = Vector2(70, 100)
+	controls_text.size = Vector2(440, 315)
+	controls_text.text = "A / D     MOVE LEFT / RIGHT\n\nW         JUMP\n\nSPACE     FIRE\n\nSHIFT     RUN\n\nS         CROUCH + LOW FIRE\n\nESC / P   PAUSE"
+	controls_text.add_theme_font_size_override("font_size", 23)
+	controls_text.modulate = Color("e9ffff")
+	controls_panel.add_child(controls_text)
+
+	var back := make_menu_button("BACK", Vector2(165, 445))
+	back.pressed.connect(show_pause_home)
+	controls_panel.add_child(back)
+
+func build_settings_panel() -> void:
+	settings_panel = Panel.new()
+	settings_panel.position = Vector2(350, 95)
+	settings_panel.size = Vector2(580, 535)
+	settings_panel.visible = false
+	pause_root.add_child(settings_panel)
+
+	var title := Label.new()
+	title.position = Vector2(40, 24)
+	title.size = Vector2(500, 50)
+	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	title.text = "SETTINGS"
+	title.add_theme_font_size_override("font_size", 30)
+	title.modulate = Color("72fff1")
+	settings_panel.add_child(title)
+
+	var volume_label := Label.new()
+	volume_label.position = Vector2(70, 125)
+	volume_label.text = "MASTER VOLUME"
+	volume_label.add_theme_font_size_override("font_size", 19)
+	settings_panel.add_child(volume_label)
+
+	var volume := HSlider.new()
+	volume.position = Vector2(250, 125)
+	volume.size = Vector2(250, 32)
+	volume.min_value = 0
+	volume.max_value = 100
+	volume.value = 80
+	volume.value_changed.connect(func(value: float):
+		var bus := AudioServer.get_bus_index("Master")
+		AudioServer.set_bus_volume_db(bus, linear_to_db(maxf(value / 100.0, 0.001)))
+	)
+	settings_panel.add_child(volume)
+
+	var fullscreen := CheckButton.new()
+	fullscreen.text = "FULLSCREEN"
+	fullscreen.position = Vector2(70, 205)
+	fullscreen.size = Vector2(220, 44)
+	fullscreen.add_theme_font_size_override("font_size", 18)
+	fullscreen.button_pressed = DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
+	fullscreen.toggled.connect(func(enabled: bool):
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if enabled else DisplayServer.WINDOW_MODE_WINDOWED)
+	)
+	settings_panel.add_child(fullscreen)
+
+	var controls_button := make_menu_button("CONTROLS", Vector2(165, 310))
+	controls_button.pressed.connect(show_controls_panel)
+	settings_panel.add_child(controls_button)
+
+	var back := make_menu_button("BACK", Vector2(165, 390))
+	back.pressed.connect(show_pause_home)
+	settings_panel.add_child(back)
+
+func open_pause_menu() -> void:
+	if pause_root == null:
+		return
+	pause_root.visible = true
+	show_pause_home()
+	get_tree().paused = true
+
+func close_pause_menu() -> void:
+	if pause_root == null:
+		return
+	get_tree().paused = false
+	pause_root.visible = false
+
+func open_settings() -> void:
+	if pause_root == null:
+		return
+	pause_root.visible = true
+	show_settings_panel()
+	get_tree().paused = true
+
+func show_pause_home() -> void:
+	pause_menu_panel.visible = true
+	controls_panel.visible = false
+	settings_panel.visible = false
+
+func show_controls_panel() -> void:
+	pause_menu_panel.visible = false
+	controls_panel.visible = true
+	settings_panel.visible = false
+
+func show_settings_panel() -> void:
+	pause_menu_panel.visible = false
+	controls_panel.visible = false
+	settings_panel.visible = true
+
+func restart_checkpoint() -> void:
+	close_pause_menu()
+	if player != null and player.has_method("respawn"):
+		player.call("respawn")
