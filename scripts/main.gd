@@ -1,903 +1,433 @@
 extends Node2D
-
-const WORLD_WIDTH := 27600.0
-const FLOOR_Y := 680.0
-
-const PlayerScript = preload("res://scripts/player.gd")
-const EnemyScript = preload("res://scripts/enemy.gd")
-const BulletScript = preload("res://scripts/bullet.gd")
-const CoinScript = preload("res://scripts/coin.gd")
-const EnemyBulletScript = preload("res://scripts/enemy_bullet.gd")
-const BossScript = preload("res://scripts/boss.gd")
-const CheckpointScript = preload("res://scripts/checkpoint.gd")
-const HazardScript = preload("res://scripts/hazard.gd")
-const EnvironmentScript = preload("res://scripts/environment.gd")
-
-var player
-var boss
-var hud_health: Label
-var hud_coins: Label
-var hud_enemies: Label
-var info_label: Label
-var stage_progress: ProgressBar
-var boss_panel: ColorRect
-var boss_health_bar: ProgressBar
-var boss_health_label: Label
-var touch_buttons: Array[Button] = []
-var pause_layer: CanvasLayer
-var pause_root: Control
-var pause_menu_panel: Panel
-var controls_panel: Panel
-var settings_panel: Panel
-var gate_labels := {}
-
-var gates := {}
-var section_remaining := {0: 4, 1: 4, 2: 4, 3: 4, 4: 4}
-var total_small_enemies := 20
-var defeated_small_enemies := 0
-var boss_started := false
-var stage_complete := false
+const Level = preload("res://scripts/level.gd")
+const HUD = preload("res://scripts/hud.gd")
+const Campaign = preload("res://scripts/campaign.gd")
+const Backdrop = preload("res://scripts/backdrop.gd")
+const HeroRig = preload("res://scripts/hero_rig.gd")
+var world
+var ui: CanvasLayer
+var root: Control
+var hud
+var screen: String = "menu"
+var previous: String = "menu"
+var menu_backdrop
+var menu_hero
+var menu_clock: float = 0
+var resume_button: Button
+var accent: Color = Color("c4f2c3")
+var dim: Color = Color("8eafb2")
+var base_theme: Theme
+var touch_actions: Array[String] = []
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
-	RenderingServer.set_default_clear_color(Color("071722"))
-	build_environment()
-	build_stage_geometry()
-	build_decorations()
-	build_collectibles()
-	build_hazards_and_movement_tools()
-	build_gates_and_checkpoints()
-	build_enemies()
-	build_boss()
-	build_player()
-	build_camera()
-	build_hud()
-	build_pause_ui()
-	build_boss_trigger()
-
-func _process(_delta: float) -> void:
-	if player != null and stage_progress != null:
-		stage_progress.value = clampf(player.global_position.x / WORLD_WIDTH * 100.0, 0.0, 100.0)
-
-func build_environment() -> void:
-	var backdrop = EnvironmentScript.new()
-	backdrop.setup(WORLD_WIDTH)
-	add_child(backdrop)
-
-func build_stage_geometry() -> void:
-	# بخش ۱: معرفی جنگل و حرکت پایه
-	add_floor(0, 1300)
-	add_floor(1360, 1900)
-	add_floor(1980, 2700)
-	add_floor(2790, 3600)
-	add_floor(3690, 4550)
-	add_floor(4630, 5240)
-	add_platform(Vector2(1120, 525), Vector2(340, 30))
-	add_platform(Vector2(2400, 500), Vector2(380, 30))
-	add_platform(Vector2(3440, 440), Vector2(340, 30))
-	add_platform(Vector2(4470, 520), Vector2(340, 30))
-
-	# بخش ۲: مسیر سرعت
-	add_floor(5260, 6150)
-	add_floor(6240, 7200)
-	add_floor(7320, 8200)
-	add_floor(8350, 9300)
-	add_floor(9430, 10520)
-	add_platform(Vector2(6660, 505), Vector2(420, 28))
-	add_platform(Vector2(7800, 455), Vector2(420, 28))
-	add_platform(Vector2(8970, 520), Vector2(450, 28))
-	add_platform(Vector2(10040, 470), Vector2(340, 28))
-
-	# بخش ۳: خرابه‌های عمودی
-	add_floor(10540, 11340)
-	add_floor(15180, 15840)
-	add_platform(Vector2(11520, 580), Vector2(390, 32))
-	add_platform(Vector2(12020, 500), Vector2(340, 32))
-	add_platform(Vector2(12510, 420), Vector2(340, 32))
-	add_platform(Vector2(13010, 335), Vector2(350, 32))
-	add_platform(Vector2(13520, 250), Vector2(360, 32))
-	add_platform(Vector2(14060, 335), Vector2(380, 32))
-	add_platform(Vector2(14540, 445), Vector2(360, 32))
-	add_platform(Vector2(14960, 560), Vector2(360, 32))
-
-	# بخش ۴: گانتلت جنگی
-	add_floor(15860, 16980, true)
-	add_floor(17060, 18100, true)
-	add_floor(18210, 19300, true)
-	add_floor(19400, 20440, true)
-	add_floor(20520, 21040, true)
-	add_platform(Vector2(16450, 500), Vector2(380, 30), true)
-	add_platform(Vector2(17540, 430), Vector2(440, 30), true)
-	add_platform(Vector2(18740, 520), Vector2(420, 30), true)
-	add_platform(Vector2(19900, 420), Vector2(420, 30), true)
-
-	# بخش ۵: نزدیک شدن به منطقه‌ی فاسد
-	add_floor(21060, 21900, true)
-	add_floor(22020, 22900, true)
-	add_floor(23030, 23730, true)
-	add_floor(23830, 24500, true)
-	add_platform(Vector2(21540, 485), Vector2(390, 30), true)
-	add_platform(Vector2(22510, 410), Vector2(420, 30), true)
-	add_platform(Vector2(23440, 485), Vector2(360, 30), true)
-	add_platform(Vector2(24120, 400), Vector2(300, 30), true)
-
-	# آرنای VARKON
-	add_floor(24520, 27600, true)
-	add_platform(Vector2(25300, 480), Vector2(320, 28), true)
-	add_platform(Vector2(26820, 470), Vector2(340, 28), true)
-
-func add_floor(start_x: float, end_x: float, corrupted: bool = false) -> void:
-	add_platform(
-		Vector2((start_x + end_x) * 0.5, FLOOR_Y),
-		Vector2(end_x - start_x, 100),
-		corrupted
-	)
-
-func add_platform(center: Vector2, size: Vector2, corrupted: bool = false) -> void:
-	var body := StaticBody2D.new()
-	body.position = center
-	body.collision_layer = 2
-	body.collision_mask = 1 | 4
-
-	var shape_node := CollisionShape2D.new()
-	var shape := RectangleShape2D.new()
-	shape.size = size
-	shape_node.shape = shape
-	body.add_child(shape_node)
-
-	var shadow := Polygon2D.new()
-	shadow.polygon = rectangle_points(size + Vector2(10, 12))
-	shadow.position = Vector2(7, 9)
-	shadow.color = Color(0.01, 0.02, 0.025, 0.55)
-	body.add_child(shadow)
-
-	var base := Polygon2D.new()
-	base.polygon = rectangle_points(size)
-	base.color = Color("302b31") if corrupted else Color("283e43")
-	body.add_child(base)
-
-	var top := Polygon2D.new()
-	top.polygon = rectangle_points(Vector2(size.x, mini(14.0, size.y)))
-	top.position = Vector2(0, -size.y * 0.5 + mini(7.0, size.y * 0.5))
-	top.color = Color("b24b35") if corrupted else Color("4f8860")
-	body.add_child(top)
-
-	var glow := Polygon2D.new()
-	glow.polygon = rectangle_points(Vector2(minf(size.x * 0.72, 260.0), 4))
-	glow.position = Vector2(0, -size.y * 0.5 + 15)
-	glow.color = Color(1.0, 0.24, 0.16, 0.42) if corrupted else Color(0.24, 1.0, 0.92, 0.35)
-	body.add_child(glow)
-
-	add_child(body)
-
-func rectangle_points(size: Vector2) -> PackedVector2Array:
-	return PackedVector2Array([
-		Vector2(-size.x * 0.5, -size.y * 0.5),
-		Vector2(size.x * 0.5, -size.y * 0.5),
-		Vector2(size.x * 0.5, size.y * 0.5),
-		Vector2(-size.x * 0.5, size.y * 0.5)
-	])
-
-func build_decorations() -> void:
-	for x in range(500, 18500, 1150):
-		add_crystal(Vector2(float(x), 615), Color("52fff1"))
-	for x in range(18800, 27400, 850):
-		add_crystal(Vector2(float(x), 615), Color("ff563e"))
-
-	add_ruin_pillar(Vector2(3250, 600), 230, false)
-	add_ruin_pillar(Vector2(8450, 600), 260, false)
-	add_ruin_pillar(Vector2(12950, 610), 390, false)
-	add_ruin_pillar(Vector2(14300, 610), 300, false)
-	add_ruin_pillar(Vector2(17850, 600), 270, true)
-	add_ruin_pillar(Vector2(21900, 600), 330, true)
-	add_ruin_pillar(Vector2(25800, 600), 420, true)
-	add_ruin_pillar(Vector2(27200, 600), 460, true)
-
-func add_crystal(pos: Vector2, color: Color) -> void:
-	var node := Node2D.new()
-	node.position = pos
-	var outer := Polygon2D.new()
-	outer.polygon = PackedVector2Array([
-		Vector2(-24, 0), Vector2(0, -64), Vector2(24, 0), Vector2(0, 20)
-	])
-	outer.color = Color(color, 0.16)
-	node.add_child(outer)
-	var core := Polygon2D.new()
-	core.polygon = PackedVector2Array([
-		Vector2(-11, 0), Vector2(0, -46), Vector2(11, 0), Vector2(0, 9)
-	])
-	core.color = color
-	node.add_child(core)
-	add_child(node)
-
-func add_ruin_pillar(pos: Vector2, height: float, corrupted: bool) -> void:
-	var node := Node2D.new()
-	node.position = pos
-	node.z_index = -2
-	var body := Polygon2D.new()
-	body.polygon = rectangle_points(Vector2(90, height))
-	body.position = Vector2(0, -height * 0.5)
-	body.color = Color("352e31") if corrupted else Color("344b4d")
-	node.add_child(body)
-	var rune := Polygon2D.new()
-	rune.polygon = rectangle_points(Vector2(12, height * 0.62))
-	rune.position = Vector2(0, -height * 0.5)
-	rune.color = Color(1.0, 0.22, 0.15, 0.55) if corrupted else Color(0.28, 1.0, 0.92, 0.52)
-	node.add_child(rune)
-	add_child(node)
-
-func build_collectibles() -> void:
-	# خط اصلی آیتم‌ها
-	for x in range(420, 10500, 420):
-		spawn_orb(Vector2(float(x), 535.0 - sin(float(x) * 0.012) * 55.0))
-	# مسیر عمودی
-	var vertical_orbs := [
-		Vector2(11480, 530), Vector2(12000, 445), Vector2(12490, 365),
-		Vector2(12990, 280), Vector2(13510, 195), Vector2(14040, 280),
-		Vector2(14520, 390), Vector2(14950, 505)
-	]
-	for pos in vertical_orbs:
-		spawn_orb(pos)
-	# نیمه‌ی فاسد
-	for x in range(16000, 24400, 480):
-		spawn_orb(Vector2(float(x), 520.0 - sin(float(x) * 0.009) * 70.0))
-
-func spawn_orb(pos: Vector2) -> void:
-	var orb = CoinScript.new()
-	orb.position = pos
-	add_child(orb)
-
-func build_hazards_and_movement_tools() -> void:
-	add_hazard(Vector2(1330, 648), Vector2(60, 34), false)
-	add_hazard(Vector2(2750, 648), Vector2(70, 34), false)
-	add_hazard(Vector2(7255, 648), Vector2(105, 34), false)
-	add_hazard(Vector2(8265, 648), Vector2(120, 34), false)
-	add_hazard(Vector2(18155, 648), Vector2(95, 34), true)
-	add_hazard(Vector2(19350, 648), Vector2(90, 34), true)
-	add_hazard(Vector2(21960, 648), Vector2(100, 34), true)
-	add_hazard(Vector2(22965, 648), Vector2(105, 34), true)
-	add_hazard(Vector2(23780, 648), Vector2(90, 34), true)
-
-	add_speed_pad(Vector2(5660, 620), 790.0)
-	add_speed_pad(Vector2(6420, 620), 820.0)
-	add_speed_pad(Vector2(7520, 620), 850.0)
-	add_speed_pad(Vector2(8620, 620), 870.0)
-	add_speed_pad(Vector2(9630, 620), 820.0)
-
-	add_spring(Vector2(11300, 615), 820.0)
-	add_spring(Vector2(11830, 548), 760.0)
-	add_spring(Vector2(13730, 285), 730.0)
-	add_spring(Vector2(15100, 615), 800.0)
-
-func add_hazard(pos: Vector2, size: Vector2, corrupted: bool) -> void:
-	var hazard = HazardScript.new()
-	hazard.configure(size, false, corrupted)
-	hazard.position = pos
-	add_child(hazard)
-
-func add_speed_pad(pos: Vector2, speed: float) -> void:
-	var area := Area2D.new()
-	area.position = pos
-	area.collision_layer = 0
-	area.collision_mask = 1
-	var shape_node := CollisionShape2D.new()
-	var shape := RectangleShape2D.new()
-	shape.size = Vector2(120, 28)
-	shape_node.shape = shape
-	area.add_child(shape_node)
-	var visual := Polygon2D.new()
-	visual.polygon = PackedVector2Array([
-		Vector2(-60, 12), Vector2(34, 12), Vector2(60, 0),
-		Vector2(34, -12), Vector2(-60, -12), Vector2(-34, 0)
-	])
-	visual.color = Color("4bfff0")
-	area.add_child(visual)
-	area.body_entered.connect(func(body: Node):
-		if body.has_method("boost_horizontal"):
-			body.call("boost_horizontal", speed, 1.0)
-	)
-	add_child(area)
-
-func add_spring(pos: Vector2, power: float) -> void:
-	var area := Area2D.new()
-	area.position = pos
-	area.collision_layer = 0
-	area.collision_mask = 1
-	var shape_node := CollisionShape2D.new()
-	var shape := RectangleShape2D.new()
-	shape.size = Vector2(72, 32)
-	shape_node.shape = shape
-	area.add_child(shape_node)
-	var visual := Polygon2D.new()
-	visual.polygon = PackedVector2Array([
-		Vector2(-34, 14), Vector2(-22, -13), Vector2(0, 4),
-		Vector2(22, -13), Vector2(34, 14)
-	])
-	visual.color = Color("ffd94f")
-	area.add_child(visual)
-	area.body_entered.connect(func(body: Node):
-		if body.has_method("spring"):
-			body.call("spring", power)
-	)
-	add_child(area)
-
-func build_gates_and_checkpoints() -> void:
-	add_energy_gate(5200, 0, false)
-	add_energy_gate(10500, 1, false)
-	add_energy_gate(15820, 2, false)
-	add_energy_gate(21020, 3, true)
-	add_energy_gate(24480, 4, true)
-
-	add_checkpoint(Vector2(5350, 610), 1)
-	add_checkpoint(Vector2(10640, 610), 2)
-	add_checkpoint(Vector2(15970, 610), 3)
-	add_checkpoint(Vector2(21160, 610), 4)
-	add_checkpoint(Vector2(24620, 610), 5)
-
-func add_energy_gate(x: float, section: int, corrupted: bool) -> void:
-	var gate := StaticBody2D.new()
-	gate.position = Vector2(x, 385)
-	gate.collision_layer = 2
-	gate.collision_mask = 1
-
-	var shape_node := CollisionShape2D.new()
-	var shape := RectangleShape2D.new()
-	shape.size = Vector2(34, 490)
-	shape_node.shape = shape
-	gate.add_child(shape_node)
-
-	var outer := Polygon2D.new()
-	outer.polygon = rectangle_points(Vector2(44, 500))
-	outer.color = Color(1.0, 0.15, 0.10, 0.18) if corrupted else Color(0.25, 1.0, 0.94, 0.18)
-	gate.add_child(outer)
-	var beam := Polygon2D.new()
-	beam.polygon = rectangle_points(Vector2(12, 480))
-	beam.color = Color("ff4938") if corrupted else Color("52fff1")
-	gate.add_child(beam)
-
-	var gate_label := Label.new()
-	gate_label.position = Vector2(-115, -280)
-	gate_label.size = Vector2(230, 50)
-	gate_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	gate_label.text = "ENERGY GATE  •  4 ENEMIES LEFT"
-	gate_label.add_theme_font_size_override("font_size", 15)
-	gate_label.modulate = Color("ff9a80") if corrupted else Color("7ffff3")
-	gate.add_child(gate_label)
-
-	var hint_area := Area2D.new()
-	hint_area.collision_layer = 0
-	hint_area.collision_mask = 1
-	var hint_shape_node := CollisionShape2D.new()
-	var hint_shape := RectangleShape2D.new()
-	hint_shape.size = Vector2(420, 500)
-	hint_shape_node.shape = hint_shape
-	hint_area.add_child(hint_shape_node)
-	hint_area.body_entered.connect(func(body: Node):
-		if body == player:
-			show_gate_hint(section)
-	)
-	gate.add_child(hint_area)
-
-	gate_labels[section] = gate_label
-	gates[section] = gate
-	add_child(gate)
-
-func add_checkpoint(pos: Vector2, index: int) -> void:
-	var checkpoint = CheckpointScript.new()
-	checkpoint.position = pos
-	checkpoint.checkpoint_index = index
-	add_child(checkpoint)
-
-func build_enemies() -> void:
-	var configs := [
-		[Vector2(820, 595), "ground", 0],
-		[Vector2(1570, 440), "fly", 0],
-		[Vector2(3100, 595), "ground", 0],
-		[Vector2(4470, 430), "fly", 0],
-
-		[Vector2(5900, 595), "ground", 1],
-		[Vector2(6820, 420), "fly", 1],
-		[Vector2(7900, 595), "ground", 1],
-		[Vector2(9680, 415), "fly", 1],
-
-		[Vector2(11020, 595), "ground", 2],
-		[Vector2(12250, 350), "fly", 2],
-		[Vector2(13520, 200), "ground", 2],
-		[Vector2(14780, 390), "fly", 2],
-
-		[Vector2(16350, 595), "ground", 3],
-		[Vector2(17550, 365), "fly", 3],
-		[Vector2(18800, 595), "ground", 3],
-		[Vector2(20120, 360), "fly", 3],
-
-		[Vector2(21460, 595), "ground", 4],
-		[Vector2(22480, 355), "fly", 4],
-		[Vector2(23340, 595), "ground", 4],
-		[Vector2(24080, 345), "fly", 4]
-	]
-
-	assert(configs.size() == 20)
-
-	for i in range(configs.size()):
-		var data: Array = configs[i]
-		var enemy = EnemyScript.new()
-		enemy.position = data[0]
-		enemy.configure(data[1], int(data[2]), i + 1)
-		enemy.defeated.connect(_on_small_enemy_defeated)
-		add_child(enemy)
-
-func _on_small_enemy_defeated(section: int) -> void:
-	defeated_small_enemies += 1
-	section_remaining[section] = maxi(0, int(section_remaining[section]) - 1)
-	if gate_labels.has(section):
-		var remaining := int(section_remaining[section])
-		var label: Label = gate_labels[section]
-		label.text = "ENERGY GATE  •  %d ENEMIES LEFT" % remaining
-	if hud_enemies:
-		hud_enemies.text = "ENEMIES  %d / 20" % defeated_small_enemies
-	if int(section_remaining[section]) == 0:
-		open_gate(section)
-
-func open_gate(section: int) -> void:
-	if not gates.has(section):
-		return
-	var gate: Node = gates[section]
-	gates.erase(section)
-	gate_labels.erase(section)
-	if gate == null:
-		return
-	var tween := create_tween()
-	tween.set_parallel(true)
-	tween.tween_property(gate, "modulate:a", 0.0, 0.42)
-	tween.tween_property(gate, "scale:y", 0.05, 0.42)
-	tween.chain().tween_callback(gate.queue_free)
-	if info_label:
-		info_label.text = "SECTOR CLEARED  •  GATE OPEN"
-
-func build_boss() -> void:
-	boss = BossScript.new()
-	boss.position = Vector2(26550, 535)
-	boss.health_changed.connect(_on_boss_health_changed)
-	boss.defeated.connect(_on_boss_defeated)
-	add_child(boss)
-
-func build_boss_trigger() -> void:
-	var trigger := Area2D.new()
-	trigger.position = Vector2(24920, 390)
-	trigger.collision_layer = 0
-	trigger.collision_mask = 1
-	var shape_node := CollisionShape2D.new()
-	var shape := RectangleShape2D.new()
-	shape.size = Vector2(220, 520)
-	shape_node.shape = shape
-	trigger.add_child(shape_node)
-	trigger.body_entered.connect(_on_boss_trigger_entered)
-	add_child(trigger)
-
-func _on_boss_trigger_entered(body: Node) -> void:
-	if boss_started or body != player:
-		return
-	boss_started = true
-	boss.activate()
-	boss_panel.visible = true
-	info_label.text = "VARKON  •  FINAL GUARDIAN"
-
-func _on_boss_health_changed(current: int, maximum: int) -> void:
-	if boss_health_bar:
-		boss_health_bar.value = float(current) / float(maximum) * 100.0
-	if boss_health_label:
-		boss_health_label.text = "VARKON  %d / %d" % [current, maximum]
-
-func _on_boss_defeated() -> void:
-	stage_complete = true
-	if boss_panel:
-		boss_panel.visible = false
-	info_label.text = "VARKON DEFEATED  •  STAGE COMPLETE"
-	show_stage_complete()
-
-func build_player() -> void:
-	player = PlayerScript.new()
-	player.position = Vector2(170, 585)
-	player.bullet_scene_owner = self
-	player.health_changed.connect(_on_health_changed)
-	player.coins_changed.connect(_on_coins_changed)
-	add_child(player)
-
-func build_camera() -> void:
-	var camera := Camera2D.new()
-	camera.position = Vector2(170, -35)
-	camera.position_smoothing_enabled = true
-	camera.position_smoothing_speed = 8.5
-	camera.limit_left = 0
-	camera.limit_right = int(WORLD_WIDTH)
-	camera.limit_top = -60
-	camera.limit_bottom = 780
-	player.add_child(camera)
-	camera.make_current()
-
-func spawn_bullet(pos: Vector2, dir: float) -> void:
-	var bullet = BulletScript.new()
-	bullet.global_position = pos
-	bullet.direction = dir
-	add_child(bullet)
-
-func spawn_enemy_bullet(pos: Vector2, dir: Vector2, speed: float = 320.0) -> void:
-	var projectile = EnemyBulletScript.new()
-	projectile.global_position = pos
-	projectile.velocity = dir.normalized() * speed
-	add_child(projectile)
-
-func build_hud() -> void:
-	var layer := CanvasLayer.new()
-	add_child(layer)
-
-	var top_panel := ColorRect.new()
-	top_panel.position = Vector2(20, 18)
-	top_panel.size = Vector2(350, 100)
-	top_panel.color = Color(0.015, 0.035, 0.06, 0.88)
-	layer.add_child(top_panel)
-
-	var title := Label.new()
-	title.position = Vector2(36, 27)
-	title.text = "JUNGLE RUINS  /  STAGE 01"
-	title.add_theme_font_size_override("font_size", 17)
-	title.modulate = Color("82fff5")
-	layer.add_child(title)
-
-	hud_health = Label.new()
-	hud_health.position = Vector2(36, 55)
-	hud_health.text = "ENERGY  8 / 8"
-	hud_health.add_theme_font_size_override("font_size", 20)
-	layer.add_child(hud_health)
-
-	hud_coins = Label.new()
-	hud_coins.position = Vector2(200, 58)
-	hud_coins.text = "ORBS  0"
-	hud_coins.add_theme_font_size_override("font_size", 17)
-	layer.add_child(hud_coins)
-
-	hud_enemies = Label.new()
-	hud_enemies.position = Vector2(36, 86)
-	hud_enemies.text = "ENEMIES  0 / 20"
-	hud_enemies.add_theme_font_size_override("font_size", 15)
-	hud_enemies.modulate = Color("ffb7a7")
-	layer.add_child(hud_enemies)
-
-	info_label = Label.new()
-	info_label.position = Vector2(420, 24)
-	info_label.size = Vector2(440, 44)
-	info_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	info_label.text = "W JUMP  •  SPACE FIRE  •  S CROUCH / LOW FIRE"
-	info_label.add_theme_font_size_override("font_size", 16)
-	info_label.modulate = Color("d9fffb")
-	layer.add_child(info_label)
-
-	stage_progress = ProgressBar.new()
-	stage_progress.position = Vector2(420, 78)
-	stage_progress.size = Vector2(440, 14)
-	stage_progress.min_value = 0
-	stage_progress.max_value = 100
-	stage_progress.show_percentage = false
-	layer.add_child(stage_progress)
-
-	var pause_button := Button.new()
-	pause_button.text = "II  PAUSE"
-	pause_button.position = Vector2(1080, 22)
-	pause_button.size = Vector2(92, 42)
-	pause_button.add_theme_font_size_override("font_size", 14)
-	pause_button.pressed.connect(open_pause_menu)
-	layer.add_child(pause_button)
-
-	var settings_button := Button.new()
-	settings_button.text = "SETTINGS"
-	settings_button.position = Vector2(1178, 22)
-	settings_button.size = Vector2(92, 42)
-	settings_button.add_theme_font_size_override("font_size", 13)
-	settings_button.pressed.connect(open_settings)
-	layer.add_child(settings_button)
-
-	boss_panel = ColorRect.new()
-	boss_panel.position = Vector2(330, 620)
-	boss_panel.size = Vector2(620, 70)
-	boss_panel.color = Color(0.08, 0.01, 0.015, 0.92)
-	boss_panel.visible = false
-	layer.add_child(boss_panel)
-
-	boss_health_label = Label.new()
-	boss_health_label.position = Vector2(350, 628)
-	boss_health_label.size = Vector2(580, 24)
-	boss_health_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	boss_health_label.text = "VARKON"
-	boss_health_label.add_theme_font_size_override("font_size", 17)
-	boss_health_label.modulate = Color("ff8d72")
-	layer.add_child(boss_health_label)
-	boss_health_label.visible = false
-
-	boss_health_bar = ProgressBar.new()
-	boss_health_bar.position = Vector2(355, 658)
-	boss_health_bar.size = Vector2(570, 18)
-	boss_health_bar.min_value = 0
-	boss_health_bar.max_value = 100
-	boss_health_bar.value = 100
-	boss_health_bar.show_percentage = false
-	layer.add_child(boss_health_bar)
-	boss_health_bar.visible = false
-
-	boss_panel.visibility_changed.connect(func():
-		boss_health_label.visible = boss_panel.visible
-		boss_health_bar.visible = boss_panel.visible
-	)
-
-	build_touch_controls(layer)
-
-func build_touch_controls(layer: CanvasLayer) -> void:
-	var left := make_touch_button("<", Vector2(30, 610), Vector2(78, 78))
-	var right := make_touch_button(">", Vector2(118, 610), Vector2(78, 78))
-	var run := make_touch_button("RUN", Vector2(960, 625), Vector2(84, 60))
-	var shoot := make_touch_button("FIRE", Vector2(1054, 610), Vector2(88, 78))
-	var jump := make_touch_button("JUMP", Vector2(1152, 594), Vector2(96, 94))
-	for b in [left, right, run, shoot, jump]:
-		layer.add_child(b)
-		touch_buttons.append(b)
-	bind_touch(left, "left")
-	bind_touch(right, "right")
-	bind_touch(run, "run")
-	bind_touch(shoot, "shoot")
-	bind_touch(jump, "jump")
-
-	var show_touch := DisplayServer.is_touchscreen_available()
-	for button in touch_buttons:
-		button.visible = show_touch
-
-func make_touch_button(text: String, pos: Vector2, size: Vector2) -> Button:
-	var button := Button.new()
-	button.text = text
-	button.position = pos
-	button.size = size
-	button.modulate = Color(1, 1, 1, 0.62)
-	button.add_theme_font_size_override("font_size", 18)
-	return button
-
-func bind_touch(button: Button, action: String) -> void:
-	button.button_down.connect(func(): player.set_touch_state(action, true))
-	button.button_up.connect(func(): player.set_touch_state(action, false))
-
-func _on_health_changed(value: int) -> void:
-	if hud_health:
-		hud_health.text = "ENERGY  %d / 8" % value
-
-func _on_coins_changed(value: int) -> void:
-	if hud_coins:
-		hud_coins.text = "ORBS  %d" % value
-
-func show_stage_complete() -> void:
-	var layer := CanvasLayer.new()
-	layer.layer = 20
-	add_child(layer)
-	var shade := ColorRect.new()
-	shade.position = Vector2(0, 0)
-	shade.size = Vector2(1280, 720)
-	shade.color = Color(0.01, 0.05, 0.07, 0.72)
-	layer.add_child(shade)
-	var panel := ColorRect.new()
-	panel.position = Vector2(310, 250)
-	panel.size = Vector2(660, 210)
-	panel.color = Color(0.02, 0.10, 0.12, 0.96)
-	layer.add_child(panel)
-	var label := Label.new()
-	label.position = Vector2(330, 285)
-	label.size = Vector2(620, 140)
-	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
-	label.text = "STAGE COMPLETE\nVARKON DEFEATED\n\nORBS: %d   •   ENEMIES: %d / 20" % [player.coins, defeated_small_enemies]
-	label.add_theme_font_size_override("font_size", 28)
-	label.modulate = Color("7ffff1")
-	layer.add_child(label)
-
-
-func show_gate_hint(section: int) -> void:
-	if info_label == null:
-		return
-	var remaining := int(section_remaining.get(section, 0))
-	if remaining > 0:
-		info_label.text = "ENERGY GATE LOCKED  •  DEFEAT %d MORE ENEMIES" % remaining
-	else:
-		info_label.text = "SECTOR CLEARED  •  GATE OPENING"
+	build_theme()
+	ui = CanvasLayer.new()
+	ui.layer = 30
+	ui.process_mode = Node.PROCESS_MODE_ALWAYS
+	add_child(ui)
+	show_menu()
+	get_viewport().size_changed.connect(_on_resize)
+	# Developer-only CLI conveniences are kept separate from normal play and saves.
+	var args = OS.get_cmdline_user_args()
+	if OS.is_debug_build() and args.has("--stage"):
+		var at = args.find("--stage")
+		if at+1<args.size(): start_stage(clampi(int(args[at+1]),0,4))
+
+func _notification(what: int) -> void:
+	if what==NOTIFICATION_APPLICATION_FOCUS_OUT and screen=="game": pause_game()
 
 func _unhandled_input(event: InputEvent) -> void:
-	if event is InputEventKey and event.pressed and not event.echo:
-		if event.keycode == KEY_ESCAPE or event.keycode == KEY_P:
-			if get_tree().paused:
-				close_pause_menu()
-			else:
-				open_pause_menu()
+	if event.is_action_pressed("pause_game"):
+		if screen=="game": pause_game()
+		elif screen=="pause": resume_game()
+		elif screen in ["settings","controls","credits"]: return_from_submenu()
+		elif screen=="map": show_menu()
+		get_viewport().set_input_as_handled()
+	if event is InputEventKey and event.pressed and event.keycode==KEY_F11:
+		GameState.settings.fullscreen = not GameState.settings.fullscreen
+		GameState.apply_settings()
+		GameState.save_progress()
 
-func build_pause_ui() -> void:
-	pause_layer = CanvasLayer.new()
-	pause_layer.layer = 50
-	pause_layer.process_mode = Node.PROCESS_MODE_ALWAYS
-	add_child(pause_layer)
+func _process(delta: float) -> void:
+	menu_clock += delta
+	if is_instance_valid(menu_hero):
+		menu_hero.pose(delta,0,0,true,false,false,1)
 
-	pause_root = Control.new()
-	pause_root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	pause_root.mouse_filter = Control.MOUSE_FILTER_STOP
-	pause_root.visible = false
-	pause_root.process_mode = Node.PROCESS_MODE_ALWAYS
-	pause_layer.add_child(pause_root)
+func build_theme() -> void:
+	base_theme = Theme.new()
+	base_theme.default_font_size = 18
+	for state in ["normal","hover","pressed","focus","disabled"]:
+		var style = StyleBoxFlat.new()
+		style.bg_color = Color("203e4c") if state=="normal" else Color("305663")
+		if state=="disabled": style.bg_color = Color("172b3c")
+		style.border_color = Color("a8e7c5") if state in ["focus","hover"] else Color("44636c")
+		style.set_border_width_all(1 if state!="focus" else 2)
+		style.set_corner_radius_all(10)
+		style.content_margin_left =  24
+		style.content_margin_right = 24
+		base_theme.set_stylebox(state,"Button",style)
+	base_theme.set_color("font_color","Button",Color("e5f5e6"))
+	base_theme.set_color("font_disabled_color","Button",Color("526775"))
+	base_theme.set_color("font_color","Label",Color("e2f1e7"))
 
-	var shade := ColorRect.new()
-	shade.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	shade.color = Color(0.005, 0.015, 0.025, 0.86)
-	shade.mouse_filter = Control.MOUSE_FILTER_STOP
-	pause_root.add_child(shade)
+func clear_ui() -> void:
+	release_touch()
+	if is_instance_valid(root):
+		ui.remove_child(root)
+		root.queue_free()
+	menu_hero = null
+	root = Control.new()
+	root.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	root.theme = base_theme
+	ui.add_child(root)
 
-	pause_menu_panel = Panel.new()
-	pause_menu_panel.position = Vector2(430, 120)
-	pause_menu_panel.size = Vector2(420, 490)
-	pause_root.add_child(pause_menu_panel)
+func label(value: String,pos: Vector2,size_value: int=18,color: Color=Color("e4f2e8"),width: float=600) -> Label:
+	var node = Label.new()
+	node.text = value
+	node.position = pos
+	node.size.x = width
+	node.add_theme_font_size_override("font_size",size_value)
+	node.add_theme_color_override("font_color",color)
+	node.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(node)
+	return node
 
-	var title := Label.new()
-	title.position = Vector2(40, 30)
-	title.size = Vector2(340, 58)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.text = "GAME PAUSED"
-	title.add_theme_font_size_override("font_size", 34)
-	title.modulate = Color("72fff1")
-	pause_menu_panel.add_child(title)
+func button(value: String,pos: Vector2,width: float,action: Callable,primary: bool=false) -> Button:
+	var node = Button.new()
+	node.text = value
+	node.position = pos
+	node.size = Vector2(width,52)
+	node.mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
+	node.pressed.connect(func(): Audio.play("ui"); action.call())
+	if primary:
+		var style = base_theme.get_stylebox("normal","Button").duplicate()
+		style.bg_color = Color("c6edba")
+		style.border_color = Color("ecf5ce")
+		node.add_theme_stylebox_override("normal",style)
+		node.add_theme_color_override("font_color",Color("173e45"))
+	root.add_child(node)
+	return node
 
-	var subtitle := Label.new()
-	subtitle.position = Vector2(40, 86)
-	subtitle.size = Vector2(340, 36)
-	subtitle.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	subtitle.text = "ESC / P  =  PAUSE"
-	subtitle.add_theme_font_size_override("font_size", 15)
-	subtitle.modulate = Color("a8c7ce")
-	pause_menu_panel.add_child(subtitle)
+func panel(pos: Vector2,size_value: Vector2,color: Color=Color("142a3d")) -> Panel:
+	var node = Panel.new()
+	node.position = pos
+	node.size = size_value
+	var style = StyleBoxFlat.new()
+	style.bg_color = Color(color,.97)
+	style.set_corner_radius_all(20)
+	style.set_border_width_all(1)
+	style.border_color = Color("425d68")
+	node.add_theme_stylebox_override("panel",style)
+	root.add_child(node)
+	return node
 
-	var resume := make_menu_button("RESUME", Vector2(85, 145))
-	resume.pressed.connect(close_pause_menu)
-	pause_menu_panel.add_child(resume)
+func make_menu_background() -> void:
+	var background = Backdrop.new()
+	background.menu = true
+	background.biome = 0
+	root.add_child(background)
+	var size_value = get_viewport_rect().size
+	var shade = ColorRect.new()
+	shade.size = size_value
+	shade.color = Color(.03,.09,.15,.38)
+	shade.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	root.add_child(shade)
+	for i in range(3):
+		var tree = Sprite2D.new()
+		tree.texture = load("res://assets/art/world/tree.svg")
+		tree.scale = Vector2.ONE*(1.1+i*.35)
+		tree.position = Vector2(size_value.x*.65+i*230,size_value.y-180)
+		tree.modulate = Color(.5,.7,.68,.8)
+		root.add_child(tree)
+	var ledge = Sprite2D.new()
+	ledge.texture = load("res://assets/art/world/terrain_0.svg")
+	ledge.centered = false
+	ledge.position = Vector2(size_value.x*.56,size_value.y-105)
+	ledge.scale = Vector2(1.6,1.0)
+	root.add_child(ledge)
+	var hero_pivot = Node2D.new()
+	hero_pivot.position = Vector2(size_value.x*.76,size_value.y-110)
+	hero_pivot.scale = Vector2.ONE*2.8
+	root.add_child(hero_pivot)
+	menu_hero = HeroRig.new()
+	hero_pivot.add_child(menu_hero)
+	var plant = Sprite2D.new()
+	plant.texture = load("res://assets/art/world/fern.svg")
+	plant.position = Vector2(size_value.x*.90,size_value.y-110)
+	plant.scale = Vector2.ONE*1.2
+	root.add_child(plant)
 
-	var controls := make_menu_button("CONTROLS", Vector2(85, 215))
-	controls.pressed.connect(show_controls_panel)
-	pause_menu_panel.add_child(controls)
-
-	var settings := make_menu_button("SETTINGS", Vector2(85, 285))
-	settings.pressed.connect(show_settings_panel)
-	pause_menu_panel.add_child(settings)
-
-	var restart := make_menu_button("RESTART CHECKPOINT", Vector2(85, 355))
-	restart.pressed.connect(restart_checkpoint)
-	pause_menu_panel.add_child(restart)
-
-	build_controls_panel()
-	build_settings_panel()
-
-func make_menu_button(text_value: String, pos: Vector2) -> Button:
-	var button := Button.new()
-	button.text = text_value
-	button.position = pos
-	button.size = Vector2(250, 52)
-	button.add_theme_font_size_override("font_size", 17)
-	return button
-
-func build_controls_panel() -> void:
-	controls_panel = Panel.new()
-	controls_panel.position = Vector2(350, 95)
-	controls_panel.size = Vector2(580, 535)
-	controls_panel.visible = false
-	pause_root.add_child(controls_panel)
-
-	var title := Label.new()
-	title.position = Vector2(40, 24)
-	title.size = Vector2(500, 50)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.text = "KEYBOARD CONTROLS"
-	title.add_theme_font_size_override("font_size", 30)
-	title.modulate = Color("72fff1")
-	controls_panel.add_child(title)
-
-	var controls_text := Label.new()
-	controls_text.position = Vector2(70, 100)
-	controls_text.size = Vector2(440, 315)
-	controls_text.text = "A / D     MOVE LEFT / RIGHT\n\nW         JUMP\n\nSPACE     FIRE\n\nSHIFT     RUN\n\nS         CROUCH + LOW FIRE\n\nESC / P   PAUSE"
-	controls_text.add_theme_font_size_override("font_size", 23)
-	controls_text.modulate = Color("e9ffff")
-	controls_panel.add_child(controls_text)
-
-	var back := make_menu_button("BACK", Vector2(165, 445))
-	back.pressed.connect(show_pause_home)
-	controls_panel.add_child(back)
-
-func build_settings_panel() -> void:
-	settings_panel = Panel.new()
-	settings_panel.position = Vector2(350, 95)
-	settings_panel.size = Vector2(580, 535)
-	settings_panel.visible = false
-	pause_root.add_child(settings_panel)
-
-	var title := Label.new()
-	title.position = Vector2(40, 24)
-	title.size = Vector2(500, 50)
-	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
-	title.text = "SETTINGS"
-	title.add_theme_font_size_override("font_size", 30)
-	title.modulate = Color("72fff1")
-	settings_panel.add_child(title)
-
-	var volume_label := Label.new()
-	volume_label.position = Vector2(70, 125)
-	volume_label.text = "MASTER VOLUME"
-	volume_label.add_theme_font_size_override("font_size", 19)
-	settings_panel.add_child(volume_label)
-
-	var volume := HSlider.new()
-	volume.position = Vector2(250, 125)
-	volume.size = Vector2(250, 32)
-	volume.min_value = 0
-	volume.max_value = 100
-	volume.value = 80
-	volume.value_changed.connect(func(value: float):
-		var bus := AudioServer.get_bus_index("Master")
-		AudioServer.set_bus_volume_db(bus, linear_to_db(maxf(value / 100.0, 0.001)))
-	)
-	settings_panel.add_child(volume)
-
-	var fullscreen := CheckButton.new()
-	fullscreen.text = "FULLSCREEN"
-	fullscreen.position = Vector2(70, 205)
-	fullscreen.size = Vector2(220, 44)
-	fullscreen.add_theme_font_size_override("font_size", 18)
-	fullscreen.button_pressed = DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
-	fullscreen.toggled.connect(func(enabled: bool):
-		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN if enabled else DisplayServer.WINDOW_MODE_WINDOWED)
-	)
-	settings_panel.add_child(fullscreen)
-
-	var controls_button := make_menu_button("CONTROLS", Vector2(165, 310))
-	controls_button.pressed.connect(show_controls_panel)
-	settings_panel.add_child(controls_button)
-
-	var back := make_menu_button("BACK", Vector2(165, 390))
-	back.pressed.connect(show_pause_home)
-	settings_panel.add_child(back)
-
-func open_pause_menu() -> void:
-	if pause_root == null:
-		return
-	pause_root.visible = true
-	show_pause_home()
-	get_tree().paused = true
-
-func close_pause_menu() -> void:
-	if pause_root == null:
-		return
+func show_menu() -> void:
 	get_tree().paused = false
-	pause_root.visible = false
+	if is_instance_valid(world):
+		remove_child(world)
+		world.queue_free()
+		world = null
+	screen = "menu"
+	clear_ui()
+	make_menu_background()
+	var h = get_viewport_rect().size.y
+	label("AN ORIGINAL ACTION PLATFORMER",Vector2( 72, 60),13,accent)
+	label("VELOCITY",Vector2(64,105), 84,Color("f3f3dc"))
+	label("E C H O E S   O F   T H E   C O R E",Vector2( 72,204),18,Color("b9d7c4"))
+	label("Five worlds. One impossible signal.",Vector2(74,255),20)
+	label("Run into the unknown. Bring the light back.",Vector2(74,287),15,dim)
+	var primary = button("CONTINUE JOURNEY" if GameState.unlocked>0 else "BEGIN JOURNEY",Vector2(74,355),340,func():start_stage(GameState.unlocked),true)
+	primary.grab_focus()
+	button("CHOOSE A WORLD",Vector2(74,420),340,show_map)
+	button("SETTINGS",Vector2(74,485),164,func():show_settings("menu"))
+	button("HOW TO PLAY",Vector2(250,485),164,func():show_controls("menu"))
+	button("CREDITS",Vector2(74,550),164,show_credits)
+	button("QUIT",Vector2(250,550),164,func():get_tree().quit())
+	label("A / D  MOVE    •    SPACE  JUMP    •    J  FIRE    •    SHIFT  DASH",Vector2(74,h-54),12,dim)
+	label("01 — 05     /     SINGLE PLAYER CAMPAIGN",Vector2(get_viewport_rect().size.x-430, 40),12,Color("bddacb"),400)
+	Audio.music("menu")
 
-func open_settings() -> void:
-	if pause_root == null:
-		return
-	pause_root.visible = true
-	show_settings_panel()
+func start_stage(index: int) -> void:
+	get_tree().paused = false
+	if is_instance_valid(world):
+		remove_child(world)
+		world.queue_free()
+	clear_ui()
+	screen = "game"
+	world = Level.new()
+	world.index = index
+	add_child(world)
+	build_hud()
+
+func build_hud() -> void:
+	clear_ui()
+	root.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	hud = HUD.new()
+	hud.world = world
+	root.add_child(hud)
+	var pause = button("II",Vector2(get_viewport_rect().size.x-100,22), 72,pause_game)
+	pause.size.y = 56
+	pause.focus_mode = Control.FOCUS_NONE
+	if GameState.settings.touch or DisplayServer.is_touchscreen_available(): build_touch()
+
+func pause_game() -> void:
+	if screen!="game": return
+	screen = "pause"
 	get_tree().paused = true
+	clear_ui()
+	darken()
+	var center = get_viewport_rect().size*.5
+	panel(center-Vector2(240,245),Vector2(480,490))
+	label("SIGNAL PAUSED",center-Vector2(192,207), 34,accent)
+	label("Take a breath. The core can wait.",center-Vector2(190,153),15,dim)
+	resume_button = button("RESUME",center-Vector2(190,100),380,resume_game,true)
+	resume_button.grab_focus()
+	button("SETTINGS",center-Vector2(190,35),380,func():show_settings("pause"))
+	button("CONTROLS",center+Vector2(-190,30),380,func():show_controls("pause"))
+	button("RESTART WORLD",center+Vector2(-190,95),380,confirm_restart)
+	button("WORLD SELECT",center+Vector2(-190,160),380,show_map)
 
-func show_pause_home() -> void:
-	pause_menu_panel.visible = true
-	controls_panel.visible = false
-	settings_panel.visible = false
+func confirm_restart() -> void:
+	clear_ui()
+	darken()
+	var center = get_viewport_rect().size*.5
+	panel(center-Vector2(260,125),Vector2(520,250))
+	label("RESTART THIS WORLD?",center-Vector2(215, 90), 26,accent)
+	label("This run's score and checkpoints will reset.",center-Vector2(215,35),16,dim)
+	button("RESTART",center+Vector2(-215, 40),200,func():start_stage(world.index)).grab_focus()
+	button("CANCEL",center+Vector2(15, 40),200,func():screen="game";pause_game())
 
-func show_controls_panel() -> void:
-	pause_menu_panel.visible = false
-	controls_panel.visible = true
-	settings_panel.visible = false
+func resume_game() -> void:
+	screen = "game"
+	get_tree().paused = false
+	build_hud()
 
-func show_settings_panel() -> void:
-	pause_menu_panel.visible = false
-	controls_panel.visible = false
-	settings_panel.visible = true
+func darken() -> void:
+	var shade = ColorRect.new()
+	shade.color = Color(.025,.06,.10,.88)
+	shade.size = get_viewport_rect().size
+	root.add_child(shade)
 
-func restart_checkpoint() -> void:
-	close_pause_menu()
-	if player != null and player.has_method("respawn"):
-		player.call("respawn")
+func show_map() -> void:
+	screen = "map"
+	get_tree().paused = true
+	clear_ui()
+	darken()
+	var w = get_viewport_rect().size.x
+	label("THE FIVE CORE WORLDS",Vector2(54,60),38,accent)
+	label("Defeat each guardian to unlock the next world. Return to find every hidden shard.",Vector2(56,119),16,dim)
+	var card_width = (w-108-4*16)/5
+	for i in range(5):
+		var x = 54+i*(card_width+16)
+		panel(Vector2(x,194),Vector2(card_width,355))
+		var image = TextureRect.new()
+		image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		image.texture = load("res://assets/art/world/sky_%d.svg" % i)
+		image.position = Vector2(x+10,204)
+		image.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		image.size = Vector2(card_width-20,140)
+		image.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_COVERED
+		image.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		image.clip_contents = true
+		root.add_child(image)
+		image.set_deferred("size", Vector2(card_width-20,140))
+		var boss_icon = TextureRect.new()
+		boss_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		boss_icon.texture = load("res://assets/art/bosses/"+Campaign.ART[i]+".svg")
+		boss_icon.position = Vector2(x+24,214)
+		boss_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		boss_icon.size = Vector2(card_width-48,130)
+		boss_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		boss_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		boss_icon.clip_contents = true
+		root.add_child(boss_icon)
+		boss_icon.set_deferred("size", Vector2(card_width-48,130))
+		if i in [0,3,4]:
+			for arm_id in range(2):
+				var arm_icon = TextureRect.new()
+				arm_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+				arm_icon.texture = load("res://assets/art/bosses/"+Campaign.ART[i]+"_arm_%d.svg" % arm_id)
+				arm_icon.position = boss_icon.position
+				arm_icon.size = Vector2(card_width-48,130)
+				arm_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+				arm_icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				root.add_child(arm_icon)
+				arm_icon.set_deferred("size", Vector2(card_width-48,130))
+		label("WORLD  %02d" % (i+1),Vector2(x+18,365),12,Campaign.ACCENTS[i],card_width-36)
+		var title = label(["VERDANT\nFRONTIER", "BRASS\nSKYWAYS", "PRISMATIC\nDEPTHS", "EMBER\nENGINE", "ECLIPSE\nCITADEL"][i],Vector2(x+18,389),18,Color("eff3e1"),card_width- 36)
+		title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		title.size.x = card_width-36
+		var progress = GameState.best.get(str(i),{})
+		label("%d / 3 SHARDS" % int(progress.get("relics",0)) if i<=GameState.unlocked else "GUARDIAN SEALED",Vector2(x+18,463),12,dim,card_width-36)
+		var btn = button("PLAY" if i<=GameState.unlocked else "LOCKED",Vector2(x+12,490),card_width-24,start_stage.bind(i),i==GameState.unlocked)
+		btn.size.y =  42
+		btn.disabled = i>GameState.unlocked
+		if i==GameState.unlocked: btn.grab_focus()
+	button("BACK",Vector2(54,600),190,show_menu)
+	if is_instance_valid(world) and not world.completed:button("RESUME RUN",Vector2(w-264,600),210,resume_game)
+
+func show_settings(origin: String) -> void:
+	previous = origin
+	screen = "settings"
+	clear_ui()
+	darken()
+	var x = get_viewport_rect().size.x*.5-320
+	panel(Vector2(x,70),Vector2(640,590))
+	label("TUNE YOUR EXPERIENCE",Vector2(x+ 40,101), 30,accent)
+	var y = 185.0
+	for key in ["music","sfx"]:
+		label("MUSIC" if key=="music" else "SOUND EFFECTS",Vector2(x+ 40,y),16)
+		var slider = HSlider.new()
+		slider.position = Vector2(x+265,y+3)
+		slider.size = Vector2(320, 30)
+		slider.min_value = 0
+		slider.max_value = 1
+		slider.step = .05
+		slider.value = GameState.settings[key]
+		slider.value_changed.connect(func(value):GameState.settings[key]=value;Audio.apply_volume())
+		root.add_child(slider)
+		y += 65
+	for row in [["fullscreen","FULLSCREEN"],["shake","CAMERA SHAKE"],["assist","ASSIST MODE"],["touch","TOUCH CONTROLS"]]:
+		var toggle = CheckButton.new()
+		toggle.text = row[1]
+		toggle.position = Vector2(x+ 40,y)
+		toggle.size = Vector2(560, 40)
+		toggle.button_pressed = GameState.settings[row[0]]
+		toggle.toggled.connect(func(value):GameState.settings[row[0]]=value;GameState.apply_settings())
+		root.add_child(toggle)
+		y +=  50
+	label("Assist: longer damage protection and gentler enemies.\nGuardian health changes on the next world load or retry.",Vector2(x+ 40,530),12,dim,560)
+	button("SAVE & BACK",Vector2(x+ 40,588),560,return_from_submenu,true).grab_focus()
+
+func show_controls(origin: String) -> void:
+	previous = origin
+	screen = "controls"
+	clear_ui()
+	darken()
+	var x = get_viewport_rect().size.x*.5-360
+	panel(Vector2(x,55),Vector2(720,610))
+	label("MAKE EVERY MOVE COUNT",Vector2(x+40, 80),32,accent)
+	var rows = [["MOVE","A / D or arrows","Left stick / D-pad"],["JUMP / DOUBLE JUMP","Space / W / Up","A"],["FIRE","J / Z / Left mouse","X"],["DASH (DODGE DAMAGE)","Shift / K / X","B"],["CYCLE WEAPON","Q / E or 1 / 2 / 3","RB"],["CROUCH","S / Down","D-pad down"],["PAUSE","Esc / P","Start"]]
+	for i in range(rows.size()):
+		var y = 159+i* 47
+		label(rows[i][0],Vector2(x+ 40,y),14,accent,240)
+		label(rows[i][1],Vector2(x+300,y),14,Color("e1ede5"),250)
+		label(rows[i][2],Vector2(x+560,y),13,dim,130)
+	label("Hold jump to rise higher. Dash through shots or into enemies.\nPulse has unlimited ammo; Scatter and Nova consume regenerating energy.\nCheckpoints restore health. Hidden shards reward exploration.",Vector2(x+40,505),14,dim,640)
+	button("BACK",Vector2(x+40,592),640,return_from_submenu,true).grab_focus()
+
+func return_from_submenu() -> void:
+	GameState.save_progress()
+	if previous=="pause":
+		screen = "game"
+		pause_game()
+	else: show_menu()
+
+func show_credits() -> void:
+	previous = "menu"
+	screen = "credits"
+	clear_ui()
+	darken()
+	var center = get_viewport_rect().size*.5
+	panel(center-Vector2(350,250),Vector2(700,500))
+	label("VELOCITY",center-Vector2(300,210),54,accent)
+	label("ECHOES OF THE CORE",center-Vector2(297,138), 18,dim)
+	label("A game for Ilia\n\nOriginal vector artwork, articulated animation and five worlds.\nOriginal seven-track score and synthesized sound effects.\nBuilt with Godot Engine 4.5.\n\nInspired by the energy of classic run-and-gun platformers.\nAll characters, worlds and music here are original.",center-Vector2(297, 80),17,Color("deebe1"),600)
+	button("BACK",center+Vector2(-300,165),600,show_menu,true).grab_focus()
+
+func stage_finished() -> void:
+	_show_results.call_deferred()
+
+func _show_results() -> void:
+	screen = "results"
+	get_tree().paused = true
+	clear_ui()
+	darken()
+	var center = get_viewport_rect().size*.5
+	panel(center-Vector2(335,260),Vector2(670,520))
+	label("THE LIGHT RETURNS" if world.index==4 else "CORE RESTORED",center-Vector2(285,220), 40,accent)
+	label("All five guardians defeated. The frontier is free." if world.index==4 else world.definition.title,center-Vector2(283,161),16,dim)
+	var rank = "S" if world.relics==3 and world.deaths==0 else ("A" if world.relics>=2 else "B")
+	label(rank,center+Vector2(150,-120), 92,Color("f7d79b"),100)
+	label("SCORE    %06d\nGEMS     %03d\nSHARDS   %d / 3\nTIME       %02d:%02d\nRETRIES   %d" % [world.score,world.gems,world.relics,int(world.elapsed)/60,int(world.elapsed)%60,world.deaths],center-Vector2(280,100), 22,Color("e4eee1"),420)
+	var b = button("NEXT WORLD" if world.index<4 else "RETURN TO WORLDS",center+Vector2(-285,140),570,func():start_stage(world.index+1) if world.index<4 else show_map(),true)
+	b.grab_focus()
+	button("REPLAY",center+Vector2(-285,205),275,func():start_stage(world.index))
+	button("WORLD SELECT",center+Vector2(10,205),275,show_map)
+
+func build_touch() -> void:
+	var v = get_viewport_rect().size
+	var specs = [["move_left","<",Vector2(30,v.y-175)],["move_right",">",Vector2(130,v.y-175)],["jump","UP",Vector2(v.x-110,v.y-185)],["fire","FIRE",Vector2(v.x-210,v.y-155)],["dash","DASH",Vector2(v.x-310,v.y-155)],["weapon","Q",Vector2(v.x-210,v.y-245)]]
+	for spec in specs:
+		var b = Button.new()
+		b.text = spec[1]
+		b.position = spec[2]
+		b.size = Vector2(80,65)
+		b.modulate.a = .65
+		b.focus_mode = Control.FOCUS_NONE
+		b.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		root.add_child(b)
+		var touch = TouchScreenButton.new()
+		touch.position = spec[2] + Vector2(40,32.5)
+		var hitbox = RectangleShape2D.new()
+		hitbox.size = Vector2(80,65)
+		touch.shape = hitbox
+		touch.action = spec[0]
+		touch.pressed.connect(func():touch_actions.append(spec[0]))
+		touch.released.connect(func():touch_actions.erase(spec[0]))
+		root.add_child(touch)
+
+func release_touch() -> void:
+	for action in touch_actions: Input.action_release(action)
+	touch_actions.clear()
+
+func _on_resize() -> void:
+	# Reflow only the active interface; never reload a running level on a window resize.
+	match screen:
+		"game": build_hud()
+		"menu": show_menu()
+		"map": show_map()
+		"settings": show_settings(previous)
+		"controls": show_controls(previous)
+		"pause":
+			screen = "game"
+			pause_game()
+		"results": _show_results()
+		"credits": show_credits()

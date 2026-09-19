@@ -4,3 +4,6 @@
 .DS_Store
 Thumbs.db
 exports/
+
+__pycache__/
+*.pyc

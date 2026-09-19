@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="100" height="170" viewBox="0 0 100 170"><defs>
+ <linearGradient id="fur" x2=".25" y2="1"><stop stop-color="#99ffee"/><stop offset=".4" stop-color="#35c7b6"/><stop offset="1" stop-color="#12697b"/></linearGradient>
+ <linearGradient id="cream" x2=".5" y2="1"><stop stop-color="#fff4d9"/><stop offset="1" stop-color="#ddae78"/></linearGradient>
+ <linearGradient id="armor" x2=".3" y2="1"><stop stop-color="#557794"/><stop offset=".48" stop-color="#233953"/><stop offset="1" stop-color="#101d33"/></linearGradient>
+ <linearGradient id="gold" x2=".4" y2="1"><stop stop-color="#fff0a5"/><stop offset=".45" stop-color="#ffbe4b"/><stop offset="1" stop-color="#c36036"/></linearGradient>
+ <linearGradient id="metal" x2=".4" y2="1"><stop stop-color="#e6f6fa"/><stop offset=".5" stop-color="#90adbb"/><stop offset="1" stop-color="#445575"/></linearGradient>
+ <linearGradient id="red" x2=".2" y2="1"><stop stop-color="#ffc7a0"/><stop offset=".35" stop-color="#f76960"/><stop offset="1" stop-color="#8c3457"/></linearGradient>
+ <linearGradient id="glass" x2=".2" y2="1"><stop stop-color="#ecffff"/><stop offset=".24" stop-color="#7dfde6"/><stop offset="1" stop-color="#2290ba"/></linearGradient>
+ <radialGradient id="glow"><stop stop-color="#aefff3" stop-opacity=".55"/><stop offset="1" stop-color="#30d9d1" stop-opacity="0"/></radialGradient>
+ </defs><path d="M15 157 L26 137 75 137 88 157 78 166 19 166Z" fill="url(#armor)" stroke="#10283a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" /><rect x="42" y="58" width="16" height="80" rx="3" fill="url(#metal)" stroke="none" stroke-width="1"/><path d="M50 8 L81 42 50 76 19 42Z" fill="url(#armor)" stroke="#10283a" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" /><path d="M50 18 L71 42 50 65 29 42Z" fill="url(#glass)" stroke="#10283a" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" /><path d="M49 28 L40 45 50 43 46 57  60 39 50 41Z" fill="#f5ffe6" stroke="#10283a" stroke-width="0" stroke-linejoin="round" stroke-linecap="round" /></svg>

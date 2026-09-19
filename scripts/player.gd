@@ -1,288 +1,187 @@
 extends CharacterBody2D
-class_name Player
-
-const HeroModel3DScript = preload("res://scripts/hero_model_3d.gd")
-
-signal health_changed(value: int)
-signal coins_changed(value: int)
-signal died
-
-const WALK_SPEED := 320.0
-const RUN_SPEED := 520.0
-const ACCELERATION := 2500.0
-const AIR_ACCELERATION := 1500.0
-const FRICTION := 2900.0
-const GRAVITY := 1650.0
-const JUMP_VELOCITY := -610.0
-const MAX_FALL_SPEED := 980.0
-const COYOTE_TIME := 0.12
-const JUMP_BUFFER_TIME := 0.13
-const SHOOT_COOLDOWN := 0.15
-
-var max_health := 8
-var health := 8
-var coins := 0
-var facing := 1.0
-var coyote_timer := 0.0
-var jump_buffer_timer := 0.0
-var shoot_timer := 0.0
-var invulnerability_timer := 0.0
-var afterimage_timer := 0.0
-var visual_time := 0.0
-var touch_left := false
-var touch_right := false
-var touch_jump := false
-var touch_shoot := false
-var touch_run := false
-var jump_was_pressed := false
-var spawn_position := Vector2.ZERO
-var bullet_scene_owner: Node = null
-var sprite: Sprite2D
-var model_viewport: SubViewport
-var hero_model: HeroModel3D
-var collision_node: CollisionShape2D
-var crouching := false
+class_name VelocityPlayer
+const Rig = preload("res://scripts/hero_rig.gd")
+const GRAVITY: float = 1800.0
+const JUMP: float = -640.0
+const SPEED: float = 470.0
+var world
+var rig
+var health: int = 8
+var max_health: int = 8
+var facing: float = 1
+var weapon: int = 0
+var energy: float = 100
+var coyote: float = 0
+var buffer: float = 0
+var jumps: int = 2
+var fire_timer: float = 0
+var invincible: float = 0
+var dash_timer: float = 0
+var dash_cooldown: float = 0
+var knockback: float = 0
+var dead: bool = false
+var frozen: bool = false
+var crouching: bool = false
+var forced_boost: float = 0
+var dust_timer: float = 0
+var standing_shape: CapsuleShape2D
+var collider: CollisionShape2D
+var automation: bool = false
+var auto_move: float = 0
+var auto_jump: bool = false
+var auto_fire: bool = false
+var last_grounded: bool = false
 
 func _ready() -> void:
 	add_to_group("player")
-	spawn_position = global_position
 	collision_layer = 1
-	collision_mask = 2 | 4
-	floor_snap_length = 8.0
+	collision_mask = 2
+	floor_snap_length = 8
+	standing_shape = CapsuleShape2D.new()
+	standing_shape.radius =  15.0
+	standing_shape.height = 64
+	collider = CollisionShape2D.new()
+	collider.shape = standing_shape
+	collider.position.y = -32
+	add_child(collider)
+	rig = Rig.new()
+	add_child(rig)
+	z_index = 8
 
-	collision_node = CollisionShape2D.new()
-	var capsule := CapsuleShape2D.new()
-	capsule.radius = 17.0
-	capsule.height = 64.0
-	collision_node.shape = capsule
-	collision_node.position = Vector2(0, -4)
-	add_child(collision_node)
-
-	build_live_3d_character()
-
-	health_changed.emit(health)
-	queue_redraw()
-
-func _process(delta: float) -> void:
-	visual_time += delta
-	afterimage_timer = maxf(0.0, afterimage_timer - delta)
-
-	if sprite:
-		sprite.flip_h = facing < 0.0
-		sprite.visible = int(invulnerability_timer * 18.0) % 2 == 0 if invulnerability_timer > 0.0 else true
-
-	if hero_model:
-		var fire_pulse := 1.0 if shoot_timer > SHOOT_COOLDOWN * 0.55 else 0.0
-		hero_model.set_motion(velocity.x / RUN_SPEED, velocity.y, is_on_floor(), crouching, fire_pulse)
-
-	if is_on_floor() and absf(velocity.x) > 430.0 and afterimage_timer <= 0.0:
-		spawn_afterimage()
-		afterimage_timer = 0.075
-
-	queue_redraw()
-
-func build_live_3d_character() -> void:
-	model_viewport = SubViewport.new()
-	model_viewport.name = "Hero3DViewport"
-	model_viewport.size = Vector2i(320, 320)
-	model_viewport.transparent_bg = true
-	model_viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
-	model_viewport.own_world_3d = true
-	add_child(model_viewport)
-
-	var environment := Environment.new()
-	environment.background_mode = Environment.BG_COLOR
-	environment.background_color = Color(0, 0, 0, 0)
-	environment.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	environment.ambient_light_color = Color("b8e9e5")
-	environment.ambient_light_energy = 1.15
-
-	var world_environment := WorldEnvironment.new()
-	world_environment.environment = environment
-	model_viewport.add_child(world_environment)
-
-	var key_light := DirectionalLight3D.new()
-	key_light.light_color = Color("d8ffff")
-	key_light.light_energy = 1.35
-	key_light.rotation_degrees = Vector3(-28, -32, 0)
-	model_viewport.add_child(key_light)
-
-	var rim_light := OmniLight3D.new()
-	rim_light.light_color = Color("39fff0")
-	rim_light.light_energy = 2.0
-	rim_light.omni_range = 6.0
-	rim_light.position = Vector3(-2.4, 2.3, 2.8)
-	model_viewport.add_child(rim_light)
-
-	hero_model = HeroModel3DScript.new()
-	hero_model.position = Vector3(0, -0.15, 0)
-	model_viewport.add_child(hero_model)
-
-	var camera := Camera3D.new()
-	camera.projection = Camera3D.PROJECTION_ORTHOGONAL
-	camera.size = 4.7
-	model_viewport.add_child(camera)
-	camera.position = Vector3(0.15, 0.55, 6.5)
-	camera.look_at(Vector3(0.0, 0.45, 0.0), Vector3.UP)
-	camera.current = true
-
-	sprite = Sprite2D.new()
-	sprite.name = "Live3DCharacter"
-	sprite.texture = model_viewport.get_texture()
-	sprite.position = Vector2(0, -46)
-	sprite.scale = Vector2(0.34, 0.34)
-	add_child(sprite)
 
 func _physics_process(delta: float) -> void:
-	shoot_timer = maxf(0.0, shoot_timer - delta)
-	jump_buffer_timer = maxf(0.0, jump_buffer_timer - delta)
-	invulnerability_timer = maxf(0.0, invulnerability_timer - delta)
-
+	if dead or frozen:
+		rig.pose(delta, 0, 0, true, false, false, facing)
+		return
+	invincible = maxf(0, invincible - delta)
+	fire_timer = maxf(0, fire_timer - delta)
+	dash_cooldown = maxf(0, dash_cooldown - delta)
+	knockback = maxf(0, knockback - delta)
+	forced_boost = maxf(0, forced_boost - delta)
+	buffer = maxf(0, buffer - delta)
+	energy = minf(100, energy + delta * 11)
+	var move = auto_move if automation else Input.get_axis("move_left", "move_right")
+	var want_jump = auto_jump if automation else Input.is_action_just_pressed("jump")
+	var firing = auto_fire if automation else Input.is_action_pressed("fire")
+	auto_jump = false
 	if is_on_floor():
-		coyote_timer = COYOTE_TIME
+		coyote = .12
+		jumps = 2
 	else:
-		coyote_timer = maxf(0.0, coyote_timer - delta)
-		velocity.y = minf(velocity.y + GRAVITY * delta, MAX_FALL_SPEED)
-
-	var left := Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT) or touch_left
-	var right := Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT) or touch_right
-	var run_pressed := Input.is_key_pressed(KEY_SHIFT) or touch_run
-	var crouch_pressed := Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN)
-	crouching = crouch_pressed and is_on_floor()
-	update_crouch_state()
-
-	var direction := float(int(right) - int(left))
-	var target_speed := direction * (135.0 if crouching else (RUN_SPEED if run_pressed else WALK_SPEED))
-	var accel := ACCELERATION if is_on_floor() else AIR_ACCELERATION
-
-	if direction != 0.0:
-		velocity.x = move_toward(velocity.x, target_speed, accel * delta)
-		facing = signf(direction)
+		coyote = maxf(0, coyote - delta)
+	if want_jump: buffer = .14
+	if absf(move) > .1 and dash_timer <= 0: facing = signf(move)
+	var wants_duck = not automation and Input.is_action_pressed("crouch") and is_on_floor()
+	if crouching and not wants_duck:
+		# Do not restore the standing shape while a low ceiling overlaps it.
+		var query = PhysicsShapeQueryParameters2D.new()
+		var full_shape = CapsuleShape2D.new()
+		full_shape.radius = 15
+		full_shape.height = 64
+		query.shape = full_shape
+		query.transform = Transform2D(0, global_position + Vector2(0, -32))
+		query.collision_mask = 2
+		query.exclude = [get_rid()]
+		wants_duck = not get_world_2d().direct_space_state.intersect_shape(query, 1).is_empty()
+	crouching = wants_duck
+	standing_shape.height =  42.0 if crouching else 64
+	collider.position.y = -standing_shape.height * .5
+	if not automation and Input.is_action_just_pressed("weapon"):
+		weapon = (weapon + 1) % 3
+		Audio.play("ui", 1.1)
+	if not automation:
+		for index in range(3):
+			if Input.is_physical_key_pressed(KEY_1 + index): weapon = index
+	if not automation and Input.is_action_just_pressed("dash") and dash_cooldown <= 0:
+		dash_timer = .19
+		dash_cooldown = .8
+		Audio.play("dash")
+		world.burst(global_position + Vector2(0,-30), Color("8effdc"), 12)
+	if buffer > 0 and jumps > 0:
+		if coyote > 0: jumps = 2
+		elif jumps == 2: jumps = 1
+		velocity.y = JUMP if jumps == 2 else JUMP * .90
+		jumps -= 1
+		buffer = 0
+		coyote = 0
+		Audio.play("jump", 1.0 if jumps == 1 else 1.3)
+		world.burst(global_position, Color("a9ffdc"), 8)
+	if not automation and Input.is_action_just_released("jump") and velocity.y < -220:
+		velocity.y *= .55
+	if dash_timer > 0:
+		dash_timer -= delta
+		velocity = Vector2(facing * 950, 0)
 	else:
-		velocity.x = move_toward(velocity.x, 0.0, FRICTION * delta)
-
-	var keyboard_jump := Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP)
-	if (keyboard_jump and not jump_was_pressed) or touch_jump:
-		jump_buffer_timer = JUMP_BUFFER_TIME
-		touch_jump = false
-
-	if not keyboard_jump and jump_was_pressed and velocity.y < -180.0:
-		velocity.y *= 0.52
-	jump_was_pressed = keyboard_jump
-
-	if jump_buffer_timer > 0.0 and coyote_timer > 0.0:
-		velocity.y = JUMP_VELOCITY
-		jump_buffer_timer = 0.0
-		coyote_timer = 0.0
-
-	if (Input.is_key_pressed(KEY_SPACE) or Input.is_key_pressed(KEY_J) or Input.is_key_pressed(KEY_K) or touch_shoot) and shoot_timer <= 0.0:
-		shoot()
-		shoot_timer = SHOOT_COOLDOWN
-
+		velocity.y = minf(1050, velocity.y + GRAVITY * delta)
+		if knockback <= 0 and forced_boost <= 0:
+			velocity.x = move_toward(velocity.x, move * (150 if crouching else SPEED), (3200 if is_on_floor() else 2100) * delta)
+	if firing and fire_timer <= 0: shoot()
+	var landed_before = is_on_floor()
 	move_and_slide()
+	if not landed_before and is_on_floor():
+		rig.landing = 1
+		world.burst(global_position, Color("9bbba4"), 6)
+	if dash_timer > 0 and is_on_wall(): dash_timer = 0
+	dust_timer -= delta
+	if dust_timer <= 0 and ((is_on_floor() and absf(velocity.x) > 100) or dash_timer > 0):
+		dust_timer = .09
+		world.burst(global_position + Vector2(-facing*10,-4), Color("95c9b6"), 2)
+	rig.pose(delta, velocity.x, velocity.y, is_on_floor(), crouching, dash_timer > 0, facing)
+	rig.visible = invincible <= 0 or int(invincible * 20) % 2 == 0
+	if position.y > 900: die()
+	position.x = clampf(position.x, 20, world.length - 20)
+	queue_redraw()
 
-	if global_position.y > 950.0:
-		take_damage(1, global_position.x)
-		respawn()
 
 func shoot() -> void:
-	if bullet_scene_owner != null and bullet_scene_owner.has_method("spawn_bullet"):
-		var muzzle_y := 7.0 if crouching else -14.0
-		bullet_scene_owner.call("spawn_bullet", global_position + Vector2(38.0 * facing, muzzle_y), facing)
-		if sprite:
-			var old_scale := sprite.scale
-			sprite.scale = Vector2(old_scale.x * 1.06, old_scale.y * 0.95)
-			var recoil := create_tween()
-			recoil.tween_property(sprite, "scale", old_scale, 0.08)
+	var cost = [0, 8, 12][weapon]
+	var actual = weapon if energy >= cost else 0
+	var origin = global_position + Vector2(55 * facing, -47 + (17 if crouching else 0))
+	var direction = Vector2(facing, 0)
+	# Keyboard keeps run-and-gun aiming predictable; targets above can be reached by jumping.
+	match actual:
+		0:
+			world.projectile(origin, direction * 1000, true, 1, Color("a9ffdf"))
+			fire_timer = .14
+		1:
+			for angle in [-.15, 0.0, .15]: world.projectile(origin, direction.rotated(angle) * 850, true, 1, Color("ffcf81"))
+			energy -= 8
+			fire_timer = .27
+		2:
+			world.projectile(origin, direction * 720, true, 4, Color("c7adff"), "nova")
+			energy -= 12
+			fire_timer = .42
+	rig.recoil = 1
+	Audio.play("shoot", 1.0 + actual * .12, .55)
 
-func update_crouch_state() -> void:
-	if collision_node == null:
-		return
-	var capsule := collision_node.shape as CapsuleShape2D
-	if capsule == null:
-		return
-	if crouching:
-		capsule.height = 42.0
-		collision_node.position.y = 7.0
-	else:
-		capsule.height = 64.0
-		collision_node.position.y = -4.0
-
-func take_damage(amount: int, source_x: float = 0.0) -> void:
-	if invulnerability_timer > 0.0:
-		return
-	invulnerability_timer = 0.85
+func take_damage(amount: int, source: Vector2 = Vector2.ZERO) -> void:
+	if dead or frozen or invincible > 0 or dash_timer > 0: return
 	health = maxi(0, health - amount)
-	health_changed.emit(health)
+	invincible = 1.25 if not GameState.settings.assist else 2.0
+	knockback = .23
+	velocity = Vector2(signf(global_position.x - source.x) * 330, -240)
+	rig.hurt = 1
+	rig.color_flash = 1
+	world.shake(9)
+	Audio.play("hit")
+	world.burst(global_position + Vector2(0,-32), Color("ffd7ab"), 14)
+	if health <= 0: die()
 
-	if source_x != 0.0:
-		velocity.x = 420.0 if global_position.x > source_x else -420.0
-		velocity.y = -260.0
+func die() -> void:
+	if dead or frozen: return
+	dead = true
+	rig.dead = true
+	Audio.play("explode", .8)
+	world.on_player_death()
 
-	if health <= 0:
-		died.emit()
-		health = max_health
-		health_changed.emit(health)
-		respawn()
-
-func add_coin() -> void:
-	coins += 1
-	coins_changed.emit(coins)
-
-func set_checkpoint(new_position: Vector2) -> void:
-	spawn_position = new_position
-	if health < max_health:
-		health = mini(max_health, health + 2)
-		health_changed.emit(health)
-
-func respawn() -> void:
-	global_position = spawn_position
-	velocity = Vector2.ZERO
-
-func boost_horizontal(speed: float, direction: float = 1.0) -> void:
-	velocity.x = speed * direction
-	facing = direction
-
-func spring(power: float = 850.0) -> void:
-	velocity.y = -absf(power)
-
-func set_touch_state(action: String, pressed: bool) -> void:
-	match action:
-		"left":
-			touch_left = pressed
-		"right":
-			touch_right = pressed
-		"jump":
-			if pressed:
-				touch_jump = true
-		"shoot":
-			touch_shoot = pressed
-		"run":
-			touch_run = pressed
-
-func spawn_afterimage() -> void:
-	if sprite == null or get_parent() == null:
-		return
-	var ghost := Sprite2D.new()
-	ghost.texture = sprite.texture
-	ghost.scale = sprite.scale
-	ghost.flip_h = sprite.flip_h
-	ghost.global_position = global_position + sprite.position
-	ghost.modulate = Color(0.25, 1.0, 0.92, 0.20)
-	ghost.z_index = z_index - 1
-	get_parent().add_child(ghost)
-	var fade := ghost.create_tween()
-	fade.set_parallel(true)
-	fade.tween_property(ghost, "modulate:a", 0.0, 0.18)
-	fade.tween_property(ghost, "scale", ghost.scale * 1.04, 0.18)
-	fade.chain().tween_callback(ghost.queue_free)
+func spring(power: float = 900) -> void:
+	velocity.y = -power
+	jumps = 1
+	coyote = 0
+	dash_timer = 0
+	Audio.play("spring")
 
 func _draw() -> void:
-	draw_ellipse_shadow(Vector2(0, 0), 26.0, 7.0)
-
-func draw_ellipse_shadow(center: Vector2, rx: float, ry: float) -> void:
-	var points := PackedVector2Array()
-	for i in range(20):
-		var a := TAU * float(i) / 20.0
-		points.append(center + Vector2(cos(a) * rx, sin(a) * ry))
-	draw_colored_polygon(points, Color(0.0, 0.0, 0.0, 0.24))
+	if is_on_floor():
+		draw_set_transform(Vector2(0,1),0,Vector2(1,.22))
+		draw_circle(Vector2.ZERO, 24, Color(0.03,0.06,0.09,.3))
