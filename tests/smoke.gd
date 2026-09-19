@@ -114,6 +114,13 @@ func test_projectiles() -> void:
 	p.shoot()
 	check(p.energy>=0,"Insufficient Nova energy falls back without going negative")
 	await frames(2)
+	w.projectile(Vector2(220,300),Vector2(120,0),true,1,Color.WHITE,"bolt","player_pulse",false)
+	await frames(2)
+	var family_found = false
+	for tagged_shot in get_tree().get_nodes_in_group("projectiles"):
+		if tagged_shot.family == "player_pulse" and tagged_shot.shot_id > 0:
+			family_found = true
+	check(family_found,"Projectile keeps a stable family and shot id")
 	for shot in get_tree().get_nodes_in_group("projectiles"): shot.queue_free()
 	for existing in get_tree().get_nodes_in_group("enemies"): existing.queue_free()
 	await frames(2)
@@ -186,8 +193,34 @@ func test_stage(stage: int) -> void:
 	await frames(130)
 	var b = w.boss
 	check(b.active and b.state!="intro","Guardian %d activates"%stage)
-	if stage == 1:
-		check(b.art.hframes == 4 and b.art.vframes == 2, "Manta uses the eight-frame raster atlas")
+	if b.using_sheet16:
+		check(b.art.hframes == 4 and b.art.vframes == 4, "Guardian uses a 4x4 sixteen-frame sheet")
+		b.state = "idle"
+		b.update_boss_sheet()
+		check(b.sprite16.clip_start == 0 and b.sprite16.clip_end == 3, "Boss row 1 is movement")
+		b.state = "attack"
+		b.attack = 0
+		b.update_boss_sheet()
+		check(b.sprite16.clip_start == 4 and b.sprite16.clip_end == 7, "Boss row 2 is attack")
+		b.attack = 4
+		b.update_boss_sheet()
+		check(b.sprite16.clip_start == 8 and b.sprite16.clip_end == 9, "Boss row 3 first pair is special energy")
+		b.state = "recover"
+		b.update_boss_sheet()
+		check(b.sprite16.clip_start == 10 and b.sprite16.clip_end == 11, "Boss row 3 second pair is shield")
+		b.state = "attack"
+		b.attack = 2
+		b.update_boss_sheet()
+		check(b.sprite16.clip_start == 12 and b.sprite16.clip_end == 13, "Boss row 4 first pair is ground slam")
+		b.direction = 1
+		b.update_boss_sheet()
+		check(not b.sprite16.flip_h, "New boss sheet faces right without mirroring")
+		b.direction = -1
+		b.update_boss_sheet()
+		check(b.sprite16.flip_h, "New boss sheet mirrors only for leftward movement")
+		b.set_state("idle", .45)
+	elif stage == 1:
+		check(b.art.hframes == 4 and b.art.vframes == 2, "Legacy Manta keeps the eight-frame raster atlas until manta_16.png exists")
 		var source_image = Image.load_from_file("res://assets/art/bosses/manta_pixel.png")
 		check(source_image != null and source_image.detect_alpha() != Image.ALPHA_NONE, "Manta source sprite has transparency")
 		for pose in [["idle", 0, 0], ["telegraph", 0, 4], ["attack", 1, 5], ["attack", 0, 6], ["recover", 0, 7]]:
@@ -198,10 +231,10 @@ func test_stage(stage: int) -> void:
 			check(b.art.frame == pose[2], "Manta pose: " + str(pose[0]) + "/" + str(pose[1]))
 		b.direction = 1
 		b.update_manta_frame()
-		check(b.art.flip_h, "Manta faces right for a rightward attack")
+		check(b.art.flip_h, "Legacy Manta preserves its authored orientation")
 		b.direction = -1
 		b.update_manta_frame()
-		check(not b.art.flip_h, "Manta faces left for a leftward attack")
+		check(not b.art.flip_h, "Legacy Manta preserves its authored mirrored orientation")
 		b.set_state("idle", .45)
 	for attack in range(5):
 		b.attack = attack
@@ -212,6 +245,8 @@ func test_stage(stage: int) -> void:
 		b.execute_attack()
 		await frames(100)
 	check(b.position.x>=b.arena_left and b.position.x<=b.arena_right,"Guardian %d stays in arena"%stage)
+	if b.using_sheet16:
+		b.set_state("idle", .2)
 	b.hit(int(b.max_health*.6))
 	check(b.phase==2,"Guardian %d enters second phase"%stage)
 	# Retrying an active guardian must remove the lock, projectiles and old health/state.
