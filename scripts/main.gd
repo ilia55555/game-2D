@@ -270,7 +270,14 @@ func show_map() -> void:
 		image.set_deferred("size", Vector2(card_width-20,140))
 		var boss_icon = TextureRect.new()
 		boss_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-		boss_icon.texture = load("res://assets/art/bosses/"+Campaign.ART[i]+".svg")
+		if i == 1:
+			var preview = AtlasTexture.new()
+			preview.atlas = preload("res://assets/art/bosses/manta_pixel.png")
+			preview.region = Rect2(Vector2.ZERO, preview.atlas.get_size() / Vector2(4, 2))
+			boss_icon.texture = preview
+			boss_icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		else:
+			boss_icon.texture = load("res://assets/art/bosses/"+Campaign.ART[i]+".svg")
 		boss_icon.position = Vector2(x+24,214)
 		boss_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		boss_icon.size = Vector2(card_width-48,130)

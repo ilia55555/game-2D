@@ -40,8 +40,16 @@ func _ready() -> void:
 	rig = Node2D.new()
 	add_child(rig)
 	art = Sprite2D.new()
-	art.texture = load("res://assets/art/bosses/"+world.definition.boss_art+".svg")
-	art.scale = Vector2.ONE * .85
+	if biome == 1:
+		art.texture = preload("res://assets/art/bosses/manta_pixel.png")
+		art.hframes = 4
+		art.vframes = 2
+		# A 280px cell keeps the central body aligned with the existing hitbox.
+		art.scale = Vector2.ONE * (280.0 / (art.texture.get_width() / 4.0))
+		art.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	else:
+		art.texture = load("res://assets/art/bosses/"+world.definition.boss_art+".svg")
+		art.scale = Vector2.ONE * .85
 	art.position.y = - 90
 	rig.add_child(art)
 	if biome in [0,3,4]:
@@ -68,6 +76,7 @@ func activate() -> void:
 
 func _physics_process(delta: float) -> void:
 	clock += delta
+	if biome == 1: update_manta_frame()
 	flash = maxf(0,flash-delta*7)
 	art.modulate = Color(1+flash*3,1+flash,1+flash)
 	for i in range(arm_nodes.size()):
@@ -115,10 +124,19 @@ func _physics_process(delta: float) -> void:
 	var diff = player.global_position-global_position
 	if absf(diff.x)<95 and diff.y<25 and diff.y>-155:
 		player.take_damage(1 if GameState.settings.assist else 2,global_position)
-	art.rotation = lerpf(art.rotation,velocity.x*.00016,delta*7)
+	art.rotation = 0.0 if biome == 1 else lerpf(art.rotation,velocity.x*.00016,delta*7)
 	art.position.y = -90+sin(clock*(8 if state=="telegraph" else 3))*2.5
-	rig.scale = Vector2(1+sin(clock*3)*.015,1-sin(clock*3)*.012)
+	rig.scale = Vector2.ONE if biome == 1 else Vector2(1+sin(clock*3)*.015,1-sin(clock*3)*.012)
 	queue_redraw()
+
+func update_manta_frame() -> void:
+	# Four flap frames at 8 fps; combat poses follow the actual attack state.
+	art.flip_h = direction > 0
+	match state:
+		"telegraph": art.frame = 4
+		"attack": art.frame = 5 if attack == 1 else 6
+		"recover": art.frame = 7
+		_: art.frame = int(clock * 8.0) % 4
 
 func set_state(value: String, seconds: float) -> void:
 	state = value

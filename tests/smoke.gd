@@ -186,6 +186,22 @@ func test_stage(stage: int) -> void:
 	await frames(130)
 	var b = w.boss
 	check(b.active and b.state!="intro","Guardian %d activates"%stage)
+	if stage == 1:
+		check(b.art.hframes == 4 and b.art.vframes == 2, "Manta uses the eight-frame raster atlas")
+		check(b.art.texture.has_alpha(), "Manta sprite has transparency")
+		for pose in [["idle", 0, 0], ["telegraph", 0, 4], ["attack", 1, 5], ["attack", 0, 6], ["recover", 0, 7]]:
+			b.state = pose[0]
+			b.attack = pose[1]
+			b.clock = 0
+			b.update_manta_frame()
+			check(b.art.frame == pose[2], "Manta pose: " + str(pose[0]) + "/" + str(pose[1]))
+		b.direction = 1
+		b.update_manta_frame()
+		check(b.art.flip_h, "Manta faces right for a rightward attack")
+		b.direction = -1
+		b.update_manta_frame()
+		check(not b.art.flip_h, "Manta faces left for a leftward attack")
+		b.set_state("idle", .45)
 	for attack in range(5):
 		b.attack = attack
 		b.lock_target = p.position
