@@ -188,7 +188,8 @@ func test_stage(stage: int) -> void:
 	check(b.active and b.state!="intro","Guardian %d activates"%stage)
 	if stage == 1:
 		check(b.art.hframes == 4 and b.art.vframes == 2, "Manta uses the eight-frame raster atlas")
-		check(b.art.texture.has_alpha(), "Manta sprite has transparency")
+		var source_image = Image.load_from_file("res://assets/art/bosses/manta_pixel.png")
+		check(source_image != null and source_image.detect_alpha() != Image.ALPHA_NONE, "Manta source sprite has transparency")
 		for pose in [["idle", 0, 0], ["telegraph", 0, 4], ["attack", 1, 5], ["attack", 0, 6], ["recover", 0, 7]]:
 			b.state = pose[0]
 			b.attack = pose[1]
