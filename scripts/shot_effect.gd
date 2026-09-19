@@ -13,6 +13,8 @@ var lifetime: float = 0.3
 var sprite
 
 func _ready() -> void:
+	z_index = 14
+	add_to_group("shot_effects")
 	var path = Sheet16.find_path("projectiles", family)
 	if path.is_empty():
 		queue_free()
