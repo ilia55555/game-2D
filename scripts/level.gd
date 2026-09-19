@@ -8,6 +8,8 @@ const Backdrop = preload("res://scripts/backdrop.gd")
 const Pickup = preload("res://scripts/pickup.gd")
 const Mechanism = preload("res://scripts/mechanism.gd")
 const Projectile = preload("res://scripts/projectile.gd")
+const ShotEffect = preload("res://scripts/shot_effect.gd")
+const Sheet16 = preload("res://scripts/sprite_sheet_16.gd")
 const Effects = preload("res://scripts/effects.gd")
 var index: int = 0
 var definition: Dictionary
@@ -34,6 +36,7 @@ var banner_timer: float = 0
 var banner_title: String = ""
 var banner_subtitle: String = ""
 var touch: Dictionary = {}
+var shot_serial: int = 0
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_PAUSABLE
@@ -223,6 +226,7 @@ func respawn() -> void:
 	if not is_inside_tree(): return
 	# Boss encounter resets as a unit; no attacks, barriers or references survive a retry.
 	for shot in get_tree().get_nodes_in_group("projectiles"): shot.queue_free()
+	for effect in get_tree().get_nodes_in_group("shot_effects"): effect.queue_free()
 	if boss_started and not boss_defeated:
 		if is_instance_valid(boss):
 			remove_child(boss)
@@ -244,6 +248,7 @@ func on_boss_defeated() -> void:
 	boss_defeated = true
 	score += 5000
 	for shot in get_tree().get_nodes_in_group("projectiles"): shot.queue_free()
+	for effect in get_tree().get_nodes_in_group("shot_effects"): effect.queue_free()
 	if is_instance_valid(arena_gate): arena_gate.queue_free()
 	player.invincible = 4.0
 	banner("GUARDIAN DEFEATED","Enter the gate to continue",5)
@@ -260,8 +265,13 @@ func finish() -> void:
 	GameState.complete(index,score,elapsed,gems,relics)
 	get_parent().stage_finished()
 
-func projectile(pos: Vector2,vel: Vector2,friendly: bool,damage: int,color: Color,kind: String = "bolt") -> void:
-	if get_tree().get_nodes_in_group("projectiles").size()>200: return
+func projectile(pos: Vector2,vel: Vector2,friendly: bool,damage: int,color: Color,kind: String = "bolt",family: String = "",spawn_muzzle: bool = true) -> int:
+	if get_tree().get_nodes_in_group("projectiles").size()>200:
+		return -1
+	if family.is_empty():
+		family = "player_pulse" if friendly else "enemy_bolt"
+	shot_serial += 1
+	var current_shot_id = shot_serial
 	var shot = Projectile.new()
 	shot.world = self
 	shot.position = pos
@@ -270,8 +280,27 @@ func projectile(pos: Vector2,vel: Vector2,friendly: bool,damage: int,color: Colo
 	shot.damage = damage
 	shot.tint = color
 	shot.kind = kind
+	shot.family = family
+	shot.shot_id = current_shot_id
+	if spawn_muzzle:
+		shot_effect(pos, family, current_shot_id, 0, 3, vel.normalized(), 64.0 if kind != "nova" else 88.0)
 	# Some calls originate inside physics callbacks. Defer scene attachment safely.
 	add_child.call_deferred(shot)
+	return current_shot_id
+
+func shot_effect(pos: Vector2,family: String,shot_id: int,first_frame: int,last_frame: int,direction: Vector2,display_height: float = 64.0) -> bool:
+	if Sheet16.find_path("projectiles", family).is_empty():
+		return false
+	var effect = ShotEffect.new()
+	effect.position = pos
+	effect.family = family
+	effect.shot_id = shot_id
+	effect.first_frame = first_frame
+	effect.last_frame = last_frame
+	effect.direction = direction if direction.length_squared() > 0.0 else Vector2.RIGHT
+	effect.display_height = display_height
+	add_child.call_deferred(effect)
+	return true
 
 func burst(pos: Vector2,color: Color,count: int) -> void:
 	if is_instance_valid(fx): fx.burst(pos,color,count)
