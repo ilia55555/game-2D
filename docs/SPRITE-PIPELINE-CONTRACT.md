@@ -90,6 +90,16 @@ frame order: row-major
 
 این ابعاد قرارداد سخت نیستند؛ loader باید اندازه cell را از خود تصویر محاسبه کند. اما تمام ۱۶ فریم یک فایل باید cell یکسان داشته باشند.
 
+### نام فایل‌های خودکار
+با قرار دادن فایل‌ها با نام‌های زیر، بدون تغییر کد وارد pipeline می‌شوند:
+
+- Hero: `assets/art/hero/hero_16.png`
+- Enemies: `crawler_16.png`, `hopper_16.png`, `turret_16.png`, `drone_16.png`, `sentinel_16.png` داخل `assets/art/enemies/`
+- Bosses: `warden_16.png`, `manta_16.png`, `oracle_16.png`, `titan_16.png`, `varkon_16.png` داخل `assets/art/bosses/`
+- Projectiles: `player_pulse_16.png`, `player_scatter_16.png`, `player_nova_16.png`, `enemy_bolt_16.png`, `boss_bolt_16.png` داخل `assets/art/projectiles/`
+
+پسوند `_16` پیشنهاد اصلی است. loader برای فایل هم‌نام بدون این پسوند نیز fallback دارد.
+
 ## 3) قرارداد state برای Actorها
 
 ### Hero master-16
@@ -129,22 +139,19 @@ frame order: row-major
 
 برای turret فریم‌های move می‌توانند به idle extension تبدیل شوند. برای drone فریم‌های 6..7 hover هستند.
 
-### Boss master-16
+### Boss master-16 — قرارداد قطعی مرحله ۲
+تمام باس‌ها کاملاً **side-view دوبعدی** طراحی می‌شوند. هیچ فریمی نباید باس را رو‌به‌دوربین/بازیکن نشان دهد. جهت راست حالت مرجع artwork است و حرکت به چپ فقط با flip افقی انجام می‌شود.
+
 | Frame | State |
 |---:|---|
-| 0..3 | idle loop |
-| 4..5 | telegraph |
-| 6 | attack 0 / volley |
-| 7 | attack 1 / charge |
-| 8 | attack 2 / slam |
-| 9 | attack 3 / rain |
-| 10 | attack 4 / ring |
-| 11..12 | recover |
-| 13 | phase-2 pose |
-| 14 | hurt |
-| 15 | death |
+| 0..3 | حرکت / movement loop |
+| 4..7 | حمله / attack loop |
+| 8..9 | حرکت ویژه؛ انرژی از هسته/سینه |
+| 10..11 | سپر؛ المان‌های درخشان جدا در اطراف باس |
+| 12..13 | ضربه به زمین / ground slam |
+| 14..15 | خردشدن و نابودی باس |
 
-اگر برای attack خاص sheet ۱۶فریمی جدا وجود داشته باشد، همان clip به‌جای master frame استفاده می‌شود.
+در runtime، فریم‌های 10..11 فقط نمایشی نیستند: در state بازیابی (`recover`) سپر واقعاً ضربه را دفع می‌کند.
 
 ## 4) قرارداد جهت، anchor و hitbox
 
@@ -267,3 +274,15 @@ Target اولیه برای tuning:
 - assetهای فعلی
 
 پیاده‌سازی واقعی از مرحله ۲ شروع می‌شود.
+
+## 11) وضعیت مرحله ۲
+
+مرحله ۲ روی شاخه `games` پیاده‌سازی شده است:
+
+- `scripts/sprite_sheet_16.gd` loader مشترک 4×4 و nearest filtering را مدیریت می‌کند.
+- Hero و تمام Enemyها به محض وجود PNG جدید از sheet استفاده می‌کنند و SVG فقط fallback موقت است.
+- Bossها با قرارداد جدید 16 فریم بالا کار می‌کنند.
+- `scripts/projectile.gd` یک `family` و `shot_id` ثابت برای هر تیر نگه می‌دارد.
+- muzzle، travel، actor-hit و wall-hit/explosion از همان projectile sheet خوانده می‌شوند.
+- برخورد فیزیکی swept-ray قبلی حفظ شده تا high-speed و point-blank collision خراب نشود.
+- در reset باس/مرگ بازیکن، projectileها و shot effectهای باقی‌مانده پاک می‌شوند.
