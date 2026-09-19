@@ -141,14 +141,15 @@ func shoot() -> void:
 	# Keyboard keeps run-and-gun aiming predictable; targets above can be reached by jumping.
 	match actual:
 		0:
-			world.projectile(origin, direction * 1000, true, 1, Color("a9ffdf"))
+			world.projectile(origin, direction * 1000, true, 1, Color("a9ffdf"), "bolt", "player_pulse", true)
 			fire_timer = .14
 		1:
-			for angle in [-.15, 0.0, .15]: world.projectile(origin, direction.rotated(angle) * 850, true, 1, Color("ffcf81"))
+			for angle in [-.15, 0.0, .15]:
+				world.projectile(origin, direction.rotated(angle) * 850, true, 1, Color("ffcf81"), "bolt", "player_scatter", is_zero_approx(angle))
 			energy -= 8
 			fire_timer = .27
 		2:
-			world.projectile(origin, direction * 720, true, 4, Color("c7adff"), "nova")
+			world.projectile(origin, direction * 720, true, 4, Color("c7adff"), "nova", "player_nova", true)
 			energy -= 12
 			fire_timer = .42
 	rig.recoil = 1
