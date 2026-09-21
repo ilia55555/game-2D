@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#0d1016">
+  <title>ویرایشگر ماسک، آرماتور و نقاط اتصال</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+  <aside class="sidebar">
+    <header class="section hero">
+      <div class="eyebrow">RABBIT RIG TOOLKIT</div>
+      <h1>ویرایشگر پوست و آرماتور</h1>
+      <p>پس‌زمینه را حذف کن، مرز قطعه را اصلاح کن و Pivot و Anchorهای دقیق سازگار با Godot تحویل بگیر.</p>
+    </header>
+
+    <section class="section">
+      <label>نوع ورودی
+        <select id="editorMode">
+          <option value="part">یک قطعه برای ریگ</option>
+          <option value="sheet16">Sprite Sheet شانزده‌فریمی (۴×۴)</option>
+        </select>
+      </label>
+      <div class="buttonGrid">
+        <label class="button primary" for="fileInput">۱. انتخاب تصویر</label>
+        <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp">
+        <button id="buildMaskBtn" class="singleOnly">۲. ساخت ماسک</button>
+        <button id="savePngBtn" class="success singleOnly">خروجی PNG</button>
+        <button id="saveJsonBtn" class="singleOnly">خروجی JSON</button>
+        <button id="saveSvgBtn" class="singleOnly">خروجی SVG</button>
+        <button id="saveSheetBtn" class="success sheetOnly" hidden>خروجی Sheet اصلاح‌شده</button>
+        <button id="saveSheetJsonBtn" class="sheetOnly" hidden>خروجی تنظیمات JSON</button>
+        <button id="resetBtn" class="danger">بازنشانی قطعه</button>
+      </div>
+      <p class="note">پردازش کاملاً داخل مرورگر انجام می‌شود و تصویر جایی ارسال نمی‌شود.</p>
+    </section>
+
+    <section id="sheetPanel" class="section formStack sheetOnly" hidden>
+      <div class="sectionTitle"><h2>کراپ و تنظیم ۱۶ فریم</h2><span id="selectedFrameLabel" class="pill">فریم ۰۱</span></div>
+      <div id="frameGrid" class="frameGrid" aria-label="انتخاب فریم"></div>
+      <div class="twoCols">
+        <label>X کراپ<input id="frameX" type="number" min="0" step="1"></label>
+        <label>Y کراپ<input id="frameY" type="number" min="0" step="1"></label>
+        <label>عرض فریم<input id="frameWidth" type="number" min="1" step="1"></label>
+        <label>ارتفاع فریم<input id="frameHeight" type="number" min="1" step="1"></label>
+      </div>
+      <div class="rangeLabel"><span>چرخش فریم انتخاب‌شده</span><output id="rotationValue">۰°</output></div>
+      <input id="frameRotation" type="range" min="-180" max="180" step="1" value="0">
+      <div class="buttonGrid">
+        <button id="rotateLeftBtn">↶ چرخش ۹۰°</button>
+        <button id="rotateRightBtn">↷ چرخش ۹۰°</button>
+        <button id="flipHorizontalBtn">↔ آینهٔ افقی</button>
+        <button id="flipVerticalBtn">↕ آینهٔ عمودی</button>
+        <button id="flipAllHorizontalBtn">↔ آینهٔ افقی همه</button>
+        <button id="flipAllVerticalBtn">↕ آینهٔ عمودی همه</button>
+      </div>
+      <button id="resetFramesBtn" class="danger">بازچینی خودکار شبکهٔ ۴×۴</button>
+      <p class="note">کادر زرد فریم انتخاب‌شده را روی Sheet بکش یا X/Y را عددی وارد کن. کلیدهای جهت ۱px و Shift + جهت ۱۰px جابه‌جا می‌کنند.</p>
+    </section>
+
+    <section class="section formStack singleOnly">
+      <label>نام قطعه<input id="partName" type="text" placeholder="frame_10 یا gun"></label>
+      <label>روش جداسازی
+        <select id="maskMode">
+          <option value="auto">خودکار (Alpha یا رنگ گوشه‌ها)</option>
+          <option value="alpha">شفافیت PNG</option>
+          <option value="background">رنگ پس‌زمینه از گوشه‌ها</option>
+        </select>
+      </label>
+      <div class="rangeLabel"><span>آستانهٔ Alpha</span><output id="alphaValue">8</output></div>
+      <input id="alphaThreshold" type="range" min="0" max="254" value="8">
+      <div class="rangeLabel"><span>تلورانس رنگ پس‌زمینه</span><output id="toleranceValue">34</output></div>
+      <input id="colorTolerance" type="range" min="0" max="180" value="34">
+      <div class="rangeLabel"><span>دقت ساده‌سازی SVG</span><output id="simplifyValue">2 px</output></div>
+      <input id="simplify" type="range" min="0" max="20" step="0.5" value="2">
+      <div class="rangeLabel"><span>بزرگ‌نمایی</span><output id="zoomValue">160%</output></div>
+      <input id="zoom" type="range" min="25" max="600" value="160">
+      <label class="check"><input id="cropOutput" type="checkbox" checked> خروجی‌ها دقیقاً تا مرز آبجکت Crop شوند</label>
+      <label class="check"><input id="showMask" type="checkbox" checked> نمایش پوشش سبز ماسک</label>
+    </section>
+
+    <section class="section singleOnly">
+      <h2>ابزار روی تصویر</h2>
+      <div class="modeGrid">
+        <button data-mode="select" class="mode active">انتخاب و جابه‌جایی</button>
+        <button data-mode="anchor" class="mode">افزودن Anchor</button>
+        <button data-mode="pivot" class="mode">تعیین Pivot</button>
+        <button data-mode="vertex" class="mode">افزودن Vertex</button>
+      </div>
+      <p class="note"><kbd>← ↑ ↓ →</kbd> حرکت ۱px، با <kbd>Shift</kbd> حرکت ۱۰px و <kbd>Delete</kbd> حذف نقطهٔ انتخاب‌شده.</p>
+    </section>
+
+    <section class="section formStack singleOnly">
+      <h2>مشخصات Anchor</h2>
+      <div class="twoCols">
+        <label>نام<input id="anchorName" type="text" placeholder="grip"></label>
+        <label>نوع<select id="anchorType"><option>attach</option><option>pivot</option><option>hinge</option><option>custom</option></select></label>
+      </div>
+      <label>تعریف نقطه<input id="anchorWhat" type="text" placeholder="محل گرفتن دستهٔ تفنگ"></label>
+      <div class="twoCols">
+        <label>قطعهٔ مقصد<input id="connectPart" type="text" placeholder="frame_07"></label>
+        <label>Anchor مقصد<input id="connectAnchor" type="text" placeholder="hand_socket"></label>
+      </div>
+      <label>یادداشت<input id="anchorNotes" type="text" placeholder="هم‌پوشانی دست با دسته"></label>
+      <button id="applyAnchorBtn" class="success">ثبت مشخصات Anchor انتخاب‌شده</button>
+    </section>
+
+    <section class="section singleOnly">
+      <div class="sectionTitle"><h2>Anchorها</h2><span id="anchorCount" class="pill">۰</span></div>
+      <div id="anchorsList" class="list"><div class="empty">هنوز نقطه‌ای ثبت نشده است.</div></div>
+    </section>
+
+    <details class="section singleOnly">
+      <summary>ویرایش مستقیم SVG</summary>
+      <textarea id="svgText" spellcheck="false"></textarea>
+      <button id="applySvgBtn">اعمال Polygon از متن</button>
+    </details>
+    <details class="section singleOnly">
+      <summary>پیش‌نمایش JSON</summary>
+      <textarea id="jsonText" readonly spellcheck="false"></textarea>
+    </details>
+  </aside>
+
+  <main class="workspace">
+    <div class="topbar">
+      <div><strong id="statusTitle">تصویری انتخاب نشده</strong><span id="statusDetail">برای شروع یک PNG، JPG یا WebP باز کن.</span></div>
+      <div class="legend"><span><i class="green"></i> مرز مش</span><span><i class="blue"></i> Anchor</span><span><i class="red"></i> Pivot</span><span><i class="yellow"></i> انتخاب</span></div>
+    </div>
+    <div class="stage" id="stage">
+      <div id="welcome" class="welcome"><div class="welcomeIcon">⌁</div><h2>تصویر قطعه را اینجا رها کن</h2><p>یا از دکمهٔ «انتخاب تصویر» استفاده کن</p></div>
+      <div class="canvasHolder"><canvas id="canvas" aria-label="محیط ویرایش تصویر"></canvas></div>
+      <aside id="framePreviewCard" class="framePreviewCard sheetOnly" hidden><strong>پیش‌نمایش فریم انتخاب‌شده</strong><canvas id="framePreview"></canvas><span id="frameTransformStatus"></span></aside>
+    </div>
+  </main>
+</div>
+<script src="app.js"></script>
+</body>
+</html>
