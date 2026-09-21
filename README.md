@@ -59,3 +59,11 @@ python tools/verify_unity_source.py
 ## نسخهٔ قبلی
 
 فایل‌های Godot برای مرجع مهاجرت و حفظ نسخهٔ قبلی نگه داشته شده‌اند؛ Unity هیچ GDScript یا Sprite دوبعدی را در زمان اجرا بارگذاری نمی‌کند. راهنمای قدیمی در [GODOT-LEGACY.md](docs/GODOT-LEGACY.md) است. ذخیره‌های Godot به‌طور خودکار به Unity وارد نمی‌شوند.
+
+## پروژهٔ Godot و ریگ ۱۶ تکهٔ خرگوش
+
+برای جلوگیری از مخلوط‌شدن فایل‌های دو موتور، کل پروژهٔ Godot اکنون در پوشهٔ [`Godot/`](Godot) قرار دارد. برای خرگوش، ۱۶ تصویر شفاف را با نام `frame_01.png` تا `frame_16.png` در [`Godot/assets/rabbit/parts/`](Godot/assets/rabbit/parts) بگذار. راهنمای مهمِ Canvas مشترک و اجرای پیش‌نمایش در [`Godot/assets/rabbit/README.md`](Godot/assets/rabbit/README.md) نوشته شده است.
+
+## ابزار آماده‌سازی قطعات خرگوش
+
+وب‌اپ مستقل [`AnchorEditor`](AnchorEditor) تصاویر Crop‌شده را به PNG شفاف تبدیل می‌کند و مختصات Pivot، Anchor و مرز مش را به‌صورت هماهنگ در JSON و SVG خروجی می‌دهد. برای اجرا، `AnchorEditor/index.html` را در مرورگر باز کن.

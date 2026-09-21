@@ -2,7 +2,7 @@
 """Reproducible, strict export of authored Godot layouts (no Godot dependency)."""
 import ast, json, pathlib, re
 ROOT=pathlib.Path(__file__).resolve().parents[1]
-SOURCE=ROOT/'scripts/campaign.gd'
+SOURCE=ROOT/'Godot/scripts/campaign.gd'
 DEST=ROOT/'Unity/Assets/Velocity/Resources/Velocity/campaign.json'
 def export():
     source=SOURCE.read_text()

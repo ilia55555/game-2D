@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")"
 VELOCITY_ENGINE="${GODOT_BIN:-godot}"
 VELOCITY_LOG_DIR="$(mktemp -d)"
 trap 'rm -rf "$VELOCITY_LOG_DIR"' EXIT
