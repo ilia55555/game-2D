@@ -45,7 +45,7 @@ The software graphics environment reports that it cannot control V-Sync. This is
 ## Repeat locally
 
 ```bash
-GODOT_BIN=/path/to/godot bash tools/verify.sh
+GODOT_BIN=/path/to/godot bash Godot/verify.sh
 
 godot --headless --path . --export-pack Linux /tmp/velocity.pck
 godot --headless --main-pack /tmp/velocity.pck --quit-after 120 -- --test

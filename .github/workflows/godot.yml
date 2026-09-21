@@ -21,8 +21,8 @@ jobs:
       - name: Import and run the integration suite
         env:
           GODOT_BIN: /tmp/godot/Godot_v4.5-stable_linux.x86_64
-        run: bash tools/verify.sh
+        run: bash Godot/verify.sh
       - name: Verify the exported resource pack
         run: |
-          /tmp/godot/Godot_v4.5-stable_linux.x86_64 --headless --path . --export-pack Linux /tmp/velocity.pck
+          /tmp/godot/Godot_v4.5-stable_linux.x86_64 --headless --path Godot --export-pack Linux /tmp/velocity.pck
           /tmp/godot/Godot_v4.5-stable_linux.x86_64 --headless --main-pack /tmp/velocity.pck --quit-after 120 -- --test

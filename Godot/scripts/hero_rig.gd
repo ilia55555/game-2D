@@ -1,6 +1,7 @@
 extends Node2D
 ## Uses a 16-frame side-view sprite sheet when present; otherwise keeps the legacy vector cutout rig.
 const Sheet16 = preload("res://scripts/sprite_sheet_16.gd")
+const RabbitRigScene = preload("res://scripts/rabbit/rabbit_rig.gd")
 
 var parts: Dictionary = {}
 var clock: float = 0
@@ -20,8 +21,17 @@ var aim: float = 0
 var color_flash: float = 0
 var sprite16
 var using_sheet16: bool = false
+var rabbit_rig: RabbitRig
+var using_rabbit_rig: bool = false
 
 func _ready() -> void:
+	if RabbitRigScene.assets_available():
+		rabbit_rig = RabbitRigScene.new()
+		rabbit_rig.display_height = 150.0
+		add_child(rabbit_rig)
+		using_rabbit_rig = true
+		return
+
 	var sheet_path = Sheet16.find_path("hero", "hero")
 	if not sheet_path.is_empty():
 		sprite16 = Sheet16.new()
@@ -67,7 +77,16 @@ func pose(delta: float, move_speed: float, vertical: float, on_ground: bool, cro
 
 	var stretch_x = 1 + landing * 0.11
 	var stretch_y = 1 - landing * 0.09
-	if using_sheet16:
+	if using_rabbit_rig:
+		var rabbit_motion := RabbitRig.Motion.IDLE
+		if recoil > 0.05:
+			rabbit_motion = RabbitRig.Motion.SHOOT
+		elif not grounded:
+			rabbit_motion = RabbitRig.Motion.JUMP if vy < 0 else RabbitRig.Motion.FALL
+		elif absf(speed) > 40.0:
+			rabbit_motion = RabbitRig.Motion.RUN
+		rabbit_rig.set_motion(rabbit_motion, Vector2(speed, vy), facing < 0)
+	elif using_sheet16:
 		scale = Vector2(stretch_x, stretch_y)
 		sprite16.flip_h = facing < 0
 		update_sheet_animation()

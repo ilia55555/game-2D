@@ -5,7 +5,7 @@
 ## اجرای سریع
 
 1. **شاخهٔ `games`** را از GitHub با **Code → Download ZIP** دانلود و از حالت فشرده خارج کن.
-2. در نسخهٔ معمولی **Godot 4.5**، گزینهٔ **Import** را بزن و فایل **`project.godot`** همین پوشه را انتخاب کن. نسخهٔ .NET لازم نیست.
+2. در نسخهٔ معمولی **Godot 4.5**، گزینهٔ **Import** را بزن و فایل **`Godot/project.godot`** را انتخاب کن. نسخهٔ .NET لازم نیست.
 3. صبر کن فایل‌ها Import شوند؛ سپس **F5 / Run Project** را بزن.
 4. در منو **Begin Journey** را انتخاب کن.
 
@@ -63,13 +63,13 @@
 - `scripts/enemy.gd` / `boss.gd` — دشمن‌ها و باس‌ها
 - `scripts/projectile.gd` — برخورد پیوستهٔ گلوله با ray sweep
 - `scripts/game_state.gd` — ذخیرهٔ اتمیک تنظیمات و پیشرفت
-- `assets/art/` / `assets/audio/` — تمام گرافیک و صدا
-- `tests/smoke.tscn` — تست یکپارچهٔ بازی با فیزیک واقعی Godot
+- `Godot/assets/art/` / `Godot/assets/audio/` — تمام گرافیک و صدا
+- `Godot/tests/smoke.tscn` — تست یکپارچهٔ بازی با فیزیک واقعی Godot
 
 ## آزمون و خروجی
 
 ```bash
-GODOT_BIN=/path/to/godot bash tools/verify.sh
+GODOT_BIN=/path/to/godot bash Godot/verify.sh
 ```
 
 گزارش دقیق تست‌ها و محدودیت‌های بررسی در [docs/VALIDATION.md](docs/VALIDATION.md) است. برای خروجی اجرایی ویندوز یا لینوکس، [راهنمای اجرا و بیلد](docs/راهنمای-اجرا-و-بیلد.md) را ببین.
