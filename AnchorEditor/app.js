@@ -3,16 +3,20 @@
   const $ = id => document.getElementById(id);
   const canvas = $('canvas');
   const ctx = canvas.getContext('2d', {willReadFrequently:true});
+  const framePreview = $('framePreview');
+  const framePreviewCtx = framePreview.getContext('2d');
   const source = document.createElement('canvas');
   const sourceCtx = source.getContext('2d', {willReadFrequently:true});
 
   let image = null, imageData = null, mask = null, polygon = [], anchors = [], pivot = null;
   let zoom = 1.6, mode = 'select', activeAnchor = -1, activeVertex = -1, dragging = null;
+  let frames = [], selectedFrame = 0, sheetFrameWidth = 1, sheetFrameHeight = 1;
   const clamp = (v,a,b) => Math.max(a,Math.min(b,v));
   const round = v => Math.round(v * 100) / 100;
   const key = (x,y) => `${x},${y}`;
 
   function setStatus(title, detail='') { $('statusTitle').textContent=title; $('statusDetail').textContent=detail; }
+  function isSheetMode(){ return $('editorMode').value === 'sheet16'; }
   function setMode(next) { mode=next; document.querySelectorAll('.mode').forEach(b=>b.classList.toggle('active',b.dataset.mode===next)); }
   function updateLabels(){
     $('alphaValue').value=$('alphaThreshold').value;
@@ -31,10 +35,67 @@
       polygon=[]; anchors=[]; pivot=null; activeAnchor=-1; activeVertex=-1;
       $('partName').value=file.name.replace(/\.[^.]+$/,'');
       $('stage').classList.add('ready'); URL.revokeObjectURL(url);
-      buildMask(); setStatus(file.name,`${source.width} × ${source.height} پیکسل`);
+      if(isSheetMode()) initFrames(); else buildMask();
+      setStatus(file.name,`${source.width} × ${source.height} پیکسل`);
     };
     next.onerror=()=>{ URL.revokeObjectURL(url); setStatus('خواندن تصویر ناموفق بود'); };
     next.src=url;
+  }
+
+  function initFrames(){
+    sheetFrameWidth=Math.max(1,Math.floor(source.width/4));
+    sheetFrameHeight=Math.max(1,Math.floor(source.height/4));
+    frames=Array.from({length:16},(_,i)=>({
+      x:(i%4)*sheetFrameWidth,y:Math.floor(i/4)*sheetFrameHeight,
+      rotation:0,flipX:false,flipY:false
+    }));
+    selectedFrame=0; dragging=null; refreshFrameEditor();
+  }
+  function currentFrame(){ return frames[selectedFrame]; }
+  function clampFrame(frame){
+    frame.x=clamp(Math.round(frame.x),0,Math.max(0,source.width-sheetFrameWidth));
+    frame.y=clamp(Math.round(frame.y),0,Math.max(0,source.height-sheetFrameHeight));
+  }
+  function refreshFrameEditor(){
+    if(!frames.length)return;
+    const frame=currentFrame();clampFrame(frame);
+    $('selectedFrameLabel').textContent=`فریم ${String(selectedFrame+1).padStart(2,'0')}`;
+    $('frameX').value=frame.x;$('frameY').value=frame.y;
+    $('frameWidth').value=sheetFrameWidth;$('frameHeight').value=sheetFrameHeight;
+    $('frameRotation').value=frame.rotation;$('rotationValue').value=`${frame.rotation}°`;
+    document.querySelectorAll('#frameGrid button').forEach((b,i)=>b.classList.toggle('active',i===selectedFrame));
+    drawFramePreview();redraw();
+  }
+  function buildFrameGrid(){
+    const grid=$('frameGrid');grid.innerHTML='';
+    for(let i=0;i<16;i++){const button=document.createElement('button');button.type='button';button.textContent=String(i+1).padStart(2,'0');button.onclick=()=>{selectedFrame=i;refreshFrameEditor();};grid.append(button);}
+  }
+  function drawTransformedFrame(target,frame,dx,dy,width,height){
+    target.save();target.beginPath();target.rect(dx,dy,width,height);target.clip();
+    target.translate(dx+width/2,dy+height/2);
+    target.scale(frame.flipX?-1:1,frame.flipY?-1:1);
+    target.rotate(frame.rotation*Math.PI/180);
+    target.drawImage(source,frame.x,frame.y,sheetFrameWidth,sheetFrameHeight,-width/2,-height/2,width,height);
+    target.restore();
+  }
+  function drawFramePreview(){
+    if(!image||!frames.length)return;
+    framePreview.width=sheetFrameWidth;framePreview.height=sheetFrameHeight;
+    framePreviewCtx.clearRect(0,0,framePreview.width,framePreview.height);
+    framePreviewCtx.imageSmoothingEnabled=false;
+    drawTransformedFrame(framePreviewCtx,currentFrame(),0,0,sheetFrameWidth,sheetFrameHeight);
+    const f=currentFrame();$('frameTransformStatus').textContent=`X ${f.x} · Y ${f.y} · ${f.rotation}° · افقی ${f.flipX?'بله':'خیر'} · عمودی ${f.flipY?'بله':'خیر'}`;
+  }
+  function sheetSettings(){return JSON.stringify({
+    schema:'rabbit-sprite-sheet@1',source_size:{width:source.width,height:source.height},
+    layout:{columns:4,rows:4,frame_width:sheetFrameWidth,frame_height:sheetFrameHeight},
+    frames:frames.map((f,i)=>({frame:i+1,x:f.x,y:f.y,width:sheetFrameWidth,height:sheetFrameHeight,rotation_degrees:f.rotation,flip_horizontal:f.flipX,flip_vertical:f.flipY}))
+  },null,2);}
+  function exportSheet(){
+    const out=document.createElement('canvas');out.width=sheetFrameWidth*4;out.height=sheetFrameHeight*4;
+    const outCtx=out.getContext('2d');outCtx.imageSmoothingEnabled=false;
+    frames.forEach((frame,i)=>drawTransformedFrame(outCtx,frame,(i%4)*sheetFrameWidth,Math.floor(i/4)*sheetFrameHeight,sheetFrameWidth,sheetFrameHeight));
+    out.toBlob(blob=>blob&&download(blob,'image/png',`${$('partName').value||'sheet'}_corrected.png`),'image/png');
   }
 
   function hasUsefulAlpha(){
@@ -128,6 +189,10 @@
   function refreshAll(){refreshList();updateExports();redraw();}
 
   function redraw(){if(!image)return;canvas.width=Math.max(1,Math.round(source.width*zoom));canvas.height=Math.max(1,Math.round(source.height*zoom));ctx.imageSmoothingEnabled=false;ctx.clearRect(0,0,canvas.width,canvas.height);ctx.drawImage(image,0,0,canvas.width,canvas.height);
+    if(isSheetMode()){
+      frames.forEach((frame,i)=>{ctx.strokeStyle=i===selectedFrame?'#ffd166':'rgba(77,163,255,.7)';ctx.lineWidth=i===selectedFrame?3:1;ctx.strokeRect(frame.x*zoom,frame.y*zoom,sheetFrameWidth*zoom,sheetFrameHeight*zoom);ctx.fillStyle=i===selectedFrame?'#ffd166':'#4da3ff';ctx.font='bold 12px Arial';ctx.fillText(String(i+1).padStart(2,'0'),frame.x*zoom+5,frame.y*zoom+16);});
+      return;
+    }
     if(mask&&$('showMask').checked){ctx.fillStyle='rgba(20,220,130,.25)';for(let y=0;y<source.height;y++)for(let x=0;x<source.width;x++)if(mask[y*source.width+x])ctx.fillRect(x*zoom,y*zoom,Math.ceil(zoom),Math.ceil(zoom));}
     if(polygon.length){ctx.beginPath();polygon.forEach((p,i)=>i?ctx.lineTo(p.x*zoom,p.y*zoom):ctx.moveTo(p.x*zoom,p.y*zoom));ctx.closePath();ctx.strokeStyle='#35d39a';ctx.lineWidth=2;ctx.stroke();polygon.forEach((p,i)=>marker(p,i===activeVertex?'#ffd166':'#35d39a','',4));}
     if(pivot)marker(pivot,'#ff5f6d','P',7);anchors.forEach((a,i)=>marker(a,i===activeAnchor?'#ffd166':'#4da3ff',String(i+1),7));}
@@ -137,6 +202,11 @@
   function nearestSegment(p){let best=-1,dist=Infinity;for(let i=0;i<polygon.length;i++){const a=polygon[i],b=polygon[(i+1)%polygon.length],d=pointLineDistance(p,a,b);if(d<dist){dist=d;best=i;}}return best;}
 
   canvas.addEventListener('pointerdown',e=>{if(!image)return;const p=position(e);
+    if(isSheetMode()){
+      let hit=-1;for(let i=frames.length-1;i>=0;i--){const f=frames[i];if(p.x>=f.x&&p.x<=f.x+sheetFrameWidth&&p.y>=f.y&&p.y<=f.y+sheetFrameHeight){hit=i;break;}}
+      if(hit>=0){selectedFrame=hit;const f=currentFrame();dragging={kind:'sheet_frame',offsetX:p.x-f.x,offsetY:p.y-f.y};refreshFrameEditor();}
+      return;
+    }
     if(mode==='pivot'){pivot=p;setMode('select');refreshAll();return;}
     if(mode==='anchor'){anchors.push({...anchorMeta(),...p});activeAnchor=anchors.length-1;activeVertex=-1;setMode('select');fillAnchor(anchors[activeAnchor]);refreshAll();return;}
     if(mode==='vertex'){const i=nearestSegment(p);polygon.splice(i<0?polygon.length:i+1,0,p);activeVertex=i<0?polygon.length-1:i+1;activeAnchor=-1;setMode('select');refreshAll();return;}
@@ -144,10 +214,12 @@
     const ai=nearest(anchors,p);if(ai>=0){activeAnchor=ai;activeVertex=-1;fillAnchor(anchors[ai]);dragging={kind:'anchor',index:ai};refreshAll();return;}
     const vi=nearest(polygon,p);if(vi>=0){activeVertex=vi;activeAnchor=-1;dragging={kind:'vertex',index:vi};refreshAll();return;}
     activeAnchor=-1;activeVertex=-1;refreshAll();});
-  canvas.addEventListener('pointermove',e=>{if(!dragging)return;const p=position(e);if(dragging.kind==='pivot')pivot=p;else if(dragging.kind==='anchor')Object.assign(anchors[dragging.index],p);else Object.assign(polygon[dragging.index],p);refreshAll();});
+  canvas.addEventListener('pointermove',e=>{if(!dragging)return;const p=position(e);if(dragging.kind==='sheet_frame'){const f=currentFrame();f.x=p.x-dragging.offsetX;f.y=p.y-dragging.offsetY;clampFrame(f);refreshFrameEditor();return;}if(dragging.kind==='pivot')pivot=p;else if(dragging.kind==='anchor')Object.assign(anchors[dragging.index],p);else Object.assign(polygon[dragging.index],p);refreshAll();});
   ['pointerup','pointercancel','pointerleave'].forEach(name=>canvas.addEventListener(name,()=>dragging=null));
 
-  window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(!image||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Delete'].includes(e.key))return;let target=null;
+  window.addEventListener('keydown',e=>{if(['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(!image||!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown','Delete'].includes(e.key))return;
+    if(isSheetMode()&&frames.length&&e.key!=='Delete'){e.preventDefault();const f=currentFrame(),step=e.shiftKey?10:1;if(e.key==='ArrowLeft')f.x-=step;if(e.key==='ArrowRight')f.x+=step;if(e.key==='ArrowUp')f.y-=step;if(e.key==='ArrowDown')f.y+=step;clampFrame(f);refreshFrameEditor();return;}
+    let target=null;
     if(activeAnchor>=0)target=anchors[activeAnchor];else if(activeVertex>=0)target=polygon[activeVertex];
     if(e.key==='Delete'){if(activeAnchor>=0){anchors.splice(activeAnchor,1);activeAnchor=-1;}else if(activeVertex>=0&&polygon.length>3){polygon.splice(activeVertex,1);activeVertex=-1;}refreshAll();return;}
     if(!target)return;e.preventDefault();const step=e.shiftKey?10:1;if(e.key==='ArrowLeft')target.x-=step;if(e.key==='ArrowRight')target.x+=step;if(e.key==='ArrowUp')target.y-=step;if(e.key==='ArrowDown')target.y+=step;target.x=clamp(target.x,0,source.width);target.y=clamp(target.y,0,source.height);refreshAll();});
@@ -155,16 +227,33 @@
   function download(content,type,name){const url=URL.createObjectURL(new Blob([content],{type})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),500);}
   $('saveJsonBtn').onclick=()=>image&&download(buildJson(),'application/json',`${$('partName').value||'part'}.json`);
   $('saveSvgBtn').onclick=()=>image&&download(buildSvg(),'image/svg+xml',`${$('partName').value||'part'}.svg`);
+  $('saveSheetBtn').onclick=()=>image&&frames.length&&exportSheet();
+  $('saveSheetJsonBtn').onclick=()=>image&&frames.length&&download(sheetSettings(),'application/json',`${$('partName').value||'sheet'}_settings.json`);
   $('savePngBtn').onclick=()=>{if(!image||!mask)return;const f=exportFrame(),out=document.createElement('canvas');out.width=f.width;out.height=f.height;const o=out.getContext('2d'),data=new ImageData(f.width,f.height),src=imageData.data;
     for(let y=0;y<f.height;y++)for(let x=0;x<f.width;x++){const sp=(y+f.y)*source.width+x+f.x,si=sp*4,di=(y*f.width+x)*4;data.data[di]=src[si];data.data[di+1]=src[si+1];data.data[di+2]=src[si+2];data.data[di+3]=mask[sp]?src[si+3]:0;}o.putImageData(data,0,0);out.toBlob(blob=>blob&&download(blob,'image/png',`${$('partName').value||'part'}.png`),'image/png');};
   $('applyAnchorBtn').onclick=()=>{if(activeAnchor<0){alert('ابتدا یک Anchor را انتخاب کن.');return;}Object.assign(anchors[activeAnchor],anchorMeta());refreshAll();};
   $('applySvgBtn').onclick=()=>{if(!image)return;const match=$('svgText').value.match(/<polygon\b[^>]*\bpoints\s*=\s*["']([^"']+)["']/i);if(!match){alert('Polygon معتبر پیدا نشد.');return;}const f=exportFrame(),pts=match[1].trim().split(/\s+/).map(pair=>pair.split(',').map(Number)).filter(p=>p.length===2&&p.every(Number.isFinite)).map(([x,y])=>({x:x+f.x,y:y+f.y}));if(pts.length<3){alert('Polygon باید حداقل سه نقطه داشته باشد.');return;}polygon=pts;activeVertex=-1;refreshAll();};
-  $('resetBtn').onclick=()=>{if(!image)return;anchors=[];pivot=null;activeAnchor=-1;activeVertex=-1;buildMask();};
+  $('resetBtn').onclick=()=>{if(!image)return;if(isSheetMode()){initFrames();return;}anchors=[];pivot=null;activeAnchor=-1;activeVertex=-1;buildMask();};
   $('buildMaskBtn').onclick=buildMask;$('fileInput').onchange=e=>loadFile(e.target.files[0]);
+  $('editorMode').onchange=()=>{
+    const sheet=isSheetMode();document.querySelectorAll('.singleOnly').forEach(el=>el.hidden=sheet);document.querySelectorAll('.sheetOnly').forEach(el=>el.hidden=!sheet);
+    if(image){if(sheet)initFrames();else buildMask();}
+    setStatus(sheet?'حالت Sprite Sheet شانزده‌فریمی':'حالت قطعهٔ ریگ',sheet?'یک Sheet با چیدمان ۴×۴ انتخاب کن.':'یک تصویر قطعه انتخاب کن.');
+  };
+  ['frameX','frameY'].forEach(id=>$(id).onchange=()=>{if(!frames.length)return;const f=currentFrame();f.x=+$('frameX').value;f.y=+$('frameY').value;clampFrame(f);refreshFrameEditor();});
+  ['frameWidth','frameHeight'].forEach(id=>$(id).onchange=()=>{if(!frames.length)return;sheetFrameWidth=Math.max(1,Math.round(+$('frameWidth').value||1));sheetFrameHeight=Math.max(1,Math.round(+$('frameHeight').value||1));frames.forEach(clampFrame);refreshFrameEditor();});
+  $('frameRotation').oninput=()=>{if(!frames.length)return;currentFrame().rotation=Math.round(+$('frameRotation').value);refreshFrameEditor();};
+  $('rotateLeftBtn').onclick=()=>{if(!frames.length)return;currentFrame().rotation=((currentFrame().rotation-90+180)%360+360)%360-180;refreshFrameEditor();};
+  $('rotateRightBtn').onclick=()=>{if(!frames.length)return;currentFrame().rotation=((currentFrame().rotation+90+180)%360+360)%360-180;refreshFrameEditor();};
+  $('flipHorizontalBtn').onclick=()=>{if(!frames.length)return;currentFrame().flipX=!currentFrame().flipX;refreshFrameEditor();};
+  $('flipVerticalBtn').onclick=()=>{if(!frames.length)return;currentFrame().flipY=!currentFrame().flipY;refreshFrameEditor();};
+  $('flipAllHorizontalBtn').onclick=()=>{if(!frames.length)return;frames.forEach(frame=>frame.flipX=!frame.flipX);refreshFrameEditor();};
+  $('flipAllVerticalBtn').onclick=()=>{if(!frames.length)return;frames.forEach(frame=>frame.flipY=!frame.flipY);refreshFrameEditor();};
+  $('resetFramesBtn').onclick=()=>image&&initFrames();
   document.querySelectorAll('.mode').forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
   ['alphaThreshold','colorTolerance','simplify'].forEach(id=>$(id).oninput=()=>{updateLabels();if(image)buildMask();});
   $('maskMode').onchange=()=>image&&buildMask();$('zoom').oninput=()=>{zoom=+$('zoom').value/100;updateLabels();redraw();};
   $('cropOutput').onchange=updateExports;$('showMask').onchange=redraw;$('partName').oninput=()=>{updateExports();if(image)setStatus($('partName').value||'قطعه',`${source.width} × ${source.height} پیکسل`);};
   const stage=$('stage');['dragenter','dragover'].forEach(n=>stage.addEventListener(n,e=>{e.preventDefault();$('welcome').classList.add('drag');}));['dragleave','drop'].forEach(n=>stage.addEventListener(n,e=>{e.preventDefault();$('welcome').classList.remove('drag');}));stage.addEventListener('drop',e=>loadFile(e.dataTransfer.files[0]));
-  updateLabels();setMode('select');
+  buildFrameGrid();updateLabels();setMode('select');
 })();

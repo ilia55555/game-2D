@@ -17,19 +17,50 @@
     </header>
 
     <section class="section">
+      <label>نوع ورودی
+        <select id="editorMode">
+          <option value="part">یک قطعه برای ریگ</option>
+          <option value="sheet16">Sprite Sheet شانزده‌فریمی (۴×۴)</option>
+        </select>
+      </label>
       <div class="buttonGrid">
         <label class="button primary" for="fileInput">۱. انتخاب تصویر</label>
         <input id="fileInput" type="file" accept="image/png,image/jpeg,image/webp">
-        <button id="buildMaskBtn">۲. ساخت ماسک</button>
-        <button id="savePngBtn" class="success">خروجی PNG</button>
-        <button id="saveJsonBtn">خروجی JSON</button>
-        <button id="saveSvgBtn">خروجی SVG</button>
+        <button id="buildMaskBtn" class="singleOnly">۲. ساخت ماسک</button>
+        <button id="savePngBtn" class="success singleOnly">خروجی PNG</button>
+        <button id="saveJsonBtn" class="singleOnly">خروجی JSON</button>
+        <button id="saveSvgBtn" class="singleOnly">خروجی SVG</button>
+        <button id="saveSheetBtn" class="success sheetOnly" hidden>خروجی Sheet اصلاح‌شده</button>
+        <button id="saveSheetJsonBtn" class="sheetOnly" hidden>خروجی تنظیمات JSON</button>
         <button id="resetBtn" class="danger">بازنشانی قطعه</button>
       </div>
       <p class="note">پردازش کاملاً داخل مرورگر انجام می‌شود و تصویر جایی ارسال نمی‌شود.</p>
     </section>
 
-    <section class="section formStack">
+    <section id="sheetPanel" class="section formStack sheetOnly" hidden>
+      <div class="sectionTitle"><h2>کراپ و تنظیم ۱۶ فریم</h2><span id="selectedFrameLabel" class="pill">فریم ۰۱</span></div>
+      <div id="frameGrid" class="frameGrid" aria-label="انتخاب فریم"></div>
+      <div class="twoCols">
+        <label>X کراپ<input id="frameX" type="number" min="0" step="1"></label>
+        <label>Y کراپ<input id="frameY" type="number" min="0" step="1"></label>
+        <label>عرض فریم<input id="frameWidth" type="number" min="1" step="1"></label>
+        <label>ارتفاع فریم<input id="frameHeight" type="number" min="1" step="1"></label>
+      </div>
+      <div class="rangeLabel"><span>چرخش فریم انتخاب‌شده</span><output id="rotationValue">۰°</output></div>
+      <input id="frameRotation" type="range" min="-180" max="180" step="1" value="0">
+      <div class="buttonGrid">
+        <button id="rotateLeftBtn">↶ چرخش ۹۰°</button>
+        <button id="rotateRightBtn">↷ چرخش ۹۰°</button>
+        <button id="flipHorizontalBtn">↔ آینهٔ افقی</button>
+        <button id="flipVerticalBtn">↕ آینهٔ عمودی</button>
+        <button id="flipAllHorizontalBtn">↔ آینهٔ افقی همه</button>
+        <button id="flipAllVerticalBtn">↕ آینهٔ عمودی همه</button>
+      </div>
+      <button id="resetFramesBtn" class="danger">بازچینی خودکار شبکهٔ ۴×۴</button>
+      <p class="note">کادر زرد فریم انتخاب‌شده را روی Sheet بکش یا X/Y را عددی وارد کن. کلیدهای جهت ۱px و Shift + جهت ۱۰px جابه‌جا می‌کنند.</p>
+    </section>
+
+    <section class="section formStack singleOnly">
       <label>نام قطعه<input id="partName" type="text" placeholder="frame_10 یا gun"></label>
       <label>روش جداسازی
         <select id="maskMode">
@@ -50,7 +81,7 @@
       <label class="check"><input id="showMask" type="checkbox" checked> نمایش پوشش سبز ماسک</label>
     </section>
 
-    <section class="section">
+    <section class="section singleOnly">
       <h2>ابزار روی تصویر</h2>
       <div class="modeGrid">
         <button data-mode="select" class="mode active">انتخاب و جابه‌جایی</button>
@@ -61,7 +92,7 @@
       <p class="note"><kbd>← ↑ ↓ →</kbd> حرکت ۱px، با <kbd>Shift</kbd> حرکت ۱۰px و <kbd>Delete</kbd> حذف نقطهٔ انتخاب‌شده.</p>
     </section>
 
-    <section class="section formStack">
+    <section class="section formStack singleOnly">
       <h2>مشخصات Anchor</h2>
       <div class="twoCols">
         <label>نام<input id="anchorName" type="text" placeholder="grip"></label>
@@ -76,17 +107,17 @@
       <button id="applyAnchorBtn" class="success">ثبت مشخصات Anchor انتخاب‌شده</button>
     </section>
 
-    <section class="section">
+    <section class="section singleOnly">
       <div class="sectionTitle"><h2>Anchorها</h2><span id="anchorCount" class="pill">۰</span></div>
       <div id="anchorsList" class="list"><div class="empty">هنوز نقطه‌ای ثبت نشده است.</div></div>
     </section>
 
-    <details class="section">
+    <details class="section singleOnly">
       <summary>ویرایش مستقیم SVG</summary>
       <textarea id="svgText" spellcheck="false"></textarea>
       <button id="applySvgBtn">اعمال Polygon از متن</button>
     </details>
-    <details class="section">
+    <details class="section singleOnly">
       <summary>پیش‌نمایش JSON</summary>
       <textarea id="jsonText" readonly spellcheck="false"></textarea>
     </details>
@@ -100,6 +131,7 @@
     <div class="stage" id="stage">
       <div id="welcome" class="welcome"><div class="welcomeIcon">⌁</div><h2>تصویر قطعه را اینجا رها کن</h2><p>یا از دکمهٔ «انتخاب تصویر» استفاده کن</p></div>
       <div class="canvasHolder"><canvas id="canvas" aria-label="محیط ویرایش تصویر"></canvas></div>
+      <aside id="framePreviewCard" class="framePreviewCard sheetOnly" hidden><strong>پیش‌نمایش فریم انتخاب‌شده</strong><canvas id="framePreview"></canvas><span id="frameTransformStatus"></span></aside>
     </div>
   </main>
 </div>
