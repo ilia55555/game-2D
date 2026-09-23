@@ -7,7 +7,7 @@
 ## باز کردن در Unity
 
 1. شاخهٔ `games` را دانلود و ZIP را خارج کن.
-2. در Unity Hub نسخهٔ **6000.3.12f1** را نصب کن. برای خروجی ویندوز، ماژول Windows Build Support را هم نصب کن.
+2. در Unity Hub نسخهٔ **6000.6.2f1** را نصب کن. برای خروجی ویندوز، ماژول Windows Build Support را هم نصب کن.
 3. **Add → Add project from disk** را بزن و پوشهٔ **`Unity` داخل ریپو** را انتخاب کن؛ پروژهٔ خالی نساز.
 4. اجازه بده پکیج Input System و Test Framework دریافت و فایل‌ها Import شوند.
 5. صحنهٔ `Assets/Velocity/Scenes/Main.unity` را باز کن؛ یا از منوی **Velocity → Open Game** استفاده کن.
