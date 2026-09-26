@@ -17,6 +17,9 @@ namespace Velocity
         public float Elapsed;
         public Vector3 Checkpoint = new Vector3(1.7f,.02f,0);
         public bool BossStarted, BossDefeated, Completed, Respawning;
+        public bool FinalEncounter { get; private set; }
+        public bool BossTransition { get; private set; }
+        Coroutine bossArrival;
         public bool Running => App && App.Playing && !App.Paused && !Completed;
         public string Banner;
         public readonly List<CharacterController> Characters = new();
@@ -24,7 +27,10 @@ namespace Velocity
         Transform projectiles;
         public void Initialize(GameApp app, StageData data)
         {
-            App=app; Data=data; Banner=data.title;
+            App=app;
+            var layoutSlot=app.Models ? app.Models.Find("layout_"+data.index) : null;
+            var layout=layoutSlot!=null && layoutSlot.prefab ? layoutSlot.prefab.GetComponent<StageLayout>() : null;
+            Data=layout ? layout.Export(data) : data; data=Data; Banner=data.title; Checkpoint=data.spawn;
             projectiles=new GameObject("Projectiles").transform; projectiles.SetParent(transform,false);
             foreach (var r in data.floors) Terrain(r.values, (1000-r.values[1])/100f, false, false);
             foreach (var r in data.platforms) Terrain(r.values,.42f,true,false);
@@ -45,10 +51,10 @@ namespace Velocity
             }
             var cameraObject=new GameObject("Side Camera"); cameraObject.transform.SetParent(transform,false);
             var c=cameraObject.AddComponent<Camera>(); c.orthographic=false; c.fieldOfView=38; c.nearClipPlane=.1f; c.farClipPlane=150;
-            c.backgroundColor=new Color(.035f,.06f,.095f); c.clearFlags=CameraClearFlags.SolidColor;
+            c.backgroundColor=SkyColor; c.clearFlags=CameraClearFlags.SolidColor;
             cameraObject.tag="MainCamera"; cameraObject.AddComponent<AudioListener>();
             Camera=cameraObject.AddComponent<SideCamera>(); Camera.World=this; Camera.Snap();
-            App.Audio.Music("stage_"+Index); Physics.SyncTransforms();
+            App.Audio.Music(Data.music); Physics.SyncTransforms();
         }
         GameObject Terrain(float[] f,float height,bool oneWay,bool crumble,bool moving=false)
         {
@@ -83,14 +89,16 @@ namespace Velocity
         }
         void SpawnBoss()
         {
-            var go=new GameObject(Data.bossName); go.transform.SetParent(transform,false); go.transform.position=CampaignData.Point(Data.length-650,620);
+            var go=new GameObject(FinalEncounter ? Data.finalBossName : Data.bossName); go.transform.SetParent(transform,false);
+            go.transform.position=Data.customBossSpawn ? Data.bossSpawn : CampaignData.Point(Data.length-650,620);
             Boss=go.AddComponent<BossActor>(); Boss.Initialize(this); Characters.Add(go.GetComponent<CharacterController>());
         }
+        Color SkyColor => new[]{new Color(.12f,.32f,.43f),new Color(.62f,.42f,.24f),new Color(.26f,.41f,.59f),new Color(.12f,.26f,.42f),new Color(.19f,.04f,.06f),new Color(.10f,.055f,.19f)}[Index];
         void BuildEnvironment()
         {
             RenderSettings.ambientMode=UnityEngine.Rendering.AmbientMode.Trilight;
-            RenderSettings.ambientSkyColor=Data.Accent*.38f; RenderSettings.ambientEquatorColor=Data.Accent*.2f; RenderSettings.ambientGroundColor=new Color(.035f,.025f,.055f);
-            RenderSettings.fog=true; RenderSettings.fogColor=new Color(.04f,.065f,.1f); RenderSettings.fogMode=FogMode.ExponentialSquared; RenderSettings.fogDensity=.018f;
+            RenderSettings.ambientSkyColor=Color.Lerp(Data.Accent,Color.white,.35f)*.7f; RenderSettings.ambientEquatorColor=Data.Accent*.35f; RenderSettings.ambientGroundColor=SkyColor*.35f;
+            RenderSettings.fog=true; RenderSettings.fogColor=SkyColor; RenderSettings.fogMode=FogMode.ExponentialSquared; RenderSettings.fogDensity=.022f;
             var sun=new GameObject("Key Light"); sun.transform.SetParent(transform,false); sun.transform.rotation=Quaternion.Euler(35,-35,0);
             var light=sun.AddComponent<Light>(); light.type=LightType.Directional; light.color=new Color(1,.9f,.75f); light.intensity=1.2f; light.shadows=LightShadows.Soft;
             var random=new System.Random(617+Index);
@@ -100,7 +108,7 @@ namespace Velocity
                 var model=Instantiate(environment.prefab,transform); model.transform.localPosition=environment.position;
                 model.transform.localEulerAngles=environment.rotation; model.transform.localScale=environment.scale;
                 // User scenery is visual-only: authored terrain remains the collision source.
-                foreach(var c in model.GetComponentsInChildren<Collider>()) c.enabled=false;
+                ModelCatalog.MakeVisualOnly(model);
             }
             else
             {
@@ -113,10 +121,16 @@ namespace Velocity
                         Geometry.Primitive("Tree trunk",PrimitiveType.Cylinder,transform,new Vector3(x,height/2,4),new Vector3(.32f,height/2,.32f),new Color(.12f,.15f,.12f));
                         Geometry.Primitive("Tree canopy",PrimitiveType.Sphere,transform,new Vector3(x,height,4),new Vector3(3,2.8f,2.6f),Data.Accent*.23f);
                     }
+                    else if(Index==2 || Index==3 || Index==4)
+                    {
+                        var rock=Geometry.Primitive(Index==4?"Volcanic rock":Index==3?"Ice shard":"Mountain",PrimitiveType.Cube,transform,
+                            new Vector3(x,height/2,7),new Vector3(Index==2?4:1.5f,height,3),Data.Accent*.4f);
+                        rock.transform.Rotate(0,0,Index==2?30:18);
+                        if(Index==4) Geometry.Box("Lava glow",transform,new Vector3(x,-1.8f,2),new Vector3(3.4f,.15f,4),new Color(1,.18f,.015f));
+                    }
                     else
                     {
-                        var pillar=Geometry.Box(Index==2?"Crystal":"Architecture",transform,new Vector3(x,height/2,5),new Vector3(1.2f,height,1.4f),Data.Accent*.22f);
-                        if(Index==2) pillar.transform.Rotate(0,0,(float)random.NextDouble()*25-12);
+                        Geometry.Box(Index==1?"Sandstone tower":"Factory",transform,new Vector3(x,height/2,5),new Vector3(1.2f,height,1.4f),Data.Accent*.38f);
                         Geometry.Box("Inset",transform,new Vector3(x,height*.7f,4.25f),new Vector3(.08f,height*.5f,.06f),Data.Accent);
                     }
                     Geometry.Box("Far silhouette",transform,new Vector3(x*1.2f,height/2,15),new Vector3(3,height+5,3),Data.Accent*.1f);
@@ -134,11 +148,13 @@ namespace Velocity
         {
             if(BossStarted || BossDefeated) return;
             BossStarted=true; gate=Geometry.Box("Arena barrier",transform,new Vector3(Data.arena/100,3,0),new Vector3(.2f,10,2.2f),Data.Accent,true);
+            if(Player.transform.position.x<Data.arena/100+1) Player.Teleport(new Vector3(Data.arena/100+2,.02f,0));
             Player.Health=Player.MaxHealth; Player.Energy=100; Boss.Activate();
         }
         public void PlayerDied()
         {
             if(Respawning || Completed) return; Deaths++; Respawning=true; Banner="SIGNAL LOST - returning to checkpoint";
+            if(bossArrival!=null) { StopCoroutine(bossArrival); bossArrival=null; BossTransition=false; }
             App.Audio.Play("explode",.8f); StartCoroutine(Respawn());
         }
         IEnumerator Respawn()
@@ -150,16 +166,31 @@ namespace Velocity
                 if(Boss) { Boss.gameObject.SetActive(false); Destroy(Boss.gameObject); }
                 if(gate) { gate.SetActive(false); Destroy(gate); } BossStarted=false; SpawnBoss();
             }
-            if(Player) Destroy(Player.gameObject);
+            if(Player) { Player.gameObject.SetActive(false); Destroy(Player.gameObject); }
             Characters.RemoveAll(c=>!c || !c.enabled || !c.gameObject.activeInHierarchy);
-            SpawnPlayer(); Player.Protect(2); Camera.Snap(); Respawning=false; App.Audio.Music("stage_"+Index);
+            SpawnPlayer(); Player.Protect(2); Camera.Snap(); Respawning=false; App.Audio.Music(Data.music);
         }
         public void BossDied()
         {
+            if(BossDefeated || BossTransition) return;
+            if(!FinalEncounter && !string.IsNullOrEmpty(Data.finalBossArt))
+            {
+                Score+=5000; ClearProjectiles(); FinalEncounter=true; BossTransition=true;
+                Checkpoint=new Vector3(Data.arena/100+2,.02f,0); CheckpointId=3;
+                Player.Protect(4); Player.Health=Player.MaxHealth; Player.Energy=100;
+                Banner="IRONHORN DEFEATED / VEXAR APPROACHES";
+                bossArrival=StartCoroutine(ArriveFinalBoss()); return;
+            }
             BossDefeated=true; Score+=5000; ClearProjectiles();
             if(gate) { gate.SetActive(false); Destroy(gate); }
             Player.Protect(4); Banner="GUARDIAN DEFEATED - enter the gate";
-            App.Audio.Music("stage_"+Index); App.Audio.Play("win");
+            App.Audio.Music(Data.music); App.Audio.Play("win");
+        }
+        IEnumerator ArriveFinalBoss()
+        {
+            yield return new WaitForSeconds(1.8f);
+            Characters.RemoveAll(c=>!c || !c.enabled);
+            SpawnBoss(); Boss.Activate(); BossTransition=false; bossArrival=null;
         }
         public void Finish()
         {

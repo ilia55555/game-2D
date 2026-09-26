@@ -11,6 +11,7 @@ namespace Velocity
         bool active, taken;
         Transform art;
         Vector3 initial;
+        Vector3 visualOffset;
         public void Initialize()
         {
             initial = transform.position;
@@ -35,6 +36,15 @@ namespace Velocity
                     Geometry.Box("Right",art,new Vector3(.6f,1,0),new Vector3(.2f,2,.5f),color);
                     Geometry.Box("Top",art,new Vector3(0,2,0),new Vector3(1.4f,.2f,.5f),color); break;
             }
+            var slot=World.Models ? World.Models.Find("item_"+Kind) : null;
+            if(slot!=null && slot.prefab && Kind!="laser")
+            {
+                if(art) art.gameObject.SetActive(false);
+                var visual=Instantiate(slot.prefab,transform);
+                visual.transform.localPosition=slot.position; visual.transform.localEulerAngles=slot.rotation; visual.transform.localScale=slot.scale;
+                ModelCatalog.MakeVisualOnly(visual); art=visual.transform;
+            }
+            if(art) visualOffset=art.localPosition;
         }
         void Update()
         {
@@ -44,7 +54,7 @@ namespace Velocity
             switch (Kind)
             {
                 case "gem": case "relic": case "heal":
-                    art.localPosition = Vector3.up * Mathf.Sin(clock*3) * .05f; art.Rotate(0,90*Time.deltaTime,0);
+                    art.localPosition = visualOffset + Vector3.up * Mathf.Sin(clock*3) * .05f; art.Rotate(0,90*Time.deltaTime,0);
                     if (Vector3.Distance(p.transform.position + Vector3.up * .32f, initial) < .48f) Collect(); break;
                 case "spike": if (d.x > -.15f && d.x < Width+.15f && d.y > -.15f && d.y < .22f) p.Damage(1,initial+Vector3.right*Width/2); break;
                 case "laser":
@@ -56,6 +66,7 @@ namespace Velocity
                 case "checkpoint":
                     if (!active && Mathf.Abs(d.x)<.4f && Mathf.Abs(d.y)<.9f)
                     {
+                        if(Index<World.CheckpointId) break;
                         active=true; World.Checkpoint = initial + new Vector3(.55f,.02f,0); World.CheckpointId=Index;
                         p.Health=p.MaxHealth; p.Energy=100; World.Banner="CHECKPOINT - health and energy restored"; World.App.Audio.Play("checkpoint");
                     } break;

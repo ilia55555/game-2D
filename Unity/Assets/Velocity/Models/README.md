@@ -1,5 +1,7 @@
-# User 3D models
+# Blender art for AERO
 
-Place FBX models, texture files and animation clips here. Create visual prefabs and assign them in `Velocity > Select 3D Model Catalog`.
+Import FBX models and textures here. Open **AERO → Art Setup**, assign the matching slot, adjust its transform and build/assign an Animator Controller.
 
-No user-authored 3D models were available in the source repository during migration. Empty model slots deliberately use temporary primitives. See `docs/UNITY-MIGRATION.md` at the repository root for scale, orientation, animation parameters and Muzzle setup.
+Generic rigs, in-place clips, +Y up, +X facing. Gameplay is constrained to Z=0. Add `WeaponSocket` to the hand and `Muzzle` at each barrel tip, or assign them explicitly with `ActorRig`.
+
+See [the complete Persian guide](../../../../docs/AERO-UNITY-START.md) for every slot, animation parameter, environment and stage-layout workflow.

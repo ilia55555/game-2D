@@ -1,1 +1,13 @@
-{"name":"Velocity.EditModeTests","references":["Velocity.Runtime"],"includePlatforms":["Editor"],"optionalUnityReferences":["TestAssemblies"]}
+{
+  "name": "Velocity.EditModeTests",
+  "references": [
+    "Velocity.Runtime",
+    "Velocity.Editor"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "optionalUnityReferences": [
+    "TestAssemblies"
+  ]
+}

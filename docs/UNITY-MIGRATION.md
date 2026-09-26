@@ -1,3 +1,5 @@
+> این سند مربوط به مهاجرت اولیهٔ پنج‌مرحله‌ای VELOCITY است. برای نسخهٔ فعلی شش‌مرحله‌ای AERO، شناسهٔ مدل‌ها و ابزارهای جدید، [راهنمای جاری](AERO-UNITY-START.md) را بخوان.
+
 # راهنمای مهاجرت Unity 2.5D
 
 ## معماری و مختصات
@@ -89,3 +91,4 @@ Colliderهای داخل Prefab بصری عمداً غیرفعال می‌شون�
 - [نسخهٔ هدف Unity 6000.6.2f1](https://unity.com/releases/editor/whats-new/6000.6.2f1)
 - [CharacterController.Move](https://docs.unity3d.com/6000.0/Documentation/ScriptReference/CharacterController.Move.html)
 - [Input System 1.17](https://docs.unity3d.com/Packages/com.unity.inputsystem@1.17/manual/Installation.html)
+
