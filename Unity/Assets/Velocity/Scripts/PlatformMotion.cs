@@ -13,7 +13,12 @@ namespace Velocity
         float clock, breaking = -1, restore;
         Collider surfaceCollider;
         Renderer[] visuals;
-        void Start() { Origin = transform.position; surfaceCollider = GetComponent<Collider>(); visuals = GetComponentsInChildren<Renderer>(); }
+        bool[] visibility;
+        void Start()
+        {
+            Origin=transform.position; surfaceCollider=GetComponent<Collider>(); visuals=GetComponentsInChildren<Renderer>();
+            visibility=new bool[visuals.Length]; for(int i=0;i<visuals.Length;i++) visibility[i]=visuals[i].enabled;
+        }
         public void StandOn() { if (Crumble && breaking < 0 && restore <= 0) breaking = .7f; }
         void Update()
         {
@@ -45,7 +50,7 @@ namespace Velocity
                     Bounds area = new Bounds(transform.position, transform.lossyScale + new Vector3(.3f,.15f,.3f));
                     foreach (var c in World.Characters) if (c && c.enabled && area.Intersects(c.bounds)) { occupied = true; break; }
                     if (occupied) restore = .3f;
-                    else { surfaceCollider.enabled = true; foreach (var r in visuals) r.enabled = true; }
+                    else { surfaceCollider.enabled=true; for(int i=0;i<visuals.Length;i++) if(visuals[i]) visuals[i].enabled=visibility[i]; }
                 }
             }
         }

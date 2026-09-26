@@ -61,7 +61,17 @@ namespace Velocity
             var p=CampaignData.Point(f[0],f[1]); float width=f[2]/100;
             var go=Geometry.Box("Terrain",transform,p+new Vector3(width/2,-height/2,0),new Vector3(width,height,2.2f),Data.Accent*.32f,true);
             // Decorative top surface shares the physical slab's transform.
-            Geometry.Box("Surface",go.transform,new Vector3(0,.49f,0),new Vector3(1,.025f,1),Data.Accent*.72f);
+            var surface=Geometry.Box("Surface",go.transform,new Vector3(0,.49f,0),new Vector3(1,.025f,1),Data.Accent*.72f);
+            var skin=Models ? Models.Find(moving?"terrain_moving":crumble?"terrain_crumble":oneWay?"terrain_platform":"terrain_floor") : null;
+            var scenery=Models ? Models.Find("environment_"+Index) : null;
+            if((skin!=null && skin.prefab) || (!moving && !crumble && scenery!=null && scenery.prefab && scenery.hideStaticTerrain))
+            { go.GetComponent<Renderer>().enabled=false; surface.GetComponent<Renderer>().enabled=false; }
+            if(skin!=null && skin.prefab)
+            {
+                var visual=Instantiate(skin.prefab,go.transform); visual.transform.localPosition=skin.position;
+                visual.transform.localEulerAngles=skin.rotation; visual.transform.localScale=skin.scale;
+                ModelCatalog.MakeVisualOnly(visual);
+            }
             if (oneWay || crumble || moving)
             {
                 var motion=go.AddComponent<PlatformMotion>(); motion.World=this; motion.OneWay=oneWay; motion.Crumble=crumble;

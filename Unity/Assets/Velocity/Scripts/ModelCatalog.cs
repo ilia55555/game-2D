@@ -7,6 +7,8 @@ namespace Velocity
         public string id;
         public GameObject prefab;
         public RuntimeAnimatorController controller;
+        [Tooltip("Environment slots: hide generated static floor/platform meshes when the scenery contains their artwork. Collision remains active.")]
+        public bool hideStaticTerrain;
         public Vector3 position, rotation;
         public Vector3 scale = Vector3.one;
     }

@@ -21,13 +21,14 @@ namespace Velocity.Editor
             "enemy_bolt","boss_rock","boss_poison","boss_feather","boss_ice","boss_fire","boss_bolt","vexar_bolt",
             "environment_0","environment_1","environment_2","environment_3","environment_4","environment_5",
             "layout_0","layout_1","layout_2","layout_3","layout_4","layout_5",
+            "terrain_floor","terrain_platform","terrain_moving","terrain_crumble",
             "item_gem","item_relic","item_heal","item_spike","item_spring","item_checkpoint","item_portal"
         };
         [MenuItem("AERO/Art Setup")]
         public static void ShowWindow() { GetWindow<AeroArtSetup>("AERO Art Setup").minSize=new Vector2(480,500); }
         void OnEnable() { catalog=Resources.Load<ModelCatalog>("Velocity/Models"); }
         static int Category(string id) => id.StartsWith("weapon_")?1:id.StartsWith("player_")||id.EndsWith("_bolt")||
-            new[]{"boss_rock","boss_poison","boss_feather","boss_ice","boss_fire"}.Contains(id)?2:id.StartsWith("environment_")||id.StartsWith("layout_")||id.StartsWith("item_")?3:0;
+            new[]{"boss_rock","boss_poison","boss_feather","boss_ice","boss_fire"}.Contains(id)?2:id.StartsWith("environment_")||id.StartsWith("layout_")||id.StartsWith("terrain_")||id.StartsWith("item_")?3:0;
         public static void EnsureSlots(ModelCatalog target)
         {
             if(!target) return;
@@ -60,9 +61,11 @@ namespace Velocity.Editor
                     var rotation=EditorGUILayout.Vector3Field("Rotation",slot.rotation);
                     var scale=EditorGUILayout.Vector3Field("Scale",slot.scale);
                     var controller=(RuntimeAnimatorController)EditorGUILayout.ObjectField("Animator controller",slot.controller,typeof(RuntimeAnimatorController),false);
+                    bool hide=slot.id.StartsWith("environment_")?EditorGUILayout.Toggle("Hide blockout static terrain",slot.hideStaticTerrain):slot.hideStaticTerrain;
+                    if(slot.id.StartsWith("terrain_")) EditorGUILayout.HelpBox("Use a centred 1 x 1 x 1 metre mesh. The gameplay slab scales this visual to its width, height and depth; moving/crumbling motion stays attached.",MessageType.None);
                     if(EditorGUI.EndChangeCheck())
                     {
-                        Undo.RecordObject(catalog,"Adjust AERO model"); slot.position=position; slot.rotation=rotation; slot.scale=scale; slot.controller=controller; EditorUtility.SetDirty(catalog);
+                        Undo.RecordObject(catalog,"Adjust AERO model"); slot.position=position; slot.rotation=rotation; slot.scale=scale; slot.controller=controller; slot.hideStaticTerrain=hide; EditorUtility.SetDirty(catalog);
                     }
                     if(category==0 && slot.prefab)
                     {
