@@ -15,8 +15,8 @@ namespace Velocity
         public string DisplayName => IsFinal ? "VEXAR / " + new[] {"FERAL","ARMOURED","ASCENDED"}[Phase-1] : World.Data.bossName;
         // 0 fan, 1 charge, 2 slam, 3 rain, 4 sweeping barrage, 5 aerial dive.
         static readonly int[][] Cycles = {
-            new[]{2,1,2,0}, new[]{0,3,1,0}, new[]{5,0,3,5},
-            new[]{2,0,1,2}, new[]{1,4,0,1}, new[]{1,3,1,4,2}
+            new[]{2,1,2,0}, new[]{0,3,1,2}, new[]{5,0,3,5},
+            new[]{2,0,1,2}, new[]{1,4,2,0,1}, new[]{1,3,1,4,2}
         };
         static readonly int[][] FinalCycles = {new[]{1,2,0},new[]{3,4,1,2},new[]{5,4,3,2,0}};
         static readonly string[] Families = {"boss_rock","boss_poison","boss_feather","boss_ice","boss_fire","boss_bolt"};
@@ -29,10 +29,11 @@ namespace Velocity
         GameObject warnings;
         bool Flying => World.Index == 2 || (IsFinal && Phase == 3);
         string Family => IsFinal ? "vexar_bolt" : Families[World.Index];
+        public BossTuning Tuning => BossTuning.For(World.Index,IsFinal,Phase,World.App.Save.Data.assist);
         public void Initialize(WorldSession world)
         {
             World=world; IsFinal=world.FinalEncounter;
-            MaxHealth=IsFinal ? 240 : world.Data.bossHealth;
+            MaxHealth=IsFinal ? BossTuning.FinalHealth : world.Data.bossHealth;
             if (world.App.Save.Data.assist) MaxHealth=Mathf.RoundToInt(MaxHealth*.72f);
             Health=MaxHealth; gameObject.layer=Layers.Enemy;
             body=gameObject.AddComponent<CharacterController>(); body.height=1.5f; body.radius=.62f;
@@ -67,7 +68,7 @@ namespace Velocity
             {
                 case "intro": case "transform":
                     velocity.x=0;
-                    if (timer<=0) SetState("idle",.65f);
+                    if (timer<=0) SetState("idle",Tuning.Idle);
                     break;
                 case "idle":
                     velocity.x=Mathf.MoveTowards(velocity.x,0,14*dt);
@@ -81,9 +82,9 @@ namespace Velocity
                         shotTimer-=dt;
                         if (shotTimer<=0)
                         {
-                            shotTimer=Phase==3 ? .2f : .28f;
+                            shotTimer=Tuning.BarrageInterval;
                             var origin=visual.Muzzle; var aim=(locked+Vector3.up*.4f-origin).normalized;
-                            World.Shoot(origin,Quaternion.Euler(0,0,Mathf.Sin(clock*4)*20)*aim*3.8f,false,1,Family);
+                            World.Shoot(origin,Quaternion.Euler(0,0,Mathf.Sin(clock*4)*20)*aim*Tuning.BulletSpeed,false,1,Family);
                         }
                     }
                     if (airborne)
@@ -92,13 +93,13 @@ namespace Velocity
                         if (airTime>.15f && body.isGrounded && velocity.y<=0)
                         { airborne=false; Slam(); timer=0; }
                         // Avoid an endless attack if an authored collision surface is missing.
-                        if (airTime>3) { airborne=false; timer=0; }
+                        if (airTime>3) { airborne=false; timer=0; if(World.Arena) World.Arena.ResetArena(); }
                     }
-                    if (timer<=0 && !airborne) SetState("recover",Phase==1 ? .95f : .72f);
+                    if (timer<=0 && !airborne) SetState("recover",Tuning.Recovery);
                     break;
                 case "recover":
                     velocity.x=Mathf.MoveTowards(velocity.x,0,15*dt);
-                    if (timer<=0) SetState("idle",Phase==1 ? .5f : .3f); break;
+                    if (timer<=0) SetState("idle",Tuning.Idle); break;
             }
             body.Move(velocity*dt);
             float left=World.Data.arena/100+1, right=World.Data.length/100-1.6f;
@@ -114,31 +115,44 @@ namespace Velocity
             var cycle=IsFinal ? FinalCycles[Phase-1] : Cycles[World.Index];
             attack=cycle[attackNumber++%cycle.Length]; locked=World.Player.transform.position;
             direction=locked.x>=transform.position.x ? 1 : -1;
-            SetState("telegraph",World.App.Save.Data.assist ? 1.15f : Phase==1 ? .95f : .75f);
+            SetState("telegraph",Tuning.Warning);
+            var landing=transform.position+Vector3.right*direction*(attack==2?1.7f:attack==5?2:0);
+            if(World.Arena) World.Arena.Prepare(attack,Phase,IsFinal,attackNumber,locked,transform.position,landing);
             visual.Trigger("Telegraph"); warnings=new GameObject("Attack warning"); warnings.transform.SetParent(World.transform,false);
             if (attack==3)
-                for (int k=-2;k<=2;k++) Geometry.Box("Rain lane",warnings.transform,new Vector3(RainX(k),2.3f,0),new Vector3(.07f,4.6f,.07f),Color.yellow);
+                for (int k=0;k<Tuning.RainCount;k++) Geometry.Box("Rain lane",warnings.transform,new Vector3(RainX(k),3,0),new Vector3(.07f,6,.07f),Color.yellow);
             else if (attack==5)
                 Geometry.Box("Dive target",warnings.transform,new Vector3(locked.x,.08f,0),new Vector3(1.3f,.09f,.7f),Color.yellow);
+            else if(attack==1)
+            {
+                float end=Mathf.Clamp(transform.position.x+direction*Tuning.ChargeSpeed*1.2f,World.Data.arena/100+1,World.Data.length/100-1.6f);
+                Geometry.Box("Charge path",warnings.transform,new Vector3((transform.position.x+end)/2,.08f,0),new Vector3(Mathf.Max(.1f,Mathf.Abs(end-transform.position.x)),.09f,.7f),Color.yellow);
+            }
             else
-                Geometry.Box(attack==1 ? "Charge path" : "Attack warning",warnings.transform,
-                    transform.position+new Vector3(direction*1.8f,.13f,0),new Vector3(attack==1 ? 3.6f : 1,.09f,.5f),Color.yellow);
+                Geometry.Box("Attack warning",warnings.transform,
+                    transform.position+new Vector3(direction*1.8f,.13f,0),new Vector3(1,.09f,.5f),Color.yellow);
         }
-        float RainX(int k) => Mathf.Clamp(locked.x+k*1.5f,World.Data.arena/100+.7f,World.Data.length/100-1.3f);
+        float RainX(int k)
+        {
+            float spread=(Tuning.RainCount-1)*.825f;
+            float center=Mathf.Clamp(locked.x,World.Data.arena/100+.7f+spread,World.Data.length/100-1.3f-spread);
+            return center+(k-(Tuning.RainCount-1)*.5f)*1.65f;
+        }
         void Execute()
         {
             var origin=visual.Muzzle; var aim=(locked+Vector3.up*.35f-origin).normalized;
             visual.Trigger(attack==4 ? "Special" : attack==2 ? "Slam" : "Attack");
+            if(World.Arena) World.Arena.Execute();
             switch (attack)
             {
                 case 0:
-                    int count=Phase==1 ? 5 : 7;
-                    for(int i=0;i<count;i++) World.Shoot(origin,Quaternion.Euler(0,0,(i-(count-1)*.5f)*10)*aim*(Phase==1 ? 3.2f : 3.8f),false,1,Family);
+                    int count=Tuning.FanCount;
+                    for(int i=0;i<count;i++) World.Shoot(origin,Quaternion.Euler(0,0,(i-(count-1)*.5f)*10)*aim*Tuning.BulletSpeed,false,1,Family);
                     SetState("attack",.4f); break;
-                case 1: velocity=new Vector3(direction*(Phase==1 ? 6.2f : 7.2f),0,0); SetState("attack",1.2f); break;
+                case 1: velocity=new Vector3(direction*Tuning.ChargeSpeed,0,0); SetState("attack",1.2f); break;
                 case 2: velocity=new Vector3(direction*2,7,0); airborne=true; airTime=0; SetState("attack",1); break;
                 case 3:
-                    for(int k=-2;k<=2;k++) World.Shoot(new Vector3(RainX(k),4.6f,0),Vector3.down*3.8f,false,1,Family);
+                    for(int k=0;k<Tuning.RainCount;k++) World.Shoot(new Vector3(RainX(k),6,0),Vector3.down*Tuning.BulletSpeed,false,1,Family);
                     SetState("attack",.8f); break;
                 case 4: velocity=Vector3.zero; shotTimer=0; SetState("attack",1.6f); break;
                 case 5:
@@ -149,8 +163,9 @@ namespace Velocity
         }
         void Slam()
         {
+            velocity.x=0; if(World.Arena) World.Arena.Impact();
             if(World.Camera) World.Camera.Shake(.14f); World.App.Audio.Play("explode",.6f);
-            for(int d=-1;d<=1;d+=2) World.Shoot(transform.position+new Vector3(d*.95f,.15f,0),Vector3.right*d*4.5f,false,1,Family);
+            for(int d=-1;d<=1;d+=2) World.Shoot(transform.position+new Vector3(d*.95f,.15f,0),Vector3.right*d*(Tuning.BulletSpeed+.6f),false,1,Family);
         }
         public void Hit(int amount)
         {
@@ -162,7 +177,8 @@ namespace Velocity
                 if (Health<=threshold)
                 {
                     Health=Mathf.Max(Health,threshold); Phase++; attackNumber=0; airborne=false; velocity=Vector3.zero;
-                    World.ClearProjectiles(); SetVisual(); SetState("transform",2.1f); visual.Trigger("Transform");
+                    World.ClearProjectiles(); if(World.Arena) World.Arena.ResetArena();
+                    SetVisual(); SetState("transform",2.1f); visual.Trigger("Transform");
                     World.Player.Protect(2.4f); World.Banner=DisplayName; World.App.Audio.Play("alarm"); return;
                 }
             }

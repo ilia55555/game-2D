@@ -21,7 +21,7 @@ namespace Velocity.Editor
             "enemy_bolt","boss_rock","boss_poison","boss_feather","boss_ice","boss_fire","boss_bolt","vexar_bolt",
             "environment_0","environment_1","environment_2","environment_3","environment_4","environment_5",
             "layout_0","layout_1","layout_2","layout_3","layout_4","layout_5",
-            "terrain_floor","terrain_platform","terrain_moving","terrain_crumble",
+            "terrain_floor","terrain_platform","terrain_moving","terrain_crumble","terrain_arena",
             "item_gem","item_relic","item_heal","item_spike","item_spring","item_checkpoint","item_portal"
         };
         [MenuItem("AERO/Art Setup")]

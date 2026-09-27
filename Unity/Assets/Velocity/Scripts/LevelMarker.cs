@@ -11,6 +11,9 @@ namespace Velocity
         [Min(.1f)] public float Period=3.6f;
         public float Phase;
         public string EnemyKind="mushroom";
+        [Tooltip("Enemy operator: matching StageLayout territory ID; -1 for a regular enemy.")]
+        public int TerritoryId=-1;
+        [Range(1,3)] public int Pressure=1;
         void OnDrawGizmos()
         {
             var matrix=Gizmos.matrix;

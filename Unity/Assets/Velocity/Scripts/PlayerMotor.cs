@@ -78,7 +78,7 @@ namespace Velocity
             }
             else if (input.Fire && fireTime <= 0) Shoot();
             Visual.SetCharge(Charge);
-            if (transform.position.y < -2.8f) Die();
+            if (transform.position.y < World.Data.killY) Die();
         }
         void CarryPlatform()
         {

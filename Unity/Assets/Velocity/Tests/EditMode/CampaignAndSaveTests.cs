@@ -13,7 +13,8 @@ namespace Velocity.Tests
             for(int i=0;i<campaign.stages.Length;i++)
             {
                 var s=campaign.stages[i]; Assert.AreEqual(biomes[i],s.biome);
-                Assert.AreEqual(2000,s.length-s.arena); Assert.AreEqual(3,s.checkpoints.Length); Assert.AreEqual(3,s.relics.Length);
+                Assert.AreEqual(2400,s.length-s.arena,.1f); Assert.GreaterOrEqual(s.length,40000);
+                Assert.GreaterOrEqual(s.checkpoints.Length,5); Assert.AreEqual(3,s.relics.Length);
                 Assert.Greater(s.enemies.Length,10); Assert.Greater(s.gems.Length,30);
                 Assert.Greater(s.spawn.x,0); Assert.AreEqual(0,s.spawn.z);
                 foreach(var checkpoint in s.checkpoints)
@@ -42,8 +43,11 @@ namespace Velocity.Tests
         {
             var legacy=new SaveData{version=1,unlocked=4,music=.2f,best=new BestRun[5]};
             legacy.best[0]=new BestRun{score=999}; SaveStore.Validate(legacy);
-            Assert.AreEqual(2,legacy.version); Assert.AreEqual(6,legacy.best.Length); Assert.AreEqual(4,legacy.unlocked);
+            Assert.AreEqual(3,legacy.version); Assert.AreEqual(6,legacy.best.Length); Assert.AreEqual(4,legacy.unlocked);
             Assert.AreEqual(.2f,legacy.music); Assert.IsNull(legacy.best[0]);
+            var shortCampaign=new SaveData{version=2,unlocked=5,assist=true}; shortCampaign.best[0]=new BestRun{seconds=20};
+            SaveStore.Validate(shortCampaign); Assert.AreEqual(3,shortCampaign.version);
+            Assert.IsNull(shortCampaign.best[0]); Assert.AreEqual(5,shortCampaign.unlocked); Assert.IsTrue(shortCampaign.assist);
         }
         [Test] public void SaveKeepsBestValuesAndRecoversBackupAfterCorruption()
         {

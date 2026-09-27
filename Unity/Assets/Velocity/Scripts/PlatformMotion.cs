@@ -6,9 +6,11 @@ namespace Velocity
     {
         public WorldSession World;
         public Vector3 Amplitude, Origin;
+        public Vector3 OffsetTarget;
+        Vector3 offset;
         public Vector3 Delta { get; private set; }
         public float Period = 3;
-        public bool Crumble, OneWay;
+        public bool Crumble, OneWay, PlayerOnly;
         public float Surface;
         float clock, breaking = -1, restore;
         Collider surfaceCollider;
@@ -24,7 +26,8 @@ namespace Velocity
         {
             Delta = Vector3.zero; if (!World || !World.Running) return;
             clock += Time.deltaTime;
-            Vector3 next = Origin + Amplitude * Mathf.Sin(clock * Mathf.PI * 2 / Period);
+            offset=Vector3.MoveTowards(offset,OffsetTarget,Time.deltaTime*1.3f);
+            Vector3 next = Origin + offset + Amplitude * Mathf.Sin(clock * Mathf.PI * 2 / Mathf.Max(.1f,Period));
             Delta = next - transform.position; transform.position = next;
             if (OneWay)
                 foreach (var actor in World.Characters)
@@ -33,7 +36,7 @@ namespace Velocity
                         float feet = actor.transform.position.y;
                         var player = actor.GetComponent<PlayerMotor>();
                         bool ascending = player && player.Velocity.y > .1f;
-                        Physics.IgnoreCollision(surfaceCollider, actor, ascending || feet < surfaceCollider.bounds.max.y - .09f);
+                        Physics.IgnoreCollision(surfaceCollider, actor, (PlayerOnly && !player) || ascending || feet < surfaceCollider.bounds.max.y - .09f);
                     }
             if (!Crumble) return;
             if (breaking >= 0)

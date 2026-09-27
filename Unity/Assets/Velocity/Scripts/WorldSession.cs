@@ -13,6 +13,9 @@ namespace Velocity
         public PlayerMotor Player;
         public BossActor Boss;
         public SideCamera Camera;
+        public BossArena Arena;
+        public readonly List<EnemyTerritory> Territories = new();
+        public SectionSpec CurrentSection { get; private set; }
         public int Score, Gems, Relics, Kills, Deaths, CheckpointId = -1;
         public float Elapsed;
         public Vector3 Checkpoint = new Vector3(1.7f,.02f,0);
@@ -32,10 +35,27 @@ namespace Velocity
             var layout=layoutSlot!=null && layoutSlot.prefab ? layoutSlot.prefab.GetComponent<StageLayout>() : null;
             Data=layout ? layout.Export(data) : data; data=Data; Banner=data.title; Checkpoint=data.spawn;
             projectiles=new GameObject("Projectiles").transform; projectiles.SetParent(transform,false);
-            foreach (var r in data.floors) Terrain(r.values, (1000-r.values[1])/100f, false, false);
-            foreach (var r in data.platforms) Terrain(r.values,.42f,true,false);
-            foreach (var r in data.moving) Terrain(r.values,.4f,true,false,true);
-            foreach (var r in data.crumble) Terrain(r.values,.38f,true,true);
+            foreach (var r in data.floors)
+            {
+                // Clip an authored floor at the arena boundary: no invisible solid
+                // slab may remain underneath the removable arena panels.
+                var f=(float[])r.values.Clone();
+                if(data.reactiveArena) f[2]=Mathf.Min(f[0]+f[2],data.arena)-f[0];
+                if(f[2]>0) CreateTerrain(f,Mathf.Max(.5f,CampaignData.Point(0,f[1]).y-data.killY+2),false,false);
+            }
+            foreach (var r in data.platforms) CreateTerrain(r.values,.42f,true,false);
+            foreach (var r in data.moving) CreateTerrain(r.values,.4f,true,false,true);
+            foreach (var r in data.crumble) CreateTerrain(r.values,.38f,true,true);
+            if(data.reactiveArena)
+            {
+                var arena=new GameObject("Reactive boss arena"); arena.transform.SetParent(transform,false);
+                Arena=arena.AddComponent<BossArena>(); Arena.Initialize(this);
+            }
+            foreach(var territory in data.territories ?? new TerritorySpec[0])
+            {
+                var go=new GameObject("Enemy territory "+territory.id); go.transform.SetParent(transform,false);
+                var control=go.AddComponent<EnemyTerritory>(); control.Initialize(this,territory); Territories.Add(control);
+            }
             foreach (var r in data.gems) AddPickup(CampaignData.Point(r.values[0],r.values[1]),"gem");
             foreach (var r in data.relics) AddPickup(CampaignData.Point(r.values[0],r.values[1]),"relic");
             foreach (var r in data.spikes) Item("spike",r.values);
@@ -47,7 +67,9 @@ namespace Velocity
             foreach (var e in data.enemies)
             {
                 var go=new GameObject(e.kind); go.transform.SetParent(transform,false); go.transform.position=CampaignData.Point(e.x,e.y);
-                go.AddComponent<EnemyActor>().Initialize(this,e.kind); Characters.Add(go.GetComponent<CharacterController>());
+                var actor=go.AddComponent<EnemyActor>(); actor.Initialize(this,e.kind,e.pressure);
+                actor.TerritoryId=e.territory; Characters.Add(go.GetComponent<CharacterController>());
+                foreach(var territory in Territories) if(territory.Data.id==e.territory) territory.Operators.Add(actor);
             }
             var cameraObject=new GameObject("Side Camera"); cameraObject.transform.SetParent(transform,false);
             var c=cameraObject.AddComponent<Camera>(); c.orthographic=false; c.fieldOfView=38; c.nearClipPlane=.1f; c.farClipPlane=150;
@@ -56,15 +78,15 @@ namespace Velocity
             Camera=cameraObject.AddComponent<SideCamera>(); Camera.World=this; Camera.Snap();
             App.Audio.Music(Data.music); Physics.SyncTransforms();
         }
-        GameObject Terrain(float[] f,float height,bool oneWay,bool crumble,bool moving=false)
+        public GameObject CreateTerrain(float[] f,float height,bool oneWay,bool crumble,bool moving=false,string skinId=null)
         {
             var p=CampaignData.Point(f[0],f[1]); float width=f[2]/100;
             var go=Geometry.Box("Terrain",transform,p+new Vector3(width/2,-height/2,0),new Vector3(width,height,2.2f),Data.Accent*.32f,true);
             // Decorative top surface shares the physical slab's transform.
             var surface=Geometry.Box("Surface",go.transform,new Vector3(0,.49f,0),new Vector3(1,.025f,1),Data.Accent*.72f);
-            var skin=Models ? Models.Find(moving?"terrain_moving":crumble?"terrain_crumble":oneWay?"terrain_platform":"terrain_floor") : null;
+            var skin=Models ? Models.Find(skinId ?? (moving?"terrain_moving":crumble?"terrain_crumble":oneWay?"terrain_platform":"terrain_floor")) : null;
             var scenery=Models ? Models.Find("environment_"+Index) : null;
-            if((skin!=null && skin.prefab) || (!moving && !crumble && scenery!=null && scenery.prefab && scenery.hideStaticTerrain))
+            if((skin!=null && skin.prefab) || (skinId==null && !moving && !crumble && scenery!=null && scenery.prefab && scenery.hideStaticTerrain))
             { go.GetComponent<Renderer>().enabled=false; surface.GetComponent<Renderer>().enabled=false; }
             if(skin!=null && skin.prefab)
             {
@@ -104,6 +126,13 @@ namespace Velocity
             Boss=go.AddComponent<BossActor>(); Boss.Initialize(this); Characters.Add(go.GetComponent<CharacterController>());
         }
         Color SkyColor => new[]{new Color(.12f,.32f,.43f),new Color(.62f,.42f,.24f),new Color(.26f,.41f,.59f),new Color(.12f,.26f,.42f),new Color(.19f,.04f,.06f),new Color(.10f,.055f,.19f)}[Index];
+        float SurfaceNear(float x)
+        {
+            float height=0, nearest=float.MinValue;
+            foreach(var row in Data.route ?? Data.floors)
+                if(row.values[0]/100<=x && row.values[0]>nearest) { nearest=row.values[0]; height=(620-row.values[1])/100; }
+            return height;
+        }
         void BuildEnvironment()
         {
             RenderSettings.ambientMode=UnityEngine.Rendering.AmbientMode.Trilight;
@@ -126,24 +155,25 @@ namespace Velocity
                 for(float x=0;x<Data.length/100;x+=3.3f)
                 {
                     float height=3+(float)random.NextDouble()*5;
+                    float ground=SurfaceNear(x);
                     if(Index==0)
                     {
-                        Geometry.Primitive("Tree trunk",PrimitiveType.Cylinder,transform,new Vector3(x,height/2,4),new Vector3(.32f,height/2,.32f),new Color(.12f,.15f,.12f));
-                        Geometry.Primitive("Tree canopy",PrimitiveType.Sphere,transform,new Vector3(x,height,4),new Vector3(3,2.8f,2.6f),Data.Accent*.23f);
+                        Geometry.Primitive("Tree trunk",PrimitiveType.Cylinder,transform,new Vector3(x,ground+height/2,4),new Vector3(.32f,height/2,.32f),new Color(.12f,.15f,.12f));
+                        Geometry.Primitive("Tree canopy",PrimitiveType.Sphere,transform,new Vector3(x,ground+height,4),new Vector3(3,2.8f,2.6f),Data.Accent*.23f);
                     }
                     else if(Index==2 || Index==3 || Index==4)
                     {
                         var rock=Geometry.Primitive(Index==4?"Volcanic rock":Index==3?"Ice shard":"Mountain",PrimitiveType.Cube,transform,
-                            new Vector3(x,height/2,7),new Vector3(Index==2?4:1.5f,height,3),Data.Accent*.4f);
+                            new Vector3(x,ground+height/2,7),new Vector3(Index==2?4:1.5f,height,3),Data.Accent*.4f);
                         rock.transform.Rotate(0,0,Index==2?30:18);
-                        if(Index==4) Geometry.Box("Lava glow",transform,new Vector3(x,-1.8f,2),new Vector3(3.4f,.15f,4),new Color(1,.18f,.015f));
+                        if(Index==4) Geometry.Box("Lava glow",transform,new Vector3(x,ground-1.8f,2),new Vector3(3.4f,.15f,4),new Color(1,.18f,.015f));
                     }
                     else
                     {
-                        Geometry.Box(Index==1?"Sandstone tower":"Factory",transform,new Vector3(x,height/2,5),new Vector3(1.2f,height,1.4f),Data.Accent*.38f);
-                        Geometry.Box("Inset",transform,new Vector3(x,height*.7f,4.25f),new Vector3(.08f,height*.5f,.06f),Data.Accent);
+                        Geometry.Box(Index==1?"Sandstone tower":"Factory",transform,new Vector3(x,ground+height/2,5),new Vector3(1.2f,height,1.4f),Data.Accent*.38f);
+                        Geometry.Box("Inset",transform,new Vector3(x,ground+height*.7f,4.25f),new Vector3(.08f,height*.5f,.06f),Data.Accent);
                     }
-                    Geometry.Box("Far silhouette",transform,new Vector3(x*1.2f,height/2,15),new Vector3(3,height+5,3),Data.Accent*.1f);
+                    Geometry.Box("Far silhouette",transform,new Vector3(x,ground+height/2,15),new Vector3(3,height+8,3),Data.Accent*.1f);
                 }
             }
         }
@@ -152,18 +182,24 @@ namespace Velocity
             if(!Running || !Player || Player.Dead) return;
             Physics.SyncTransforms(); // PlatformMotion has moved before actors perform collision queries.
             Elapsed+=Time.deltaTime;
+            if(Data.sections!=null)
+                foreach(var section in Data.sections)
+                    if(Player.transform.position.x>=section.start && Player.transform.position.x<section.end) { CurrentSection=section; break; }
             if(!BossStarted && !BossDefeated && Player.transform.position.x>Data.arena/100+1.2f) StartBoss();
         }
         public void StartBoss()
         {
             if(BossStarted || BossDefeated) return;
-            BossStarted=true; gate=Geometry.Box("Arena barrier",transform,new Vector3(Data.arena/100,3,0),new Vector3(.2f,10,2.2f),Data.Accent,true);
+            BossStarted=true; if(Arena) Arena.ResetArena();
+            gate=Geometry.Box("Arena barrier",transform,new Vector3(Data.arena/100,3,0),new Vector3(.2f,10,2.2f),Data.Accent,true);
             if(Player.transform.position.x<Data.arena/100+1) Player.Teleport(new Vector3(Data.arena/100+2,.02f,0));
             Player.Health=Player.MaxHealth; Player.Energy=100; Boss.Activate();
         }
         public void PlayerDied()
         {
             if(Respawning || Completed) return; Deaths++; Respawning=true; Banner="SIGNAL LOST - returning to checkpoint";
+            if(Arena) Arena.ResetArena();
+            foreach(var territory in Territories) territory.ResetCycle();
             if(bossArrival!=null) { StopCoroutine(bossArrival); bossArrival=null; BossTransition=false; }
             App.Audio.Play("explode",.8f); StartCoroutine(Respawn());
         }
@@ -183,10 +219,11 @@ namespace Velocity
         public void BossDied()
         {
             if(BossDefeated || BossTransition) return;
+            if(Arena) Arena.ResetArena();
             if(!FinalEncounter && !string.IsNullOrEmpty(Data.finalBossArt))
             {
                 Score+=5000; ClearProjectiles(); FinalEncounter=true; BossTransition=true;
-                Checkpoint=new Vector3(Data.arena/100+2,.02f,0); CheckpointId=3;
+                Checkpoint=new Vector3(Data.arena/100+2,.02f,0); CheckpointId=Data.checkpoints.Length;
                 Player.Protect(4); Player.Health=Player.MaxHealth; Player.Energy=100;
                 Banner="IRONHORN DEFEATED / VEXAR APPROACHES";
                 bossArrival=StartCoroutine(ArriveFinalBoss()); return;
@@ -200,7 +237,7 @@ namespace Velocity
         {
             yield return new WaitForSeconds(1.8f);
             Characters.RemoveAll(c=>!c || !c.enabled);
-            SpawnBoss(); Boss.Activate(); BossTransition=false; bossArrival=null;
+            SpawnBoss(); if(Arena) Arena.ResetArena(); Boss.Activate(); BossTransition=false; bossArrival=null;
         }
         public void Finish()
         {

@@ -40,6 +40,8 @@ namespace Velocity.Editor
                 var layout=root.AddComponent<StageLayout>(); layout.StageIndex=data.index;
                 layout.Length=data.length/100; layout.ArenaStart=data.arena/100; layout.Spawn=data.spawn;
                 layout.BossSpawn=CampaignData.Point(data.length-650,620);
+                layout.ReactiveArena=data.reactiveArena; layout.KillY=data.killY; layout.CameraMinY=data.cameraMinY; layout.CameraMaxY=data.cameraMaxY;
+                layout.Sections=data.sections; layout.Territories=data.territories;
                 void Rows(Row[] rows,MarkerKind kind)
                 {
                     var group=new GameObject(kind.ToString()); group.transform.SetParent(root.transform,false);
@@ -60,6 +62,7 @@ namespace Velocity.Editor
                 {
                     var go=new GameObject(enemy.kind); go.transform.SetParent(enemies.transform,false); go.transform.localPosition=CampaignData.Point(enemy.x,enemy.y);
                     var marker=go.AddComponent<LevelMarker>(); marker.Kind=MarkerKind.Enemy; marker.EnemyKind=enemy.kind;
+                    marker.TerritoryId=enemy.territory; marker.Pressure=enemy.pressure;
                 }
                 layout.Export(data);
                 return PrefabUtility.SaveAsPrefabAsset(root,AssetDatabase.GenerateUniqueAssetPath(folder+"/Stage_"+(data.index+1)+".prefab"));

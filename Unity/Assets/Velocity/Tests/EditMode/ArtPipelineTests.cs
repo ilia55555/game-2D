@@ -20,6 +20,15 @@ namespace Velocity.Tests
                     Assert.AreEqual(source.index,output.index); Assert.AreEqual(source.length,output.length,.01f);
                     Assert.AreEqual(source.bossArt,output.bossArt); Assert.AreEqual(source.finalBossArt,output.finalBossArt);
                     Assert.AreEqual(source.enemies.Length,output.enemies.Length);
+                    Assert.AreEqual(source.killY,output.killY); Assert.AreEqual(source.reactiveArena,output.reactiveArena);
+                    Assert.AreEqual(source.sections.Length,output.sections.Length); Assert.AreEqual(source.territories.Length,output.territories.Length);
+                    for(int i=0;i<source.enemies.Length;i++)
+                    { Assert.AreEqual(source.enemies[i].territory,output.enemies[i].territory); Assert.AreEqual(source.enemies[i].pressure,output.enemies[i].pressure); }
+                    foreach(var territory in source.territories)
+                    {
+                        var copy=output.territories.Single(t=>t.id==territory.id);
+                        Assert.AreEqual(territory.start,copy.start); Assert.AreEqual(territory.end,copy.end); Assert.AreEqual(territory.y,copy.y);
+                    }
                     foreach(var name in new[]{"floors","platforms","moving","crumble","spikes","lasers","springs","checkpoints","gems","relics"})
                     {
                         var field=typeof(StageData).GetField(name);

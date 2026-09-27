@@ -154,6 +154,8 @@ namespace Velocity
                 GUI.Box(new Rect(24+i*width,89,width-4,27),$"{i+1} {spec.Name}");
             }
             GUI.color=Color.white;
+            if(World.CurrentSection!=null && !World.BossStarted)
+                GUI.Label(new Rect(24,Screen.height-76,Screen.width-150,26),World.CurrentSection.title+"  /  "+(World.CurrentSection.pressure==0?"SHELTER":World.CurrentSection.pressure==3?"HIGH THREAT":"ONWARD"));
             if(!string.IsNullOrEmpty(World.Banner)) GUI.Label(new Rect(24,Screen.height-48,Screen.width-150,35),World.Banner,label);
         }
         void OnApplicationPause(bool paused)

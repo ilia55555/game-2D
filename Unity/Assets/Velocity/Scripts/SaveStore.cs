@@ -6,7 +6,7 @@ namespace Velocity
     [Serializable] public class BestRun { public int score,gems,relics; public float seconds; }
     [Serializable] public class SaveData
     {
-        public int version=2, unlocked;
+        public int version=3, unlocked;
         public float music=.65f,sfx=.8f;
         public bool assist,fullscreen,touch,shake=true;
         public BestRun[] best=new BestRun[CampaignData.StageCount];
@@ -30,12 +30,12 @@ namespace Velocity
         }
         public static void Validate(SaveData d)
         {
-            if(d==null || (d.version!=1 && d.version!=2) || d.best==null) throw new InvalidDataException("Unsupported save");
-            if(d.version==1)
+            if(d==null || d.version<1 || d.version>3 || d.best==null) throw new InvalidDataException("Unsupported save");
+            if(d.version<3)
             {
-                if(d.best.Length!=5) throw new InvalidDataException("Invalid legacy save");
+                if(d.best.Length!=(d.version==1?5:CampaignData.StageCount)) throw new InvalidDataException("Invalid legacy save");
                 // Old score records refer to different levels; retain settings and unlocked progress.
-                d.best=new BestRun[CampaignData.StageCount]; d.version=2;
+                d.best=new BestRun[CampaignData.StageCount]; d.version=3;
             }
             if(d.best.Length!=CampaignData.StageCount) throw new InvalidDataException("Invalid stage records");
             d.unlocked=Mathf.Clamp(d.unlocked,0,CampaignData.StageCount-1);

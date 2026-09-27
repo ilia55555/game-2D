@@ -5,6 +5,8 @@ namespace Velocity
     {
         public WorldSession World;
         public string Kind;
+        public int TerritoryId = -1;
+        int pressure=1;
         string behavior;
         float frozenUntil;
         public bool Frozen => Time.time < frozenUntil;
@@ -14,14 +16,15 @@ namespace Velocity
         Vector3 home, velocity;
         float clock, attackTimer = 1.6f, warning, facing = -1, lastDashHit = -10;
         bool pending, dying;
-        public void Initialize(WorldSession world, string kind)
+        public void Initialize(WorldSession world, string kind, int localPressure=1)
         {
-            World = world; Kind = kind; home = transform.position; clock = home.x;
+            World = world; Kind = kind; pressure=Mathf.Clamp(localPressure,1,3); home = transform.position; clock = home.x;
             behavior = kind switch {
                 "bee" or "vulture" or "ice_drone" or "fire_bat" => "drone",
                 "mushroom" or "fire_imp" => "hopper", "wolf" or "ice_wolf" => "sentinel",
                 "scorpion" => "crawler", "robot" => "sentinel", _ => kind };
             Health = behavior == "sentinel" ? 8 : behavior == "turret" ? 6 : behavior == "drone" ? 4 : 5;
+            Health+=pressure-1;
             if (World.App.Save.Data.assist) Health = Mathf.Max(1, Health - 1);
             gameObject.layer = Layers.Enemy; body = gameObject.AddComponent<CharacterController>();
             body.radius = .25f; body.height = behavior == "sentinel" ? .74f : .52f; body.center = Vector3.up * body.height / 2;
@@ -65,8 +68,8 @@ namespace Velocity
             {
                 if ((behavior == "turret" || behavior == "drone" || behavior == "sentinel") &&
                     !Physics.Linecast(transform.position + Vector3.up * .38f, target.transform.position + Vector3.up * .32f, Layers.TerrainMask))
-                { pending = true; warning = .55f; visual.Trigger("Telegraph"); }
-                attackTimer = behavior == "drone" ? 2.5f : 3;
+                { pending = true; warning = .85f-(pressure-1)*.12f; visual.Trigger("Telegraph"); }
+                attackTimer = (behavior == "drone" ? 3.3f : 3.8f)-(pressure-1)*.5f;
             }
             Vector3 diff = target.transform.position - transform.position;
             if (Mathf.Abs(diff.x) < .48f && Mathf.Abs(diff.y) < .6f)
@@ -76,7 +79,7 @@ namespace Velocity
                 else if (!target.Dashing) target.Damage(1, transform.position);
             }
             visual.Pose(facing, velocity, body.isGrounded, false, false);
-            if (transform.position.y < -3) Hit(100);
+            if (transform.position.y < World.Data.killY) Hit(100);
         }
         void Shoot()
         {

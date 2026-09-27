@@ -17,7 +17,7 @@ namespace Velocity
             float left=World.BossStarted && !World.BossDefeated ? World.Data.arena/100 : 0;
             float right=World.Data.length/100;
             float x=right-left>halfWidth*2 ? Mathf.Clamp(p.x+World.Player.Facing*.9f,left+halfWidth,right-halfWidth) : (left+right)/2;
-            return new Vector3(x,arena?2.5f:Mathf.Clamp(p.y+1.9f,1.9f,6),-distance);
+            return new Vector3(x,arena?2.25f:Mathf.Clamp(p.y+1.9f,World.Data.cameraMinY,World.Data.cameraMaxY),-distance);
         }
         public void Snap() { smoothPosition=Target(); transform.position=smoothPosition; velocity=Vector3.zero; transform.rotation=Quaternion.identity; }
         public void Shake(float amount) { if(World.App.Save.Data.shake) shake=Mathf.Max(shake,amount); }

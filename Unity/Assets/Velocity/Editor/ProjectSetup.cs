@@ -46,7 +46,7 @@ namespace Velocity.Editor
                     if(!layout) throw new Exception("layout_"+i+" requires StageLayout");
                     stage=layout.Export(stage);
                 }
-                if(stage.checkpoints.Length!=3 || stage.relics.Length!=3 || stage.enemies.Length==0) throw new Exception("Invalid content in stage "+i);
+                if(stage.checkpoints.Length<3 || stage.relics.Length!=3 || stage.enemies.Length==0) throw new Exception("Invalid content in stage "+i);
                 foreach(var checkpoint in stage.checkpoints)
                 {
                     var p=checkpoint.values;
