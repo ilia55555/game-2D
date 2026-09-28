@@ -1,0 +1,97 @@
+[
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/music/boss.ogg",
+    "sha": "533ecfe54d3dbf895fe9abd53d9e467d53e15b0e",
+    "size": 293173
+  },
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/music/menu.ogg",
+    "sha": "33ec4d53e918faf9fd35bbfb72707cf661e4702d",
+    "size": 389109
+  },
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/music/stage_0.ogg",
+    "sha": "b6ec62dd8e964a87e48197c2b6725bec3864911b",
+    "size": 349155
+  },
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/music/stage_1.ogg",
+    "sha": "f1d422bebb763c4640077f2c4ecaeb17f3e9358e",
+    "size": 328930
+  },
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/music/stage_2.ogg",
+    "sha": "6b534c08f8de8feff9593b192a6c25dbad06e00b",
+    "size": 393066
+  },
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/music/stage_3.ogg",
+    "sha": "a739aa1212a83e5ebca2ce4886773b751d3f97a0",
+    "size": 313666
+  },
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/music/stage_4.ogg",
+    "sha": "4a73d1a2ba4918354a085eea24a9cbb9784d969a",
+    "size": 337963
+  },
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/sfx/alarm.wav",
+    "sha": "d8f1e19c31fa2881c91c3086d19eb3d2346de7ff",
+    "size": 32044
+  },
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/sfx/checkpoint.wav",
+    "sha": "e51ae3362601de1fd49b1685368a7be5892dd256",
+    "size": 51244
+  },
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/sfx/dash.wav",
+    "sha": "06d6bbbb1635e147468ce8cad3e0ab06f5603d23",
+    "size": 14124
+  },
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/sfx/explode.wav",
+    "sha": "9ca5b22f323a7efb4bba8aa034bc6c8d0049829c",
+    "size": 38444
+  },
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/sfx/gem.wav",
+    "sha": "4879e34d6036473b5f089eef150804f83e846ec5",
+    "size": 14124
+  },
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/sfx/heal.wav",
+    "sha": "ac43d698264bf23abce3dd6f316533b2282ccd52",
+    "size": 32044
+  },
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/sfx/hit.wav",
+    "sha": "de911aed6a8469e0172088bc2b812929bc23f9e2",
+    "size": 14764
+  },
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/sfx/jump.wav",
+    "sha": "2843d63f5c89b6cb338b3d7b10fec99c0ea3651f",
+    "size": 15404
+  },
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/sfx/shoot.wav",
+    "sha": "99b8f65a72b1dbeeee6cf87c9411c3f675d29768",
+    "size": 8364
+  },
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/sfx/spring.wav",
+    "sha": "518afb14b99bfe056e2918f526cc1f827992cb94",
+    "size": 22444
+  },
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/sfx/ui.wav",
+    "sha": "96751b391180233feb006d4b0cdd4d53975e9542",
+    "size": 4524
+  },
+  {
+    "path": "Unity/Assets/Velocity/Resources/Velocity/Audio/sfx/win.wav",
+    "sha": "8996368ad690db531176fff518f42ee2e2ebfab8",
+    "size": 115244
+  }
+]
