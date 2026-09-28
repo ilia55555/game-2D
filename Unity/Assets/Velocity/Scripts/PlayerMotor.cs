@@ -5,7 +5,7 @@ namespace Velocity
     [RequireComponent(typeof(CharacterController))]
     public class PlayerMotor : MonoBehaviour
     {
-        public const float Speed = 4.7f, JumpSpeed = 6.4f, Gravity = 18;
+        public const float Speed = 5.8f, JumpSpeed = 7.8f, Gravity = 18;
         public WorldSession World;
         public int Health = 8, MaxHealth = 8, Weapon;
         public float Energy = 100, Facing = 1;
@@ -14,6 +14,8 @@ namespace Velocity
         public bool Grounded => controller && controller.isGrounded;
         public bool Dashing => dashTime > 0;
         public bool Crouching { get; private set; }
+        public float Charge { get; private set; }
+        public float DashReady => Mathf.Clamp01(1 - dashCooldown / .8f);
         public ActorVisual Visual { get; private set; }
         CharacterController controller;
         float coyote, jumpBuffer, fireTime, invulnerable, dashTime, dashCooldown, knockback;
@@ -24,7 +26,8 @@ namespace Velocity
             controller = GetComponent<CharacterController>(); controller.radius = .15f; controller.height = .64f;
             controller.center = Vector3.up * .32f; controller.skinWidth = .015f; controller.stepOffset = .08f;
             controller.minMoveDistance = 0; controller.slopeLimit = 50;
-            Visual = gameObject.AddComponent<ActorVisual>(); Visual.Initialize(world.Models, "hero", .8f, world.Data.Accent);
+            Visual = gameObject.AddComponent<ActorVisual>(); Visual.Initialize(world.Models, "hero", .8f, new Color(.25f,.7f,1));
+            Visual.EquipWeapon(Weapon);
         }
         void Update()
         {
@@ -45,8 +48,8 @@ namespace Velocity
                 duck = Physics.CheckCapsule(p + Vector3.up * .18f, p + Vector3.up * .49f, .145f, Layers.TerrainMask, QueryTriggerInteraction.Ignore);
             }
             Crouching = duck; controller.height = duck ? .42f : .64f; controller.center = Vector3.up * controller.height * .5f;
-            if (input.SwitchPressed) Weapon = (Weapon + 1) % 3;
-            if (input.Weapon >= 0) Weapon = input.Weapon;
+            if (input.SwitchPressed) SelectWeapon((Weapon + 1) % WeaponCatalog.Count);
+            if (input.Weapon >= 0) SelectWeapon(input.Weapon);
             if (input.DashPressed && dashCooldown <= 0)
             { dashTime = .19f; dashCooldown = .8f; World.App.Audio.Play("dash"); Visual.Trigger("Dash"); }
             if (jumpBuffer > 0 && jumps > 0)
@@ -60,7 +63,7 @@ namespace Velocity
             else
             {
                 Velocity.y = Grounded && Velocity.y < 0 ? -.8f : Mathf.Max(-10.5f, Velocity.y - Gravity * dt);
-                if (knockback <= 0) Velocity.x = Mathf.MoveTowards(Velocity.x, input.Move * (duck ? 1.5f : Speed), (Grounded ? 32 : 21) * dt);
+                if (knockback <= 0) Velocity.x = Mathf.MoveTowards(Velocity.x, input.Move * (duck ? 1.5f : Speed), (Grounded ? 32 * World.Data.friction : 21) * dt);
             }
             CarryPlatform();
             var flags = controller.Move(Velocity * dt);
@@ -68,8 +71,14 @@ namespace Velocity
             if ((flags & CollisionFlags.Sides) != 0) dashTime = 0;
             var position = transform.position; position.z = 0; position.x = Mathf.Clamp(position.x, .2f, World.Data.length / 100 - .2f); transform.position = position;
             Visual.Pose(Facing, Velocity, Grounded, Crouching, Dashing);
-            if (input.Fire && fireTime <= 0) Shoot();
-            if (transform.position.y < -2.8f) Die();
+            if (Weapon == (int)WeaponKind.ChargeLaser)
+            {
+                if (input.Fire && fireTime <= 0) Charge = Mathf.Min(1, Charge + dt / WeaponCatalog.ChargeSeconds);
+                if (input.FireReleased && Charge > 0 && fireTime <= 0) { Shoot(); Charge = 0; }
+            }
+            else if (input.Fire && fireTime <= 0) Shoot();
+            Visual.SetCharge(Charge);
+            if (transform.position.y < World.Data.killY) Die();
         }
         void CarryPlatform()
         {
@@ -82,17 +91,25 @@ namespace Velocity
         }
         public void Shoot()
         {
-            int[] costs = { 0, 8, 12 }; int actual = Energy >= costs[Weapon] ? Weapon : 0;
+            if (Dead || !World.Running || fireTime > 0) return;
+            int actual = WeaponCatalog.Resolve(Weapon, Energy);
+            var spec = WeaponCatalog.Get(actual);
             Vector3 origin = Visual.Muzzle;
             // A barrel next to a wall must not spawn a projectile on the other side of that wall.
             var chest = transform.position + Vector3.up * (Crouching ? .3f : .47f);
             if (Physics.Linecast(chest, origin, out var wall, Layers.TerrainMask)) origin = wall.point - (origin - chest).normalized * .03f;
             Vector3 direction = Vector3.right * Facing;
-            if (actual == 1)
-                for (int i = -1; i <= 1; i++) World.Shoot(origin, Quaternion.Euler(0, 0, i * 8.6f) * direction * 8.5f, true, 1, "player_scatter");
-            else World.Shoot(origin, direction * (actual == 2 ? 7.2f : 10), true, actual == 2 ? 4 : 1, actual == 2 ? "player_nova" : "player_pulse");
-            Energy -= costs[actual]; fireTime = new[] { .14f, .27f, .42f }[actual];
-            Visual.Trigger("Fire"); World.App.Audio.Play("shoot", 1 + actual * .12f, .55f);
+            int damage = actual == (int)WeaponKind.ChargeLaser ? Mathf.RoundToInt(Mathf.Lerp(3, spec.Damage, Charge)) : spec.Damage;
+            for (int i = 0; i < spec.Pellets; i++)
+                World.Shoot(origin, Quaternion.Euler(0, 0, (i - (spec.Pellets - 1) * .5f) * 7) * direction * spec.Speed, true, damage, spec.Projectile);
+            Energy = Mathf.Max(0, Energy - spec.Cost); fireTime = spec.Interval;
+            Visual.Trigger("Fire"); World.Effect(origin, spec.Color, .1f); World.App.Audio.Play("shoot", 1 + actual * .08f, .55f);
+        }
+        public void SelectWeapon(int index)
+        {
+            int next = Mathf.Clamp(index, 0, WeaponCatalog.Count - 1);
+            if (next == Weapon) return;
+            Weapon = next; Charge = 0; Visual.EquipWeapon(Weapon);
         }
         public void Damage(int amount, Vector3 source)
         {
@@ -106,7 +123,7 @@ namespace Velocity
         public void Spring(float power = 9) { Velocity.y = power; jumps = 1; coyote = 0; dashTime = 0; World.App.Audio.Play("spring"); }
         public void Die()
         {
-            if (Dead) return; Dead = true; controller.enabled = false; Visual.Trigger("Death"); World.PlayerDied();
+            if (Dead) return; Dead = true; Charge = 0; controller.enabled = false; Visual.Trigger("Death"); World.PlayerDied();
         }
         public void Teleport(Vector3 point)
         {

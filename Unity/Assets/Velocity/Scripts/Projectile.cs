@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 namespace Velocity
@@ -9,55 +10,90 @@ namespace Velocity
         public bool Friendly;
         public int Damage;
         public string Family;
-        float life = 2.5f;
+        float life = 3.2f, splash, freeze;
+        int pierce;
         bool spent;
+        Color color;
+        readonly HashSet<Component> struck = new();
         public void Initialize()
         {
-            var c = Friendly ? (Family == "player_nova" ? new Color(.7f,.5f,1) : new Color(.55f,1,.8f)) : new Color(1,.45f,.2f);
+            var spec = WeaponCatalog.ForProjectile(Family);
+            color = spec?.Color ?? (Family switch {
+                "boss_rock" => new Color(.65f,.5f,.3f), "boss_poison" => new Color(.55f,1,.15f),
+                "boss_feather" => new Color(.85f,.9f,1), "boss_ice" => new Color(.3f,.85f,1),
+                "vexar_bolt" => new Color(1,.12f,.3f), _ => Friendly ? new Color(.6f,1,.8f) : new Color(1,.4f,.15f) });
+            splash = spec?.Splash ?? (Family == "player_nova" ? 1.15f : 0);
+            freeze = spec?.Freeze ?? 0;
+            pierce = Family == "player_laser" ? 3 : 0;
             var slot = World.Models ? World.Models.Find(Family) : null;
             if (slot != null && slot.prefab)
             {
-                var visual = Instantiate(slot.prefab, transform); visual.transform.localPosition = slot.position;
-                visual.transform.localEulerAngles = slot.rotation; visual.transform.localScale = slot.scale;
-                foreach (var collider in visual.GetComponentsInChildren<Collider>()) collider.enabled = false;
-                foreach (var rb in visual.GetComponentsInChildren<Rigidbody>()) { rb.isKinematic = true; rb.detectCollisions = false; }
+                var art = Instantiate(slot.prefab, transform); art.transform.localPosition = slot.position;
+                art.transform.localEulerAngles = slot.rotation; art.transform.localScale = slot.scale;
+                ModelCatalog.MakeVisualOnly(art);
             }
-            else Geometry.Primitive("Energy", PrimitiveType.Sphere, transform, Vector3.zero, Vector3.one * (Family == "player_nova" ? .14f : .09f), c);
-            transform.right = Velocity.normalized;
-            var trail = gameObject.AddComponent<TrailRenderer>(); trail.time = .1f; trail.startWidth = .06f; trail.endWidth = 0;
-            trail.sharedMaterial = Geometry.Material(c); trail.minVertexDistance = .025f;
+            else Geometry.Primitive("Energy",PrimitiveType.Sphere,transform,Vector3.zero,Vector3.one*(splash > 0 ? .14f : .085f),color);
+            if (Velocity.sqrMagnitude > 0) transform.right = Velocity.normalized;
+            var trail = gameObject.AddComponent<TrailRenderer>(); trail.time = pierce > 0 ? .08f : .13f;
+            trail.startWidth = .055f; trail.endWidth = 0; trail.sharedMaterial = Geometry.Material(color); trail.minVertexDistance = .025f;
         }
         void Update()
         {
-            if (spent || !World.Running) return;
-            life -= Time.deltaTime; if (life <= 0) { Destroy(gameObject); return; }
-            Vector3 delta = Velocity * Time.deltaTime;
+            if (spent || !World || !World.Running) return;
+            life -= Time.deltaTime;
+            if (life <= 0) { Detonate(transform.position); return; }
+            Vector3 start = transform.position, delta = Velocity * Time.deltaTime;
             int mask = Layers.TerrainMask | (1 << (Friendly ? Layers.Enemy : Layers.Player));
-            // Include overlaps at the origin: sphere casts alone ignore colliders containing the origin.
-            var overlaps = Physics.OverlapSphere(transform.position, .025f, mask, QueryTriggerInteraction.Ignore);
-            if (overlaps.Length > 0) { Impact(overlaps[0], transform.position); return; }
-            if (Physics.SphereCast(transform.position, .025f, delta.normalized, out var hit, delta.magnitude, mask, QueryTriggerInteraction.Ignore))
-                Impact(hit.collider, hit.point);
-            else transform.position += delta;
+            var overlaps = Physics.OverlapSphere(start,.025f,mask,QueryTriggerInteraction.Ignore);
+            // A solid wall takes precedence over an actor overlapping the muzzle.
+            Array.Sort(overlaps,(a,b) => (a.gameObject.layer == Layers.World ? 0 : 1).CompareTo(b.gameObject.layer == Layers.World ? 0 : 1));
+            foreach (var c in overlaps) if (Impact(c,start)) return;
+            if (delta.sqrMagnitude > .0000001f)
+            {
+                var hits = Physics.SphereCastAll(start,.025f,delta.normalized,delta.magnitude,mask,QueryTriggerInteraction.Ignore);
+                Array.Sort(hits,(a,b) => a.distance.CompareTo(b.distance));
+                foreach (var hit in hits) if (Impact(hit.collider,hit.point)) return;
+            }
+            transform.position = start + delta;
         }
-        void Impact(Collider target, Vector3 position)
+        bool Impact(Collider target, Vector3 position)
+        {
+            if (spent || !target) return spent;
+            var enemy = target.GetComponentInParent<EnemyActor>(); var boss = target.GetComponentInParent<BossActor>();
+            Component actor = enemy ? (Component)enemy : boss;
+            if (actor && struck.Contains(actor)) return false;
+            if (Friendly)
+            {
+                if (actor) struck.Add(actor);
+                if (enemy) { enemy.Hit(Damage); if (freeze > 0) enemy.Freeze(freeze); }
+                if (boss) { boss.Hit(Damage); if (freeze > 0) boss.Slow(freeze); }
+            }
+            else
+            {
+                var player = target.GetComponentInParent<PlayerMotor>();
+                if (player) player.Damage(Damage,position - Velocity*.05f);
+            }
+            if (Friendly && actor && pierce-- > 0)
+            { World.Effect(position,color,.16f); return false; }
+            Detonate(position); return true;
+        }
+        void Detonate(Vector3 position)
         {
             if (spent) return; spent = true; transform.position = position;
-            var enemy = target.GetComponentInParent<EnemyActor>(); var boss = target.GetComponentInParent<BossActor>();
-            if (Friendly) { if (enemy) enemy.Hit(Damage); if (boss) boss.Hit(Damage); }
-            else { var player = target.GetComponentInParent<PlayerMotor>(); if (player) player.Damage(Damage, position - Velocity * .05f); }
-            if (Friendly && Family == "player_nova")
+            if (Friendly && splash > 0)
             {
-                var seen = new HashSet<Component>(); if (enemy) seen.Add(enemy); if (boss) seen.Add(boss);
-                foreach (var c in Physics.OverlapSphere(position, 1.15f, 1 << Layers.Enemy))
+                foreach (var c in Physics.OverlapSphere(position,splash,1 << Layers.Enemy,QueryTriggerInteraction.Ignore))
                 {
                     var e = c.GetComponentInParent<EnemyActor>(); var b = c.GetComponentInParent<BossActor>();
-                    if (e && seen.Add(e)) e.Hit(2); if (b && seen.Add(b)) b.Hit(2);
+                    Component actor = e ? (Component)e : b;
+                    if (!actor || !struck.Add(actor)) continue;
+                    // Splash cannot hit through a solid platform/wall.
+                    if (Physics.Linecast(position,c.bounds.center,Layers.TerrainMask,QueryTriggerInteraction.Ignore)) continue;
+                    if (e) e.Hit(Mathf.Max(1,Damage/2)); if (b) b.Hit(Mathf.Max(1,Damage/2));
                 }
-                World.Camera.Shake(.04f);
+                if (World.Camera) World.Camera.Shake(.045f);
             }
-            World.Effect(position, Friendly ? World.Data.Accent : new Color(1,.5f,.2f), Family == "player_nova" ? .45f : .14f);
-            Destroy(gameObject);
+            World.Effect(position,color,splash > 0 ? splash*.65f : .14f); Destroy(gameObject);
         }
     }
 }

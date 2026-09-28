@@ -8,9 +8,11 @@ namespace Velocity
         public float Move { get; private set; }
         public bool Fire { get; private set; }
         public bool Crouch { get; private set; }
-        public bool JumpPressed, JumpReleased, DashPressed, SwitchPressed, PausePressed;
+        public bool JumpPressed, JumpReleased, DashPressed, SwitchPressed, PausePressed, FireReleased;
         public int Weapon = -1;
         bool previousTouchJump, previousTouchDash, previousTouchSwitch;
+        bool previousFire;
+        readonly bool[] touch = new bool[7];
         public bool TouchEnabled;
         public static Rect TouchArea(int i)
         {
@@ -30,8 +32,9 @@ namespace Velocity
             DashPressed = k?.leftShiftKey.wasPressedThisFrame == true || k?.kKey.wasPressedThisFrame == true || k?.xKey.wasPressedThisFrame == true || g?.buttonEast.wasPressedThisFrame == true;
             SwitchPressed = k?.qKey.wasPressedThisFrame == true || k?.eKey.wasPressedThisFrame == true || g?.rightShoulder.wasPressedThisFrame == true;
             PausePressed = k?.escapeKey.wasPressedThisFrame == true || k?.pKey.wasPressedThisFrame == true || g?.startButton.wasPressedThisFrame == true;
-            Weapon = k?.digit1Key.wasPressedThisFrame == true ? 0 : k?.digit2Key.wasPressedThisFrame == true ? 1 : k?.digit3Key.wasPressedThisFrame == true ? 2 : -1;
-            bool[] touch = new bool[7];
+            Weapon = k?.digit1Key.wasPressedThisFrame == true ? 0 : k?.digit2Key.wasPressedThisFrame == true ? 1 : k?.digit3Key.wasPressedThisFrame == true ? 2 :
+                k?.digit4Key.wasPressedThisFrame == true ? 3 : k?.digit5Key.wasPressedThisFrame == true ? 4 : k?.digit6Key.wasPressedThisFrame == true ? 5 : -1;
+            System.Array.Clear(touch, 0, touch.Length);
             if (TouchEnabled && Touchscreen.current != null)
                 foreach (var t in Touchscreen.current.touches)
                 {
@@ -44,6 +47,7 @@ namespace Velocity
             JumpPressed |= touch[4] && !previousTouchJump; JumpReleased |= !touch[4] && previousTouchJump;
             DashPressed |= touch[5] && !previousTouchDash; SwitchPressed |= touch[6] && !previousTouchSwitch;
             previousTouchJump = touch[4]; previousTouchDash = touch[5]; previousTouchSwitch = touch[6];
+            FireReleased = previousFire && !Fire; previousFire = Fire;
         }
     }
 }

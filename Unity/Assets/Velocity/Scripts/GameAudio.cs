@@ -18,7 +18,8 @@ namespace Velocity
         {
             if(track==name) return; track=name;
             music.clip=Resources.Load<AudioClip>("Velocity/Audio/music/"+name);
-            if(music.clip) music.Play();
+            if(!music.clip) music.clip=Resources.Load<AudioClip>("Velocity/Audio/music/menu");
+            if(music.clip) music.Play(); else music.Stop();
         }
         public void Play(string name,float pitch=1,float volume=1)
         {

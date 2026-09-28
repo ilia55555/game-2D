@@ -6,6 +6,9 @@ namespace Velocity
     {
         public string id;
         public GameObject prefab;
+        public RuntimeAnimatorController controller;
+        [Tooltip("Environment slots: hide generated static floor/platform meshes when the scenery contains their artwork. Collision remains active.")]
+        public bool hideStaticTerrain;
         public Vector3 position, rotation;
         public Vector3 scale = Vector3.one;
     }
@@ -13,7 +16,13 @@ namespace Velocity
     public class ModelCatalog : ScriptableObject
     {
         public ModelSlot[] models = Array.Empty<ModelSlot>();
-        public ModelSlot Find(string id) => Array.Find(models, s => s.id == id);
+        public ModelSlot Find(string id) => models == null ? null : Array.Find(models, s => s != null && s.id == id);
+        public static void MakeVisualOnly(GameObject visual)
+        {
+            foreach (var t in visual.GetComponentsInChildren<Transform>(true)) t.gameObject.layer = Layers.Decoration;
+            foreach (var c in visual.GetComponentsInChildren<Collider>(true)) c.enabled = false;
+            foreach (var rb in visual.GetComponentsInChildren<Rigidbody>(true)) { rb.isKinematic = true; rb.detectCollisions = false; }
+        }
     }
     public static class Geometry
     {
