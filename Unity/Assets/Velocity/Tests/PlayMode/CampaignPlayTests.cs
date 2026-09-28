@@ -17,6 +17,23 @@ namespace Velocity.Tests
         {
             if(app) Object.Destroy(app.gameObject); yield return null; GameApp.SuppressSaveForTests=false; Time.timeScale=1;
         }
+        void AssertSingleGameCameraAndListener()
+        {
+            Assert.AreEqual(1, Object.FindObjectsByType<GameApp>(FindObjectsSortMode.None).Length);
+            var cameras=Object.FindObjectsByType<Camera>(FindObjectsSortMode.None);
+            var listeners=Object.FindObjectsByType<AudioListener>(FindObjectsSortMode.None);
+            Assert.AreEqual(1, System.Array.FindAll(cameras,c=>c.isActiveAndEnabled).Length);
+            Assert.AreEqual(1, System.Array.FindAll(listeners,l=>l.isActiveAndEnabled).Length);
+            foreach(var behaviour in Object.FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None))
+                Assert.AreNotEqual("ProjectVelocity", behaviour.GetType().Namespace, "The legacy prototype must not boot in the AERO scene");
+        }
+        [UnityTest] public IEnumerator MenuStageRestartAndReturnKeepOneCameraAndAudioListener()
+        {
+            AssertSingleGameCameraAndListener();
+            app.StartStage(0); yield return null; AssertSingleGameCameraAndListener();
+            app.StartStage(0); yield return null; AssertSingleGameCameraAndListener();
+            app.ReturnToMenu(); yield return null; AssertSingleGameCameraAndListener();
+        }
         [UnityTest] public IEnumerator AllSixStagesBootWithThreeDimensionalPhysicsAndSideCamera()
         {
             for(int stage=0;stage<6;stage++)

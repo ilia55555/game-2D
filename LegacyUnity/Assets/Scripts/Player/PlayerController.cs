@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace ProjectVelocity
 {
@@ -34,18 +35,19 @@ namespace ProjectVelocity
 
         private void Update()
         {
+            var keyboard = Keyboard.current;
             _moveInput = 0f;
-            if (Input.GetKey(KeyCode.A) || Input.GetKey(KeyCode.LeftArrow))
+            if (keyboard?.aKey.isPressed == true || keyboard?.leftArrowKey.isPressed == true)
             {
                 _moveInput -= 1f;
             }
 
-            if (Input.GetKey(KeyCode.D) || Input.GetKey(KeyCode.RightArrow))
+            if (keyboard?.dKey.isPressed == true || keyboard?.rightArrowKey.isPressed == true)
             {
                 _moveInput += 1f;
             }
 
-            if (Input.GetKeyDown(KeyCode.Space))
+            if (keyboard?.spaceKey.wasPressedThisFrame == true)
             {
                 _jumpQueued = true;
             }
@@ -63,12 +65,12 @@ namespace ProjectVelocity
             _isGrounded = CheckGrounded();
             float control = _isGrounded ? 1f : airControl;
             float targetVelocity = _moveInput * moveSpeed;
-            float nextVelocity = Mathf.MoveTowards(_body.velocity.x, targetVelocity, acceleration * control * Time.fixedDeltaTime);
-            _body.velocity = new Vector3(nextVelocity, _body.velocity.y, 0f);
+            float nextVelocity = Mathf.MoveTowards(_body.linearVelocity.x, targetVelocity, acceleration * control * Time.fixedDeltaTime);
+            _body.linearVelocity = new Vector3(nextVelocity, _body.linearVelocity.y, 0f);
 
             if (_jumpQueued && _isGrounded)
             {
-                _body.velocity = new Vector3(_body.velocity.x, jumpForce, 0f);
+                _body.linearVelocity = new Vector3(_body.linearVelocity.x, jumpForce, 0f);
                 GetComponent<ProceduralAudio>().PlayJump();
                 ImpactVfx.Spawn(transform.position + Vector3.down * 0.85f, new Color(0.2f, 0.9f, 1f), 8);
             }

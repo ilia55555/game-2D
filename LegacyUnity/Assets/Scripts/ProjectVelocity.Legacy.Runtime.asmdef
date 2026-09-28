@@ -1,0 +1,6 @@
+{
+  "name": "ProjectVelocity.Legacy.Runtime",
+  "rootNamespace": "ProjectVelocity",
+  "references": ["Unity.InputSystem"],
+  "autoReferenced": true
+}

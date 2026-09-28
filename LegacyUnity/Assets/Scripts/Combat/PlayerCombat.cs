@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace ProjectVelocity
 {
@@ -32,12 +33,13 @@ namespace ProjectVelocity
 
         private void Update()
         {
-            if (Input.GetKeyDown(KeyCode.J))
+            var keyboard = Keyboard.current;
+            if (keyboard?.jKey.wasPressedThisFrame == true)
             {
                 MeleeAttack();
             }
 
-            if (Input.GetKeyDown(KeyCode.K))
+            if (keyboard?.kKey.wasPressedThisFrame == true)
             {
                 Shoot();
             }

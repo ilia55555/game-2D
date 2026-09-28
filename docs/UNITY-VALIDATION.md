@@ -1,4 +1,15 @@
-# AERO Unity validation — 2026-09-27
+# AERO Unity validation — 2026-09-28
+
+## Windows project/import repair
+
+The `games` branch contained both `Unity/` (AERO) and `unity/` (an unrelated training prototype). On a case-insensitive checkout they collide, including a populated and an empty package manifest. The supplied runtime log points to the prototype's legacy `Input.GetKey` and `Input.GetKeyDown` calls; it also reports a missing AudioListener. The prototype is now a separate `LegacyUnity/` project with Input System controls, explicit packages/assemblies and a camera listener. Its automatic scene creation respects existing/dirty scenes and does not run alongside AERO.
+
+- Source validation now checks case-insensitive file and directory prefixes, required packages, input settings and assembly references for both projects, legacy Input API usage, metadata and C# syntax. It also works on downloaded source ZIPs without a Git index.
+- The checker was run against the actual pre-fix index (`406f615` remote source snapshot) and correctly rejected the `Unity` / `unity` collision. The corrected source passes.
+- All **40 C# files** across both projects pass syntax parsing. `git diff --check` passes. This does not perform Unity compilation.
+- A PlayMode regression test covers menu → stage → stage restart → menu, requiring one active camera, one active AudioListener and no prototype behaviours in AERO. It is added for the Unity Test Runner and has **not run here**.
+- `Parsing PrefColor failed` originates in the Editor's stored color preferences; project code cannot repair preferences on another machine. The Persian setup guide explains resetting only the Editor colors and reopening Unity.
+- Windows users should extract the repaired repository into a **fresh folder**, open `Unity/`, and retain their old folder while transferring their own art assets. Overlaying the ZIP can leave generated prototype scenes/scripts behind.
 
 ## Executed in the development container
 
@@ -17,7 +28,7 @@
 | Industrial | 687 | 31 | 270 | 5 | 3 | 2 |
 | Total | 3171 | 151 | 1297 | 30 | 18 | 12 |
 
-The jump check is a necessary geometric envelope check, not a simulated controller playthrough. All 29 C# files pass tree-sitter syntax parsing. Parsing does not perform Unity type checking or import assets.
+The jump check is a necessary geometric envelope check, not a simulated controller playthrough. All 29 AERO C# files plus 11 legacy prototype files pass tree-sitter syntax parsing. Parsing does not perform Unity type checking or import assets.
 
 ## Tests added/updated for the Unity Test Runner
 
