@@ -5,17 +5,53 @@ import hashlib
 import importlib.util
 import json
 import math
+import os
 from pathlib import Path
 import re
+import subprocess
 import sys
 
 sys.dont_write_bytecode = True
 
 ROOT = Path(__file__).resolve().parents[1]
 UNITY = ROOT / 'Unity'
+PROJECTS = (UNITY, ROOT / 'LegacyUnity')
 parser = argparse.ArgumentParser()
 parser.add_argument('--require-audio', action='store_true')
 args = parser.parse_args()
+# Check directory prefixes as well as filenames. Unity/ and unity/ can contain
+# different files but still merge into one broken project on Windows.
+if (ROOT / '.git').exists():
+    tracked = subprocess.check_output(['git', 'ls-files', '-z'], cwd=ROOT).decode().split('\0')
+else:
+    # A downloaded ZIP has no Git index; still check its source paths without
+    # walking Unity's generated caches or unrelated tool dependencies.
+    tracked = []
+    generated = {'.git', '.godot', 'Library', 'Temp', 'Obj', 'obj', 'Build', 'Builds',
+                 'Logs', 'UserSettings', 'node_modules', '__pycache__', '.venv'}
+    for directory, folders, filenames in os.walk(ROOT):
+        folders[:] = [name for name in folders if name not in generated]
+        tracked.extend((Path(directory) / name).relative_to(ROOT).as_posix() for name in filenames)
+spellings = {}
+for name in filter(None, tracked):
+    parts = Path(name).parts
+    for depth in range(1, len(parts) + 1):
+        prefix = '/'.join(parts[:depth])
+        existing = spellings.setdefault(prefix.casefold(), prefix)
+        assert existing == prefix, f'Windows path collision: {existing} and {prefix}'
+print('PASS: source paths have no case-insensitive file or directory collisions.')
+for project in PROJECTS:
+    dependencies = json.loads((project / 'Packages/manifest.json').read_text())['dependencies']
+    required = {'com.unity.inputsystem', 'com.unity.modules.animation', 'com.unity.modules.audio',
+                'com.unity.modules.imgui', 'com.unity.modules.physics', 'com.unity.modules.particlesystem'}
+    if project == UNITY:
+        required |= {'com.unity.modules.jsonserialize', 'com.unity.test-framework'}
+    assert required <= dependencies.keys(), f'{project.name}: missing packages {required - dependencies.keys()}'
+    settings = (project / 'ProjectSettings/ProjectSettings.asset').read_text()
+    assert re.search(r'^\s*activeInputHandler: 1\s*$', settings, re.M), f'{project.name}: enable Input System'
+    assert '6000.6.2f1' in (project / 'ProjectSettings/ProjectVersion.txt').read_text()
+    definitions = [json.loads(p.read_text()) for p in (project / 'Assets').rglob('*.asmdef')]
+    assert any('Unity.InputSystem' in d.get('references', []) for d in definitions), f'{project.name}: missing Input System assembly reference'
 spec = importlib.util.spec_from_file_location('aero_campaign', ROOT / 'tools/build_aero_campaign.py')
 builder = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(builder)
@@ -113,21 +149,20 @@ assert {'vexar_feral', 'vexar_armored', 'vexar_final'}.issubset(models)
 for family in ('pulse', 'scatter', 'laser', 'rocket', 'ice', 'plasma'):
     assert 'player_' + family in models
 
-guids = {}
-for p in (UNITY / 'Assets').rglob('*.meta'):
-    match = re.search(r'^guid: (\w+)', p.read_text(), re.M)
-    assert match, f'Missing GUID: {p}'
-    guid = match[1]
-    assert guid not in guids, f'Duplicate GUID: {p}'
-    guids[guid] = p
-for p in (UNITY / 'Assets').rglob('*'):
-    if p.is_file() and p.suffix != '.meta':
-        assert Path(str(p) + '.meta').exists(), f'Missing metadata: {p}'
-for p in list((UNITY / 'Assets').rglob('*.unity')) + list((UNITY / 'Assets').rglob('*.asset')):
-    for guid in re.findall(r'guid: ([0-9a-f]{32})', p.read_text()):
-        assert guid in guids, f'Dangling Unity reference: {p} {guid}'
-for p in UNITY.rglob('*.asmdef'):
-    json.loads(p.read_text())
+for project in PROJECTS:
+    guids = {}
+    for p in (project / 'Assets').rglob('*.meta'):
+        match = re.search(r'^guid: (\w+)', p.read_text(), re.M)
+        assert match, f'Missing GUID: {p}'
+        guid = match[1]
+        assert guid not in guids, f'Duplicate GUID: {p}'
+        guids[guid] = p
+    for p in (project / 'Assets').rglob('*'):
+        if p.suffix != '.meta':
+            assert Path(str(p) + '.meta').exists(), f'Missing metadata: {p}'
+    for p in list((project / 'Assets').rglob('*.unity')) + list((project / 'Assets').rglob('*.asset')):
+        for guid in re.findall(r'guid: ([0-9a-f]{32})', p.read_text()):
+            assert guid in guids, f'Dangling Unity reference: {p} {guid}'
 manifest = json.loads((UNITY / 'Packages/manifest.json').read_text())
 assert 'com.unity.ai.assistant' not in manifest['dependencies'] and 'com.unity.ide.rider' not in manifest['dependencies']
 audio = json.loads((ROOT / 'tools/unity_audio_manifest.json').read_text())
@@ -146,7 +181,9 @@ try:
 except ImportError:
     raise SystemExit('Install tree-sitter and tree-sitter-c-sharp to run the required syntax check')
 syntax = tree_sitter.Parser(tree_sitter.Language(tree_sitter_c_sharp.language()))
-files = list((UNITY / 'Assets').rglob('*.cs'))
+files = [p for project in PROJECTS for p in (project / 'Assets').rglob('*.cs')]
+for p in files:
+    assert not re.search(r'\bInput\.(GetKey|GetAxis|GetButton|GetMouseButton)', p.read_text()), f'Legacy Input API in {p}'
 errors = [str(p) for p in files if syntax.parse(p.read_bytes()).root_node.has_error]
 assert not errors, 'C# syntax errors: ' + str(errors)
 print(f'PASS: content, jump envelopes, GUIDs, audio references and syntax of {len(files)} C# files.')

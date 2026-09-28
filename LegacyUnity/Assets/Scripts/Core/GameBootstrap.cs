@@ -12,7 +12,10 @@ namespace ProjectVelocity
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void EnsureGameExists()
         {
-            if (FindObjectOfType<GameBootstrap>() != null)
+            // Never create the training world alongside the AERO campaign if
+            // somebody imports these sample scripts into the main project.
+            if (Resources.Load<TextAsset>("Velocity/campaign") != null ||
+                FindFirstObjectByType<GameBootstrap>() != null)
             {
                 return;
             }
@@ -166,6 +169,7 @@ namespace ProjectVelocity
         {
             GameObject cameraObject = new GameObject("2.5D Camera");
             Camera camera = cameraObject.AddComponent<Camera>();
+            cameraObject.AddComponent<AudioListener>();
             camera.orthographic = true;
             camera.orthographicSize = 5.2f;
             camera.clearFlags = CameraClearFlags.SolidColor;

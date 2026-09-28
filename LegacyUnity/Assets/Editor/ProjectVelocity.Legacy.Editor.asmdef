@@ -1,0 +1,7 @@
+{
+  "name": "ProjectVelocity.Legacy.Editor",
+  "rootNamespace": "ProjectVelocity.Editor",
+  "references": ["ProjectVelocity.Legacy.Runtime"],
+  "includePlatforms": ["Editor"],
+  "autoReferenced": true
+}

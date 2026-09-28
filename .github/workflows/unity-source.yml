@@ -1,9 +1,9 @@
 name: AERO Unity source validation
 on:
   push:
-    paths: ['Unity/**', 'tools/**', '.github/workflows/unity-source.yml']
+    paths: ['Unity/**', 'unity/**', 'LegacyUnity/**', 'tools/**', '.github/workflows/unity-source.yml']
   pull_request:
-    paths: ['Unity/**', 'tools/**', '.github/workflows/unity-source.yml']
+    paths: ['Unity/**', 'unity/**', 'LegacyUnity/**', 'tools/**', '.github/workflows/unity-source.yml']
 jobs:
   validate:
     runs-on: ubuntu-latest
