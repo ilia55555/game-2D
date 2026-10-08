@@ -12,23 +12,37 @@ test('Decreasing count sends soldiers physically back to reserve',()=>{init([g(0
 test('Cavalry dismount only after courier, return to HQ and refit delay; health ratio retained',()=>{init([g(0,1,10,700,1100),g(1,0,20,2800,1100)]);read('hp[0]=HEALTH[1]*.7');send({kind:'start'});send({kind:'refit',ids:[0],type:0});assert.equal(read('groups[0].type'),1);until(()=>read('groups[0].refitAt>0'));assert.equal(read('groups[0].type'),1);const at=read('worldTime');until(()=>read('groups[0].type===0'));assert(read('worldTime')-at>=7.9);assert(Math.abs(read('hp[0]/HEALTH[0]')-.7)<.001);});
 test('Freehand shape packs actual soldiers; small and crossing shapes rejected',()=>{init([g(0,0,25,650,1100),g(1,0,20,2800,1100)]);send({kind:'polygon',ids:[0],points:[{x:500,y:800},{x:501,y:800},{x:501,y:801}]});assert(frame.events.some(e=>e.text.includes('کوچک')));assert.notEqual(read('groups[0].formation'),'custom');send({kind:'polygon',ids:[0],points:[{x:500,y:800},{x:700,y:800},{x:680,y:1020},{x:540,y:990}]});assert.equal(read('groups[0].formation'),'custom');assert.equal(read('groups[0].customSlots.length'),25);assert(read('Array.from(x.subarray(0,25)).every(v=>v>=500&&v<=700)'));});
 
-test('All 40 unit costs are derived from attack damage / interval and have an equipment floor',()=>{
- const all=read('UNIT_TYPES.map(u=>({name:u.name,damage:u.damage,period:u.period,cost:u.cost,equipmentCost:u.equipmentCost}))');
- assert.equal(all.length,40);
- assert(all.every(u=>Number.isFinite(u.cost)&&u.cost>=u.equipmentCost&&u.cost*2%1===0));
- assert.equal(all[0].cost,1);
- assert.equal(all[12].cost,1.5);
- assert(all[4].cost>=15&&all[4].cost<=25);
- assert(all[15].cost>all[4].cost);
- assert(all[25].cost>all[24].cost);
- assert(all[27].cost>all[25].cost);
+test('All 40 costs belong only to infantry 1/2, mounted 1.5/2, or machines 15..90 in 15 steps',()=>{
+ const data=read('UNIT_TYPES.map(u=>({cost:u.cost,costClass:u.costClass}))');
+ assert.equal(data.length,40);
+ for(const x of data){
+  assert(Number.isFinite(x.cost) && x.cost>=1);
+  if(x.costClass==='infantry')assert([1,2].includes(x.cost));
+  else if(x.costClass==='mounted')assert([1.5,2].includes(x.cost));
+  else if(x.costClass==='machine')assert([15,30,45,60,75,90].includes(x.cost));
+  else assert.fail('Unit class missing: '+x.costClass);
+ }
+ assert.equal(data[0].cost,1); // regular swords
+ assert.equal(data[1].cost,2); // mounted lancer
+ assert.equal(data[12].cost,1.5); // mounted archer
+ assert.equal(data[10].cost,2); // axeman
+ assert.equal(data[34].cost,2); // shield guard
+ assert.equal(data[35].cost,2); // armored cavalry
+ assert.equal(data[27].cost,90); // strongest fire ship
+ assert(data.some(x=>x.cost===15)&&data.some(x=>x.cost===90));
 });
-test('Damage and attack frequency really affect calculated cost, independent of other stats',()=>{
- const catapult=read('UNIT_TYPES[4]');
- const baseline=read('deriveUnitCost(UNIT_TYPES[4])');
- assert(read('deriveUnitCost({...UNIT_TYPES[4],damage:UNIT_TYPES[4].damage*2})')>baseline);
- assert(read('deriveUnitCost({...UNIT_TYPES[4],period:UNIT_TYPES[4].period/2})')>baseline);
- assert(read('deriveUnitCost({...UNIT_TYPES[4],period:UNIT_TYPES[4].period*2})')<baseline);
+test('Higher DPS raises price tiers, but every amount remains in its legal discrete category',()=>{
+ const k=read('UNIT_TYPES[4]');
+ const original=read('deriveUnitCost(UNIT_TYPES[4])');
+ const harder=read('deriveUnitCost({...UNIT_TYPES[4],damage:UNIT_TYPES[4].damage*2})');
+ const quicker=read('deriveUnitCost({...UNIT_TYPES[4],period:UNIT_TYPES[4].period/2})');
+ const slower=read('deriveUnitCost({...UNIT_TYPES[4],period:UNIT_TYPES[4].period*2})');
+ assert(harder>original&&quicker>original&&slower<original);
+ for(const n of [original,harder,quicker,slower])assert([15,30,45,60,75,90].includes(n));
+ assert.equal(read('deriveUnitCost({...UNIT_TYPES[12],period:.5})'),2);
+ assert.equal(read('deriveUnitCost({...UNIT_TYPES[0],damage:40})'),2);
+ assert.equal(read('deriveUnitCost({...UNIT_TYPES[0],damage:0})'),1);
+ assert.equal(read('deriveUnitCost({...UNIT_TYPES[27],damage:10000})'),90);
 });
 test('Reinforcing siege engines charges their calculated DPS-derived cost, not one',()=>{
  init([g(0,4,1,900,1100),g(1,0,2,2800,1100)],{reserves:[100,0]});
