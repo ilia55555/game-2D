@@ -60,4 +60,67 @@ test('Refitting a battalion cannot bypass the equipment budget',()=>{
  assert.equal(frame.reserve,5);
 });
 
+const linePoints=ps=>ps.map(([x,y])=>({x,y}));
+const positions=()=>read('Array.from({length:groups[0].alive},(_,i)=>[x[i],y[i]])');
+function nearStroke(p,ps){let min=Infinity;for(let i=1;i<ps.length;i++){const a=ps[i-1],b=ps[i],dx=b.x-a.x,dy=b.y-a.y,l=dx*dx+dy*dy,t=l?Math.max(0,Math.min(1,((p[0]-a.x)*dx+(p[1]-a.y)*dy)/l)):0;min=Math.min(min,Math.hypot(p[0]-a.x-t*dx,p[1]-a.y-t*dy));}return min;}
+test('Open U, Z and V put every soldier on the drawn line without closing or filling it',()=>{
+ for(const points of [linePoints([[600,600],[600,1200],[1200,1200],[1200,600]]),linePoints([[600,600],[1200,600],[600,1200],[1200,1200]]),linePoints([[600,600],[900,1200],[1200,600]])]){
+  init([g(0,0,100,900,900),g(1,0,20,2800,1100)]);send({kind:'stroke',ids:[0],points});
+  assert.equal(read('groups[0].formation'),'custom');assert.equal(read('groups[0].strokeClosed'),false);
+  assert.equal(read('groups[0].customSlots.length'),100);assert.equal(frame.count,100);
+  assert(positions().every(p=>nearStroke(p,points)<.01));
+  if(points[0].x===points[1].x)assert(!positions().some(p=>Math.hypot(p[0]-900,p[1]-600)<70));
+ }
+});
+test('Dense freehand U has 10,000 independent, spaced slots and keeps its empty opening',()=>{
+ init([g(0,0,10000,1600,1100),g(1,0,20,2900,1900)]);
+ send({kind:'stroke',ids:[0],points:linePoints([[700,500],[700,1550],[2300,1550],[2300,500]])});
+ assert.equal(read('groups[0].customSlots.length'),10000);assert.equal(frame.count,10000);
+ const ps=positions();assert(!ps.some(p=>p[0]>1100&&p[0]<1900&&p[1]<1200));
+ const buckets=new Map(),sp=read('UNIT_TYPES[0].spacing')*.9;
+ for(const p of ps){const bx=Math.floor(p[0]/sp),by=Math.floor(p[1]/sp);for(let a=bx-1;a<=bx+1;a++)for(let b=by-1;b<=by+1;b++)for(const q of buckets.get(a+':'+b)||[])assert(Math.hypot(p[0]-q[0],p[1]-q[1])>sp-.002);const k=bx+':'+by;if(!buckets.has(k))buckets.set(k,[]);buckets.get(k).push(p);}
+});
+test('Small and invalid freehand strokes leave the old formation intact and request redraw',()=>{
+ init([g(0,0,100,900,1100),g(1,0,20,2800,1100)]);
+ for(const points of [linePoints([[900,900],[902,902]]),[{x:NaN,y:900},{x:1200,y:900}],linePoints([[900,900],[4000,900]])]){send({kind:'stroke',ids:[0],points});assert(frame.events.some(e=>e.text.includes('دوباره')));assert.equal(read('groups[0].formation'),'line');}
+});
+test('Crossing strokes are allowed and do not stack troops at the intersection',()=>{
+ init([g(0,0,400,1000,1000),g(1,0,20,2800,1100)]);send({kind:'stroke',ids:[0],points:linePoints([[650,650],[1250,1250],[650,1250],[1250,650]])});
+ assert.equal(read('groups[0].customSlots.length'),400);assert.equal(new Set(positions().map(p=>p.join(','))).size,400);
+});
+test('Ready ring, triangle, V and U are actual troop paths; width and direction preserve the preset',()=>{
+ for(const formation of ['ring','triangle','v','u']){
+  init([g(0,0,300,1500,1100),g(1,0,20,2800,1100)]);send({kind:'shape',ids:[0],formation});
+  assert.equal(read('groups[0].formation'),formation);assert.equal(read('groups[0].customSlots.length'),300);assert(frame.groups[0].customStroke.length>=3);
+  assert(!positions().some(p=>Math.hypot(p[0]-1500,p[1]-1100)<30));
+  send({kind:'shape',ids:[0],width:400});assert.equal(read('groups[0].formation'),formation);
+  send({kind:'shape',ids:[0],angle:Math.PI/2});assert.equal(read('groups[0].formation'),formation);assert.equal(read('groups[0].angle'),Math.PI/2);
+  assert(positions().every(p=>Number.isFinite(p[0])&&Number.isFinite(p[1])));
+ }
+});
+test('Line formation commands wait for a physical courier and soldiers then march without teleporting',()=>{
+ init([g(0,0,30,900,1100),g(1,0,20,2800,1100)]);read('groups[0].stance="hold"');send({kind:'start'});
+ const before=positions(),points=linePoints([[1050,700],[1050,1250],[1350,1250],[1350,700]]);
+ send({kind:'stroke',ids:[0],points});assert.equal(read('groups[0].formation'),'line');assert.equal(frame.dispatches[0].kind,'stroke');step(20);assert.equal(read('groups[0].formation'),'line');
+ until(()=>read('groups[0].formation==="custom"'));assert.equal(read('groups[0].x'),900);assert(Math.hypot(positions()[0][0]-before[0][0],positions()[0][1]-before[0][1])<3);
+ until(()=>read('groups[0].queue.length===0'));step(500);assert(positions().every(p=>nearStroke(p,points)<15));
+});
+test('Killed formation courier cannot change a battalion; opposing battalion cannot be reshaped',()=>{
+ init([g(0,0,30,900,1100),g(1,0,20,2800,1100)]);send({kind:'start'});send({kind:'stroke',ids:[0],points:linePoints([[700,700],[1100,1200],[1400,700]])});read('hp[dispatches[0].courier]=0');step(300);assert.equal(read('groups[0].formation'),'line');assert.equal(frame.dispatches[0].stage,'failed');
+ send({kind:'shape',ids:[1],formation:'u'});assert.equal(read('groups[1].formation'),'line');
+});
+test('Saved relative freehand path restores exact geometry, including rotated direction',()=>{
+ init([g(0,0,100,900,900),g(1,0,20,2800,1100)]);send({kind:'stroke',ids:[0],points:linePoints([[600,600],[600,1200],[1200,1200],[1200,600]])});send({kind:'shape',ids:[0],angle:.6});
+ const before=positions(),own=frame.groups[0];init([{...g(0,0,100,own.x,own.y),angle:own.angle,formation:own.formation,customStroke:own.customStroke,strokeClosed:own.strokeClosed},g(1,0,20,2800,1100)]);
+ assert.equal(read('groups[0].formation'),'custom');positions().forEach((p,i)=>assert(Math.hypot(p[0]-before[i][0],p[1]-before[i][1])<.001));assert(read('groups[0].faceLocked'));
+});
+test('Stroke rejects terrain barriers while sea strokes keep ships in water',()=>{
+ const gs=[g(0,0,30,500,1000),g(1,0,20,2800,1100)];init(gs);read('solid[cell(1000,1000)]=1');send({kind:'stroke',ids:[0],points:linePoints([[600,1000],[1400,1000]])});assert.equal(read('groups[0].formation'),'line');assert(frame.events.some(e=>e.text.includes('مانع')));
+ init([g(0,24,30,1000,1000),g(1,24,20,2800,1100)],{map:{zones:[{shape:'rect',kind:'water',x:0,y:0,w:3200,h:2200}],battleMode:'sea'}});send({kind:'stroke',ids:[0],points:linePoints([[600,600],[1000,1200],[1400,600]])});assert.equal(read('groups[0].customSlots.length'),30);assert(read('Array.from({length:30},(_,i)=>water[cell(x[i],y[i])]).every(Boolean)'));
+});
+
+test('A U around impassable ground keeps a passable anchor and the exact drawn positions',()=>{
+ init([g(0,0,100,900,900),g(1,0,20,2800,1100)]);read('solid[cell(900,900)]=1');const points=linePoints([[600,600],[600,1200],[1200,1200],[1200,600]]);send({kind:'stroke',ids:[0],points});assert.equal(read('groups[0].formation'),'custom');assert(read('pass(cell(groups[0].x,groups[0].y),domain(0))'));assert(positions().every(p=>nearStroke(p,points)<.01));
+});
 console.log(passed+' commander tests passed');
+
