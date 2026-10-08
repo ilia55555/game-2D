@@ -170,7 +170,7 @@ function customizeBot(){
    result.push({key:`1-${a}-${b}`,team:1,army:a,battalion:b,type,total:amount,x:q[0],y:q[1],angle:Math.PI,width:clamp(Math.sqrt(amount)*7,50,260),formation:rnd()<.3?'wedge':'line',stance:map.defender===1?'guard':'aggressive',order:'hold',queue:[]});
  }
  // Unspent fractions or too-small final allocations stay in the bot reserve.
- map.botReserve+=budget;
+ map.botReserve+=Math.floor(budget);
  return result;
 }
 function initializeArrays(){const f=()=>new Float32Array(M),ii=()=>new Int32Array(M);x=f();y=f();hp=f();typ=new Uint8Array(M);team=new Uint8Array(M);gid=new Uint16Array(M);ox=f();oy=f();cd=f();targets=ii();targets.fill(-1);links=ii();ang=f();navTime=f();vx=f();vy=f();projTime=f();projDur=f();projX=f();projY=f();projFromX=f();projFromY=f();projTarget=ii();projDamage=f();projStruct=ii();projStruct.fill(-1);head=new Int32Array(GC*2);}
