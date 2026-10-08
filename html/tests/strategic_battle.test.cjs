@@ -14,7 +14,38 @@ function until(test,max=3000){let i=0;while(!test()&&i++<max)step(1);assert(test
 const cases=[];
 function test(name,f){f();cases.push(name);console.log('PASS',name);}
 const maps= new Function('const W=3200,H=2200;'+scripts[1].slice(scripts[1].indexOf('const ellipse='),scripts[1].indexOf('let layoutCache='))+'return MAPS;')();
-test('Single offline file, valid JS, unique IDs, 40 unit definitions and five battle modes',()=>{const ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(m=>m[1]);assert.equal(new Set(ids).size,ids.length);assert.equal(read('UNIT_TYPES.length'),40);assert.equal(maps.length,11);assert(!/<script[^>]+src=|<link[^>]+href=|<img[^>]+src="https?:/.test(html));});
+test('Single offline file, valid JS, unique IDs, 40 unit definitions and five battle modes',()=>{const ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(m=>m[1]);assert.equal(new Set(ids).size,ids.length);assert.equal(read('UNIT_TYPES.length'),40);assert.equal(maps.length,17);assert(!/<script[^>]+src=|<link[^>]+href=|<img[^>]+src="https?:/.test(html));});
+test('Original five land maps stay unchanged; every other mode has three maps',()=>{
+ const ids=maps.map(m=>m.id);
+ assert.deepEqual(ids.slice(0,5),['ridge','gorge','river','forest','plains']);
+ assert.equal(new Set(ids).size,ids.length);
+ for(const [mode,count] of Object.entries({land:5,sea:3,coast:3,siege:3,raid:3}))
+   assert.equal(maps.filter(m=>(m.battleMode||'land')===mode).length,count,mode);
+});
+test('New coasts have connected bridges; ships navigate; siege and raids have real gates and towers',()=>{
+ for(const m of maps){
+  const mode=m.battleMode||'land',bases=m.bases||[{x:340,y:1100},{x:2860,y:1100}];
+  assert(m.zones.length>0,m.id);
+  assert.equal(new Set(m.zones.map(z=>z.kind)).size>=1,true,m.id);
+  const attackingShip=mode==='sea'||mode==='raid';
+  const defendingShip=mode==='sea';
+  init([g(0,attackingShip?24:0,1,bases[0].x,bases[0].y),g(1,defendingShip?24:0,1,bases[1].x,bases[1].y)],m);
+  assert(read('groups.every(g=>pass(cell(g.x,g.y),domain(g.type)))'),m.id+' spawn');
+  if(mode==='sea'){
+    assert(read('water.some(v=>v===0)&&water.some(v=>v===1)'),m.id+' navigable islands');
+    assert(read('findPath(cell(groups[0].x,groups[0].y),cell(groups[1].x,groups[1].y),"sea").reachable'),m.id+' sea route');
+  }
+  if(mode==='coast'){
+    assert(read('bridge.some(v=>v===1)&&water.some(v=>v===1)'),m.id+' bridges and water');
+    assert(read('findPath(cell(groups[0].x,groups[0].y),cell(groups[1].x,groups[1].y),"land").reachable'),m.id+' land passage');
+  }
+  if(mode==='siege'||mode==='raid'){
+    assert(m.castle,m.id+' castle');
+    assert(read('structures.some(s=>s.type==="gate")'),m.id+' destructible gate');
+    assert.equal(read('structures.filter(s=>s.type==="tower").length'),4,m.id+' towers');
+  }
+ }
+});
 test('10,000 cavalry have 10,000 independent live states and geometric draw records',()=>{init([g(0,1,10000,800,1100),g(1,0,50,2900,1100)]);assert.equal(read('N'),10050);assert.equal(read('Array.from(typ.subarray(0,N)).filter(t=>t===1).length'),10000);assert.equal(frame.count,10000);const a=new Float32Array(frame.buffer);for(let i=0;i<frame.count;i++)assert.equal(a[i*6+2],1);assert(frame.groups.every(g=>g.team===0));assert.equal(frame.reports.length,0);});
 test('Visible contact does not reveal enemy army size or battalion number',()=>{init([g(0,0,1,400,1100),g(1,0,200,480,1100)]);const enemy=frame.groups.find(g=>g.team===1);assert(enemy);assert.equal(enemy.alive,null);assert.equal(enemy.total,null);assert.equal(enemy.army,null);assert.equal(enemy.battalion,null);assert.equal(frame.reports.length,0);});
 test('Fog reduces actual visibility; close contacts remain visible',()=>{const gs=[g(0,0,1,340,1100),g(1,0,1,490,1100)];init(gs);assert(frame.groups.some(g=>g.team===1));init(gs,{zones:[],weather:[{kind:'fog',shape:'ellipse',x:500,y:1100,rx:700,ry:500}]});assert(!frame.groups.some(g=>g.team===1));init([gs[0],g(1,0,1,380,1100)],{zones:[],weather:[{kind:'cloud',shape:'ellipse',x:500,y:1100,rx:700,ry:500}]});assert(frame.groups.some(g=>g.team===1));});
