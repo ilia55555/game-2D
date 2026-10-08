@@ -12,19 +12,31 @@ test('Decreasing count sends soldiers physically back to reserve',()=>{init([g(0
 test('Cavalry dismount only after courier, return to HQ and refit delay; health ratio retained',()=>{init([g(0,1,10,700,1100),g(1,0,20,2800,1100)]);read('hp[0]=HEALTH[1]*.7');send({kind:'start'});send({kind:'refit',ids:[0],type:0});assert.equal(read('groups[0].type'),1);until(()=>read('groups[0].refitAt>0'));assert.equal(read('groups[0].type'),1);const at=read('worldTime');until(()=>read('groups[0].type===0'));assert(read('worldTime')-at>=7.9);assert(Math.abs(read('hp[0]/HEALTH[0]')-.7)<.001);});
 test('Freehand shape packs actual soldiers; small and crossing shapes rejected',()=>{init([g(0,0,25,650,1100),g(1,0,20,2800,1100)]);send({kind:'polygon',ids:[0],points:[{x:500,y:800},{x:501,y:800},{x:501,y:801}]});assert(frame.events.some(e=>e.text.includes('کوچک')));assert.notEqual(read('groups[0].formation'),'custom');send({kind:'polygon',ids:[0],points:[{x:500,y:800},{x:700,y:800},{x:680,y:1020},{x:540,y:990}]});assert.equal(read('groups[0].formation'),'custom');assert.equal(read('groups[0].customSlots.length'),25);assert(read('Array.from(x.subarray(0,25)).every(v=>v>=500&&v<=700)'));});
 
-test('Every unit has an explicit positive cost; humans cost one, horses 1.5, artillery and ships cost more',()=>{
- const c=read('UNIT_TYPES.map(u=>u.cost)');
- assert.equal(c.length,40);assert(c.every(n=>Number.isFinite(n)&&n>=1));
- for(const i of [0,2,3,8,9,10,11,32,34,36,37,38,39])assert.equal(c[i],1);
- for(const i of [1,12])assert.equal(c[i],1.5);
- assert.equal(c[4],20);assert(c[15]>c[4]);assert(c[24]>c[4]);
+test('All 40 unit costs are derived from attack damage / interval and have an equipment floor',()=>{
+ const all=read('UNIT_TYPES.map(u=>({name:u.name,damage:u.damage,period:u.period,cost:u.cost,equipmentCost:u.equipmentCost}))');
+ assert.equal(all.length,40);
+ assert(all.every(u=>Number.isFinite(u.cost)&&u.cost>=u.equipmentCost&&u.cost*2%1===0));
+ assert.equal(all[0].cost,1);
+ assert.equal(all[12].cost,1.5);
+ assert(all[4].cost>=15&&all[4].cost<=25);
+ assert(all[15].cost>all[4].cost);
+ assert(all[25].cost>all[24].cost);
+ assert(all[27].cost>all[25].cost);
 });
-test('Reinforcing siege engines charges 20 reserve credits per engine, not one',()=>{
+test('Damage and attack frequency really affect calculated cost, independent of other stats',()=>{
+ const catapult=read('UNIT_TYPES[4]');
+ const baseline=read('deriveUnitCost(UNIT_TYPES[4])');
+ assert(read('deriveUnitCost({...UNIT_TYPES[4],damage:UNIT_TYPES[4].damage*2})')>baseline);
+ assert(read('deriveUnitCost({...UNIT_TYPES[4],period:UNIT_TYPES[4].period/2})')>baseline);
+ assert(read('deriveUnitCost({...UNIT_TYPES[4],period:UNIT_TYPES[4].period*2})')<baseline);
+});
+test('Reinforcing siege engines charges their calculated DPS-derived cost, not one',()=>{
  init([g(0,4,1,900,1100),g(1,0,2,2800,1100)],{reserves:[100,0]});
  send({kind:'start'});send({kind:'reinforce',ids:[0],count:100});
  until(()=>read('groups.some(g=>g.joinTarget===0)'));
- assert.equal(frame.reserve,0);
- assert.equal(read('groups.find(g=>g.joinTarget===0).alive'),5);
+ const perUnit=read('UNIT_TYPES[4].cost');
+ assert.equal(read('groups.find(g=>g.joinTarget===0).alive'),Math.floor(100/perUnit));
+ assert.equal(frame.reserve,100-Math.floor(100/perUnit)*perUnit);
 });
 test('Refitting a battalion cannot bypass the equipment budget',()=>{
  init([g(0,0,10,700,1100),g(1,0,2,2800,1100)],{reserves:[5,0]});
