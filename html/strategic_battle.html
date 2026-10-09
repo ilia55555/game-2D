@@ -68,14 +68,14 @@ details{margin:10px 0;border:1px solid var(--line);border-radius:8px;padding:8px
  <div class="header-actions"><span class="phase" id="phaseLabel">مرحلهٔ چیدمان</span><button id="startBtn" class="primary"><svg class="icon"><use href="#i-play"/></svg> شروع نبرد</button><button id="pauseBtn" class="hidden">توقف</button><select id="speedSelect" aria-label="سرعت شبیه‌سازی" title="سرعت شبیه‌سازی"><option value="0.25">0.25×</option><option value="0.5">0.5×</option><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option><option value="3">3×</option><option value="4">4×</option></select><button id="resetBtn" title="بازگشت به چیدمان">بازچینی</button><button id="newBattle" title="لشکر و تاکتیک تازه برای بات">نبرد تازه</button><button id="helpBtn" class="icon-btn" title="راهنمای بازی" aria-label="راهنمای بازی">؟</button></div>
 </header>
 <div class="toptools">
- <button id="mobilePanelBtn" class="icon-btn" aria-label="بازکردن تنظیمات"><svg class="icon"><use href="#i-menu"/></svg></button>
+ <button id="mobilePanelBtn" class="icon-btn" aria-label="بازکردن لشکرها"><svg class="icon"><use href="#i-menu"/></svg></button>
 
  <div class="tools" id="tools"><button data-tool="watcher">◈ دیدبان <span id="watcherStock">۰</span></button><button data-tool="scout">⬡ جاسوس <span id="scoutStock">۰</span></button><button data-tool="medic">✚ درمانگر <span id="medicStock">۰</span></button><button data-tool="reserve">نیروهای ذخیره <span id="reserveStock">۰</span></button></div>
  <span class="toolbar-note" id="toolbarNote">نیرو را انتخاب کن؛ «حرکت / حمله» را بزن و مقصد را لمس کن</span>
 </div>
 <main class="workspace">
 <aside id="sidebar">
- <div class="panel-tabs"><button data-tab="army" class="active">لشکرها</button><button data-tab="layout">چیدمان</button><button data-tab="map">نقشه</button><button data-tab="intel">اطلاعات</button><button id="closePanel" class="icon-btn" title="بستن پنل">×</button></div>
+ <div class="panel-tabs"><button data-tab="army" class="active">لشکرها</button><button id="closePanel" class="icon-btn" title="بستن پنل">×</button></div>
  <div class="panel-content" id="armyPanel">
  <div id="localTeamSwitch" class="team-switch hidden"><button id="blueTeam" class="blue active">ارتش آبی</button><button id="redTeam" class="red">ارتش قرمز</button></div>
  <div id="sidebarBudget"><div id="budgetDock" class="budget-dock">  <div class="team-summary"><span id="armyTeamName" class="blue">نیروی تیم آبی</span><strong id="teamTotal" class="blue">۰</strong><span class="small muted">نیرو</span></div>
@@ -88,7 +88,8 @@ details{margin:10px 0;border:1px solid var(--line);border-radius:8px;padding:8px
   <details><summary>ساخت ارتش آماده</summary><div class="button-grid"><button id="demoPreset">ارتش آماده</button><button id="autoFormation">صف‌آرایی تیم</button></div>
   <div class="field"><label for="strategySelect">صف‌آرایی</label><select id="strategySelect"><option value="line">خطی / سواره پشت پیاده</option><option value="pincer">گازانبری</option><option value="defend">دفاع / تیرانداز پشت صف</option><option value="wedge">گوهٔ تهاجمی</option></select></div>
 </details> </div>
- <div class="panel-content hidden" id="layoutPanel"><div class="eyebrow">استقرار نیروها</div><p class="layout-instructions">پیش از شروع، استقرار نیروها فقط داخل دایرهٔ مقر خودی مجاز است. نیرو را بکش و داخل دایره بچین. با دکمهٔ «آرایش» شکل و جهتش را عوض کن؛ سپس «شروع نبرد» را بزن.</p><p class="hint">پس از پایان استقرار از دکمهٔ شروع نبرد استفاده کن.</p></div>
+</aside>
+<div hidden aria-hidden="true" id="inactivePanelControls"> <div class="panel-content hidden" id="layoutPanel"><div class="eyebrow">استقرار نیروها</div><p class="layout-instructions">پیش از شروع، استقرار نیروها فقط داخل دایرهٔ مقر خودی مجاز است. نیرو را بکش و داخل دایره بچین. با دکمهٔ «آرایش» شکل و جهتش را عوض کن؛ سپس «شروع نبرد» را بزن.</p><p class="hint">پس از پایان استقرار از دکمهٔ شروع نبرد استفاده کن.</p></div>
  <div class="panel-content hidden" id="mapPanel">
   <div class="eyebrow">جغرافیای نبرد</div><div class="field"><label for="mapSelect">میدان نبرد</label><select id="mapSelect"></select></div><div id="mapInfo" class="map-card"></div>
   <div class="terrain-legend"><span><i class="swatch" style="background:#86976b"></i>ارتفاع: برد و آسیب بیشتر</span><span><i class="swatch" style="background:#264b3c"></i>جنگل: پوشش و کاهش سرعت</span><span><i class="swatch" style="background:#417477"></i>آب: شناورها / پل برای پیاده</span><span><i class="swatch" style="background:#575c57"></i>کوه / دیوار: مانع</span></div>
@@ -98,7 +99,7 @@ details{margin:10px 0;border:1px solid var(--line);border-radius:8px;padding:8px
   
  </div>
 <div class="panel-content hidden" id="intelPanel"><div class="eyebrow">مقر فرماندهی / اطلاعات</div><details><summary>راهنمای شناسایی</summary><div class="map-card"><h3 class="map-name">شناسایی واقعی</h3><p class="map-desc">جاسوس و نامه‌بر از مقر خودت راه می‌افتند. هر گردان نوع و تعداد تقریبی دشمن را در میدان دید خود آشکار می‌کند؛ سواره‌ها تا ۱۰۰۰ واحد نقشه دید دارند. اطلاعات جاسوس دوردست پس از بازگشت زندهٔ حامل خبر به مقر ثبت می‌شود.</p></div></details><div class="field"><label for="scoutCount">تعداد جاسوس</label><input id="scoutCount" type="number" min="1" max="8" value="1"></div><div class="field"><label for="scoutMethod">روش رساندن خبر</label><select id="scoutMethod"><option value="return">خود جاسوس برگردد</option><option value="courier">تحویل خبر به نامه‌بر</option></select></div><div class="button-grid"><button id="sendScout" class="primary">اعزام به نقطهٔ انتخابی</button><button id="recallScouts">فراخوان مأموران</button></div><p class="hint">در چیدمان و در نبرد قابل‌استفاده است؛ اعزام را بزن و مقصد را روی میدان لمس کن. جاسوس روی آب با قایق کوچک حرکت می‌کند. مه و ابر دید هر دو طرف را کم می‌کنند.</p><div class="field"><label for="medicCount">تعداد درمانگر</label><input id="medicCount" type="number" min="1" max="100" value="1"></div><div class="button-grid"><button id="sendMedic">اعزام درمانگر به نقطه</button><button id="recallMedics">بازگشت درمانگران</button><button id="rerouteSupport">تغییر مسیر فرد انتخابی</button><button id="recallSupport">بازگشت فرد انتخابی</button></div><p class="hint">هر مأمور را از فهرست یا روی نقشه انتخاب کن. تغییر مقصد در نبرد با نامه‌بر می‌رسد.</p><div id="supportList" class="mission-list"></div><details><summary>مأموریت‌های جاری</summary><div id="missionList" class="mission-list"></div></details><div class="section-title" style="margin-top:18px">گزارش‌های شناسایی</div><div id="intelReports" class="report-list"></div><p class="hint">عددِ گزارش، شمارِ نیروهای دیده‌شده در زمان شناسایی است؛ ممکن است فقط بخشی از یک گردان باشد. اطلاعاتِ قدیمی شمار زندهٔ فعلی را نشان نمی‌دهد.</p></div>
-</aside>
+</div>
 <div class="arena" id="arena">
  <canvas id="terrain"></canvas><canvas id="fogCanvas"></canvas><canvas id="units"></canvas><canvas id="overlay" tabindex="0" aria-label="میدان نبرد؛ انتخاب و فرمان حرکت با لمس یا ماوس"></canvas>
  <div id="deploymentNotice" class="deployment-notice hidden">چیدمان پیش از نبرد · گردان‌ها را بکش و آرایش بده <button id="relocateHQ" data-tool="relocateHQ">جابه‌جایی مقر</button><button id="editSetup">ویرایش ارتش</button><button id="beginDeploymentBattle" class="primary">شروع نبرد</button></div><div id="selectionBadge" class="selection-float hidden"></div><div id="reservePanel" class="reserve-panel hidden"><label for="reserveAmount">تعداد اعزام از ذخیره</label><input id="reserveAmount" type="number" min="1" max="1000000" value="100"><span id="reserveAvailable" class="hint"></span><span class="hint">گردان مقصد را روی نقشه لمس کن.</span></div><div class="arena-top"><div class="score"><div class="score-team"><b class="blue" id="blueAlive">۰</b><span><span id="blueCaption">ارتش آبی</span> <span id="blueLoss">/ ۰ تلفات</span></span></div><span class="score-vs">VS</span><div class="score-team"><b class="red" id="redAlive">۰</b><span><span id="redCaption">ارتش قرمز</span> <span id="redLoss">/ ۰ تلفات</span></span></div></div><span class="battle-time" id="battleTime">00:00</span></div>
@@ -995,10 +996,11 @@ function setTab(name){
  if(name==='orders'){$('#sidebar').classList.remove('open');if(deployment)return;name='army';}
  if(deployment&&name!=='layout'||name==='layout'&&phase!=='setup')return;
  if(!['army','layout','map','intel'].includes(name))return;
- activeSidebarTab=name;
- $$('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab===name));
- ['army','layout','map','intel'].forEach(n=>$('#'+n+'Panel').classList.toggle('hidden',n!==name));
- $('#sidebarBudget').classList.toggle('hidden',name!=='army');
+ activeSidebarTab=name==='layout'?'layout':'army';
+ $$('[data-tab]').forEach(b=>b.classList.toggle('active',b.dataset.tab==='army'));
+ $('#armyPanel').classList.remove('hidden');
+ ['layout','map','intel'].forEach(n=>$('#'+n+'Panel').classList.add('hidden'));
+ $('#sidebarBudget').classList.remove('hidden');
  $('#app').classList.toggle('placement-only',placementOnly());
  if(placementOnly())setTool('select');
 }
