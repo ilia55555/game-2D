@@ -3,6 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const createCanvas=(width,height)=>({width,height,getContext(){const gradient={addColorStop(){}};return new Proxy({drawImage(){},createRadialGradient:()=>gradient,createLinearGradient:()=>gradient,measureText:()=>({width:20}),getImageData:(_,__,w,h)=>({data:new Uint8ClampedArray(w*h*4)})},{get(o,k){return k in o?o[k]:()=>{};}});}});
 const html=fs.readFileSync(path.join(__dirname,'../strategic_battle.html'),'utf8');
 const scripts=[...html.matchAll(/<script[^>]*>([\s\S]*?)<\/script>/g)].map(m=>m[1]);
+globalThis.Image=class{set src(value){this.source=value;queueMicrotask(()=>this.onload?.());}};
 const elements=new Map(),tools=[],tabs=[],dialogs=[],closes=[];
 let raf,appDocument,workers=[];
 class Element{
@@ -25,15 +26,15 @@ for(const m of html.matchAll(/<([a-z]+)\b([^>]*)>/g)){const id=m[2].match(/\bid=
  if(cls.split(' ').includes('dialog'))dialogs.push(elements.get(id));if(cls.includes('close-dialog'))closes.push(new Element('button','',cls));
 }
 elements.get('addArmy').parentElement=elements.get('armyPanel');elements.get('sim-worker').textContent=scripts[0];elements.get('speedSelect').value='1';elements.get('strategySelect').value='line';
-appDocument={querySelector:s=>s.startsWith('#')?elements.get(s.slice(1)):s==='.unit-legend'?(elements.get('unit-legend')||(()=>{const e=new Element();elements.set('unit-legend',e);return e})()):null,querySelectorAll:s=>({'[data-tool]':tools,'#tools button':tools,'[data-tab]':tabs,'.dialog':dialogs,'.close-dialog':closes}[s]||[]),createElement:tag=>new Element(tag),addEventListener(){},fullscreenElement:null};
+appDocument={querySelector:s=>s.startsWith('#')?elements.get(s.slice(1)):s==='.unit-legend'?(elements.get('unit-legend')||(()=>{const e=new Element();elements.set('unit-legend',e);return e})()):null,querySelectorAll:s=>({'[data-tool]':tools,'#tools button':tools,'[data-tab]':tabs,'.dialog':dialogs,'.close-dialog':closes}[s]||[]),createElement:tag=>{const e=new Element(tag);if(tag==='a')createdLinks.push(e);return e;},addEventListener(){},fullscreenElement:null};
 class FakeWorker{
  constructor(){workers.push(this);const c='let onmessage;\n'+scripts[0]+'\nreturn {send(d){onmessage({data:d})},advance(n){for(let i=0;i<n&&!paused&&(phase==="setup"||running);i++)sim(.04);emit(true)},stats(){return {N,running,phase}},inspect(code){return eval(code)}}';this.app=new Function('performance','setInterval','postMessage',c)(performance,()=>0,d=>{this.onmessage?.({data:d})});}
  postMessage(d){this.app.send(d)}advance(n){this.app.advance(n)}
 }
 const windowStub={devicePixelRatio:1,addEventListener(){}};
-const saved=new Map(),local={getItem:k=>saved.get(k)||null,setItem:(k,v)=>saved.set(k,v)};
+const createdBlobs=[],createdLinks=[];const saved=new Map(),local={getItem:k=>saved.get(k)||null,setItem:(k,v)=>saved.set(k,v)};
 const main=new Function('window','document','Worker','URL','Blob','setTimeout','clearTimeout','requestAnimationFrame','ResizeObserver','localStorage','console',scripts[1]+'\nreturn {inspect(s){return eval(s)},render,screen,world,layoutData,validateLayout};');
-const mainApp=main(windowStub,appDocument,FakeWorker,{createObjectURL:()=>'',revokeObjectURL(){}},Blob,()=>0,()=>{},f=>raf=f,class{constructor(f){this.f=f}observe(){this.f()}},local,console);
+const mainApp=main(windowStub,appDocument,FakeWorker,{createObjectURL:b=>{createdBlobs.push(b);return '';},revokeObjectURL(){}},Blob,()=>0,()=>{},f=>raf=f,class{constructor(f){this.f=f}observe(){this.f()}},local,console);
 const el=id=>elements.get(id),stats=()=>windowStub.BattleField.getStats(),click=id=>el(id).click(),tick=n=>workers[0].advance(n);
 
 let passed=0;function test(name,f){f();passed++;console.log('PASS '+name);}
@@ -74,4 +75,16 @@ test('Saved layouts preserve difficulty, chosen budget, HQ composition and deplo
 test('Local multiplayer supports deploying both armies before the same explicit start',()=>{
  click('newBattle');change('setupMode','local');click('setupNext');click('setupNext');change('setupTeam',1);change('setupTotal',3000);assert.equal(mainApp.inspect('activeTeam'),1);click('setupNext');click('setupNext');assert.equal(stats().phase,'setup');click('redTeam');assert.equal(mainApp.inspect('activeTeam'),1);const red=stats().groups.find(g=>g.team===1&&!g.agent&&!g.hqRole);workers[0].postMessage({kind:'teleport',positions:[{id:red.index,x:2450,y:600}]});assert.equal(stats().groups.find(g=>g.index===red.index).y,600);tick(100);assert.equal(mainApp.inspect('frame.elapsed'),0);click('startBtn');assert.equal(stats().phase,'battle');
 });
+
+test('The unit gallery previews all 43 blue and red SVGs and is usable without starting a battle',()=>{
+ el('spriteTeam').value='0';click('unitGalleryBtn');assert(!el('unitGalleryDialog').classList.contains('hidden'));assert.equal((el('unitGalleryGrid').innerHTML.match(/data-unit=/g)||[]).length,43);assert.equal((el('unitGalleryGrid').innerHTML.match(/data-download-svg=/g)||[]).length,43);assert(el('unitGalleryGrid').innerHTML.includes('#428fbf'));change('spriteTeam',1);assert(el('unitGalleryGrid').innerHTML.includes('#bb5866'));assert(!el('unitGalleryGrid').innerHTML.includes('#428fbf'));const svg=windowStub.BattleField.getUnitSVG(0,1);assert(svg.includes('data-team="1"'));assert(svg.includes('data-hand="left" data-equipment="shield"'));assert(svg.includes('data-hand="right" data-equipment="sword"'));
+});
+test('Selection and map legend show vector portraits instead of the former geometric type glyph',()=>{
+ const chosen=stats().groups.find(g=>g.team===1&&!g.hqRole&&!g.agent);mainApp.inspect('selected=new Set(['+chosen.index+']);updateSelection();renderMapInfo()');assert(el('selectionInfo').innerHTML.includes('unit-portrait'));assert(el('selectionInfo').innerHTML.includes('data-unit="'+chosen.type+'"'));assert(elements.get('unit-legend').innerHTML.includes('<svg'));assert(!elements.get('unit-legend').innerHTML.includes('class="symbol"'));
+});
+
+test('The gallery download emits an SVG document for the selected type and team',()=>{
+ const b=new Element('button');b.matches=['[data-download-svg]'];b.dataset.downloadSvg='4';el('unitGalleryGrid').emit('click',{target:b});assert.equal(createdBlobs.at(-1).type,'image/svg+xml;charset=utf-8');assert.equal(createdLinks.at(-1).download,'unit-04-red.svg');
+});
 console.log(passed+' setup UI tests passed');
+
