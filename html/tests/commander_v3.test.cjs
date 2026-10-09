@@ -12,9 +12,9 @@ test('Decreasing count sends soldiers physically back to reserve',()=>{init([g(0
 test('Cavalry dismount only after courier, return to HQ and refit delay; health ratio retained',()=>{init([g(0,1,10,700,1100),g(1,0,20,2800,1100)]);read('hp[0]=HEALTH[1]*.7');send({kind:'start'});send({kind:'refit',ids:[0],type:0});assert.equal(read('groups[0].type'),1);until(()=>read('groups[0].refitAt>0'));assert.equal(read('groups[0].type'),1);const at=read('worldTime');until(()=>read('groups[0].type===0'));assert(read('worldTime')-at>=7.9);assert(Math.abs(read('hp[0]/HEALTH[0]')-.7)<.001);});
 test('Freehand shape packs actual soldiers; small and crossing shapes rejected',()=>{init([g(0,0,25,650,1100),g(1,0,20,2800,1100)]);send({kind:'polygon',ids:[0],points:[{x:500,y:800},{x:501,y:800},{x:501,y:801}]});assert(frame.events.some(e=>e.text.includes('کوچک')));assert.notEqual(read('groups[0].formation'),'custom');send({kind:'polygon',ids:[0],points:[{x:500,y:800},{x:700,y:800},{x:680,y:1020},{x:540,y:990}]});assert.equal(read('groups[0].formation'),'custom');assert.equal(read('groups[0].customSlots.length'),25);assert(read('Array.from(x.subarray(0,25)).every(v=>v>=500&&v<=700)'));});
 
-test('All 40 costs belong only to infantry 1/2, mounted 1.5/2, or machines 15..90 in 15 steps',()=>{
+test('All 43 costs belong only to infantry 1/2, mounted 1.5/2, or machines 15..90 in 15 steps',()=>{
  const data=read('UNIT_TYPES.map(u=>({cost:u.cost,costClass:u.costClass}))');
- assert.equal(data.length,40);
+ assert.equal(data.length,43);
  for(const x of data){
   assert(Number.isFinite(x.cost) && x.cost>=1);
   if(x.costClass==='infantry')assert([1,2].includes(x.cost));
