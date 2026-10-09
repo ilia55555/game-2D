@@ -170,7 +170,7 @@ function domain(t){return UNIT_TYPES[t].domain;}
 function pass(k,d){return k>=0&&k<GC&&!solid[k]&&(d==='amphib'||(d==='sea'?water[k]===1:water[k]===0||bridge[k]===1));}
 function makeTerrain(){terrain.fill(0);bridge.fill(0);water.fill(map.ocean?1:0);solid.fill(0);height.fill(0);cover.fill(0);wallAt.fill(-1);structures=[];
  for(const z of map.zones)if(z.kind==='wall'||z.kind==='gate'){z.structure=structures.length;structures.push({id:structures.length,type:z.kind,x:z.x+z.w/2,y:z.y+z.h/2,w:z.w,h:z.h,team:map.defender??1,hp:z.kind==='gate'?5400:3800,maxHp:z.kind==='gate'?5400:3800,cooldown:0});}
- for(let k=0;k<GC;k++){let px=(k%CW+.5)*CELL,py=((k/CW|0)+.5)*CELL;for(const z of map.zones)if(inside(z,px,py)){if(z.kind==='hill')height[k]=z.level||1;else if(z.kind==='forest'){terrain[k]=2;cover[k]=.4;}else if(z.kind==='swamp')terrain[k]=3;else if(z.kind==='water')water[k]=1;else if(z.kind==='land'){water[k]=0;}else if(z.kind==='rock')solid[k]=1;else if(z.kind==='wall'||z.kind==='gate'){solid[k]=1;wallAt[k]=z.structure;}else if(z.kind==='bridge'){bridge[k]=1;solid[k]=0;cover[k]=0;}}}
+ for(let k=0;k<GC;k++){let px=(k%CW+.5)*CELL,py=((k/CW|0)+.5)*CELL;for(const z of map.zones)if(inside(z,px,py)){if(z.kind==='hill')height[k]=z.level||1;else if(z.kind==='forest'){terrain[k]=2;cover[k]=.4;}else if(z.kind==='swamp')terrain[k]=3;else if(z.kind==='water')water[k]=1;else if(z.kind==='land'){water[k]=0;}else if(z.kind==='rock')solid[k]=1;else if(z.kind==='wall'||z.kind==='gate'){solid[k]=1;wallAt[k]=z.structure;}else if(z.kind==='bridge'){bridge[k]=1;solid[k]=0;cover[k]=0;}else if(z.kind==='passage'){solid[k]=0;wallAt[k]=-1;water[k]=0;}}}
  if(map.castle){const z=map.castle;for(let j=0;j<4;j++)structures.push({id:structures.length,type:'tower',x:z.x+(j%2?z.w-80:80),y:z.y+(j<2?80:z.h-80),w:44,h:44,team:map.defender??1,hp:2600,maxHp:2600,cooldown:0});}
 }
 function nearestFree(k,d){if(pass(k,d))return k;const queue=new Int32Array(GC),seen=new Uint8Array(GC);let a=0,b=1;queue[0]=k;seen[k]=1;while(a<b){let at=queue[a++],cx=at%CW,cy=at/CW|0;for(const j of [cx?at-1:-1,cx<CW-1?at+1:-1,cy?at-CW:-1,cy<CH-1?at+CW:-1])if(j>=0&&!seen[j]){if(pass(j,d))return j;seen[j]=1;queue[b++]=j;}}return -1;}
@@ -514,6 +514,53 @@ MAPS.push(
  {id:'crescent-bay',battleMode:'raid',name:'خلیج هلال و دژ ساحلی',benefit:'قرمز',description:'آب‌های خلیج تا ساحل شرقی امتداد دارند و یک خور شمالی راه نزدیک‌شدن ناوها را باز می‌کند. قلعه پشت ساحل و برج‌ها قرار دارد؛ مهاجم با ناو و نیروی آبی‌خاکی می‌تواند از دو نقطه پیاده شود.',bases:[{x:420,y:1100},{x:2810,y:1090}],castle:{x:2470,y:390,w:660,h:1450},zones:[rect('water',0,0,2210,H),ellipse('water',2250,550,205,245),ellipse('land',2135,1610,190,270),rect('wall',2470,390,55,580),rect('gate',2470,970,55,230),rect('wall',2470,1200,55,640),rect('wall',3075,390,55,1450),rect('wall',2470,390,660,55),rect('wall',2470,1785,660,55),ellipse('hill',2780,1130,255,450,.8),ellipse('forest',2310,1810,195,190)]},
  {id:'island-fortress',battleMode:'raid',ocean:true,name:'دژ جزیرهٔ سنگی',benefit:'آبی',description:'قلعه روی جزیرهٔ شرقی محصور است و خشکی میانی مسیر مستقیم کشتی‌ها را قطع می‌کند. آبی می‌تواند ناوگان را به شمال و جنوب تقسیم کند و پیاده‌های دریایی را از سواحل دیگر به قلعه برساند.',bases:[{x:380,y:1100},{x:2830,y:1080}],castle:{x:2500,y:500,w:640,h:1210},zones:[rect('land',2220,260,980,1660),ellipse('land',1650,1060,225,430),ellipse('land',920,450,165,220),rect('water',2230,740,185,180),rect('wall',2500,500,55,465),rect('gate',2500,965,55,240),rect('wall',2500,1205,55,505),rect('wall',3085,500,55,1210),rect('wall',2500,500,640,55),rect('wall',2500,1655,640,55),ellipse('hill',2820,1070,260,400,.75),ellipse('forest',2310,1500,105,175)]}
 );
+
+/* Every castle has a solid perimeter with 1..4 controlled access points.
+   Open passages work from the beginning; portcullis gates block traffic
+   until their real, damageable structures are destroyed. */
+const CASTLE_ACCESS={
+ fort:[['west',.5,240,'gate'],['north',.51,175,'open']],
+ castle:[['west',.5,240,'gate'],['south',.53,165,'open']],
+ 'double-gate':[['west',.27,185,'gate'],['west',.74,185,'gate'],['south',.53,175,'open']],
+ 'sea-castle':[['west',.5,235,'gate'],['north',.52,165,'open']],
+ 'crescent-bay':[['west',.5,215,'gate'],['west',.77,150,'open'],['south',.53,165,'open']],
+ 'island-fortress':[['west',.5,200,'gate'],['west',.76,150,'open'],['north',.53,145,'open'],['south',.52,145,'open']]
+};
+function fortifyCastle(m){
+ const access=CASTLE_ACCESS[m.id];if(!access||access.length<1||access.length>4)throw Error('Castle must have 1–4 entrances: '+m.id);
+ const c=m.castle,th=64;
+ m.zones=m.zones.filter(z=>z.kind!=='wall'&&z.kind!=='gate');
+ m.entrances=[];
+ for(const side of ['north','east','south','west']){
+  const horizontal=side==='north'||side==='south',start=(horizontal?c.x:c.y)+th,end=(horizontal?c.x+c.w:c.y+c.h)-th;
+  const openings=access.filter(e=>e[0]===side).map(([_,at,width,kind])=>{
+   const center=start+(end-start)*at;return{a:Math.round(center-width/2),b:Math.round(center+width/2),kind};
+  }).sort((a,b)=>a.a-b.a);
+  function segment(a,b,kind){
+   if(b<=a)return;
+   const x=horizontal?a:side==='west'?c.x:c.x+c.w-th;
+   const y=horizontal?(side==='north'?c.y:c.y+c.h-th):a;
+   const w=horizontal?b-a:th,ht=horizontal?th:b-a;
+   m.zones.push(rect(kind,x,y,w,ht));
+   if(kind!=='wall')m.entrances.push({side,kind,x:x+w/2,y:y+ht/2,width:b-a});
+  }
+  // Horizontal segments own all four corners, vertical segments meet their ends.
+  if(horizontal){
+   m.zones.push(rect('wall',c.x,side==='north'?c.y:c.y+c.h-th,th,th));
+   m.zones.push(rect('wall',c.x+c.w-th,side==='north'?c.y:c.y+c.h-th,th,th));
+  }
+  let cursor=start;
+  for(const p of openings){
+   if(p.a<=cursor||p.b>=end)throw Error('Castle entrance overlaps another or a corner: '+m.id);
+   segment(cursor,p.a,'wall');segment(p.a,p.b,p.kind==='open'?'passage':'gate');cursor=p.b;
+  }
+  segment(cursor,end,'wall');
+ }
+ const n=m.entrances.length,o=m.entrances.filter(e=>e.kind==='passage').length;
+ m.description+=' مسیرهای ورود و خروج قلعه: '+n.toLocaleString('fa-IR')+' ('+o.toLocaleString('fa-IR')+' گذرگاه باز و '+(n-o).toLocaleString('fa-IR')+' دروازهٔ قابل تخریب).';
+}
+for(const m of MAPS)if(m.castle)fortifyCastle(m);
+
 let wizardOpen=true,wizardStep=0,deployment=false,polygonDrag=null;let layoutCache=new Map(),fogCache=null,lastNavVersion=-1;
 function defaultHQ(total=100){total=clamp(Math.floor(total),0,100000);const scouts=Math.floor(total*.2),couriers=Math.floor(total*.2),medics=Math.floor(total*.2);return{scouts,couriers,guards:total-scouts-couriers-medics,medics};}
 function normalizeHQ(h){return Object.fromEntries(['scouts','couriers','guards','medics'].map(k=>[k,clamp(Math.floor(Number(h?.[k]))||0,0,100000)]));}
@@ -754,14 +801,14 @@ function zoomAt(factor,sx=vw/2,sy=vh/2){const p=world(sx,sy);camera.zoom=clamp(c
 function zonePath(c,z){c.beginPath();if(z.shape==='ellipse')c.ellipse(z.x,z.y,z.rx,z.ry,0,0,Math.PI*2);else c.rect(z.x,z.y,z.w,z.h);}
 function terrainTexture(){const c=document.createElement('canvas');c.width=1600;c.height=1100;const p=c.getContext('2d');p.scale(.5,.5);p.fillStyle=currentMap().ocean?'#37686e':'#3b5040';p.fillRect(0,0,W,H);let n=314159;const rand=()=>{n=(n*1664525+1013904223)>>>0;return n/4294967296;};
  for(let i=0;i<12500;i++){let x=rand()*W,y=rand()*H;p.fillStyle=i%3?'#ffffff06':'#051f170c';p.fillRect(x,y,rand()*7+1,rand()*3+1);}p.strokeStyle='#d1e3a408';p.lineWidth=1;for(let x=200;x<W;x+=200){p.beginPath();p.moveTo(x,0);p.lineTo(x,H);p.stroke();}for(let y=200;y<H;y+=200){p.beginPath();p.moveTo(0,y);p.lineTo(W,y);p.stroke();}
- let structureId=0;for(const z of currentMap().zones){if(['wall','gate'].includes(z.kind)){const s=frame?.structures.find(s=>s.id===structureId++);if(s?.hp===0)continue;}p.save();zonePath(p,z);p.clip();const colors={hill:'#667b52',forest:'#284939',swamp:'#506853',water:'#37686e',rock:'#555e57',wall:'#777869',gate:'#9a805b',land:'#3b5040',bridge:'#9a805b'};p.fillStyle=colors[z.kind];p.fillRect(0,0,W,H);
+ let structureId=0;for(const z of currentMap().zones){if(['wall','gate'].includes(z.kind)){const s=frame?.structures.find(s=>s.id===structureId++);if(s?.hp===0)continue;}p.save();zonePath(p,z);p.clip();const colors={hill:'#667b52',forest:'#284939',swamp:'#506853',water:'#37686e',rock:'#555e57',wall:'#777869',gate:'#9a805b',land:'#3b5040',bridge:'#9a805b',passage:'#b49a6a'};p.fillStyle=colors[z.kind];p.fillRect(0,0,W,H);
   if(z.kind==='hill'){for(let j=1;j<=6;j++){p.beginPath();p.ellipse(z.x,z.y,z.rx*(1-j*.12),z.ry*(1-j*.12),0,0,Math.PI*2);p.fillStyle='#d5c48e08';p.fill();p.strokeStyle='#d3dfab22';p.lineWidth=2;p.stroke();}}
   if(z.kind==='forest'){for(let yy=30;yy<H;yy+=52)for(let xx=25;xx<W;xx+=52){let rx=xx+rand()*30,ry=yy+rand()*30,r=12+rand()*14;p.fillStyle='#16392e';p.beginPath();p.arc(rx+3,ry+7,r,0,7);p.fill();p.fillStyle=rand()>.5?'#365c41':'#3a6246';p.beginPath();p.arc(rx,ry,r,0,7);p.fill();p.fillStyle='#6d865c33';p.beginPath();p.arc(rx-4,ry-5,r*.52,0,7);p.fill();}}
   if(z.kind==='water'){p.strokeStyle='#8bb5ae34';p.lineWidth=2;for(let yy=20;yy<H;yy+=37){p.beginPath();for(let xx=0;xx<W;xx+=15){let py=yy+Math.sin(xx*.025+yy)*4;xx?p.lineTo(xx,py):p.moveTo(xx,py);}p.stroke();}}
   if(z.kind==='swamp'){for(let j=0;j<3000;j++){let x=rand()*W,y=rand()*H;p.fillStyle='#a7b68622';p.fillRect(x,y,2,10);p.strokeStyle='#24463555';p.beginPath();p.ellipse(x+12,y+8,14,5,0,0,7);p.stroke();}}
   if(z.kind==='rock'){for(let yy=20;yy<H;yy+=75)for(let xx=20;xx<W;xx+=90){let x=xx+rand()*40,y=yy+rand()*35;p.fillStyle='#889085';p.beginPath();p.moveTo(x,y-30);p.lineTo(x+35,y+25);p.lineTo(x-35,y+25);p.fill();p.fillStyle='#384943';p.beginPath();p.moveTo(x,y-30);p.lineTo(x+35,y+25);p.lineTo(x+5,y+19);p.fill();}}
   if(z.kind==='wall'||z.kind==='gate'){p.strokeStyle='#38433c';p.lineWidth=3;for(let yy=z.y;yy<z.y+z.h;yy+=28){p.beginPath();p.moveTo(z.x,yy);p.lineTo(z.x+z.w,yy);p.stroke();for(let xx=z.x+((yy/28|0)%2?18:0);xx<z.x+z.w;xx+=35){p.beginPath();p.moveTo(xx,yy);p.lineTo(xx,yy+28);p.stroke();}}}
-  if(z.kind==='bridge'){p.strokeStyle='#68573f';p.lineWidth=3;for(let xx=z.x;xx<z.x+z.w;xx+=16){p.beginPath();p.moveTo(xx,z.y);p.lineTo(xx,z.y+z.h);p.stroke();}p.fillStyle='#cfb286';p.fillRect(z.x,z.y,z.w,8);p.fillRect(z.x,z.y+z.h-8,z.w,8);}
+  if(z.kind==='passage'){p.strokeStyle='#705c40';p.lineWidth=4;for(let yy=z.y;yy<z.y+z.h;yy+=18){p.beginPath();p.moveTo(z.x,yy);p.lineTo(z.x+z.w,yy);p.stroke();}}if(z.kind==='bridge'){p.strokeStyle='#68573f';p.lineWidth=3;for(let xx=z.x;xx<z.x+z.w;xx+=16){p.beginPath();p.moveTo(xx,z.y);p.lineTo(xx,z.y+z.h);p.stroke();}p.fillStyle='#cfb286';p.fillRect(z.x,z.y,z.w,8);p.fillRect(z.x,z.y+z.h-8,z.w,8);}
   p.restore();if(z.kind==='water'||z.kind==='rock'){zonePath(p,z);p.lineWidth=4;p.strokeStyle=z.kind==='water'?'#92a78b66':'#354b4088';p.stroke();}}
  p.strokeStyle='#c4cfaf55';p.lineWidth=12;p.strokeRect(8,8,W-16,H-16);p.strokeStyle='#131e2555';p.lineWidth=25;p.strokeRect(0,0,W,H);p.font='22px Tahoma';p.textAlign='center';p.fillStyle='#ffffff25';p.fillText('غرب',65,H/2);p.fillText('شرق',W-65,H/2);p.fillText('شمال',W/2,70);p.fillText('جنوب',W/2,H-50);return c;}
 function paintTerrain(){if(!terrainCache)terrainCache=terrainTexture();tctx.setTransform(dpr,0,0,dpr,0,0);tctx.fillStyle='#192a26';tctx.fillRect(0,0,vw,vh);const p=screen(0,0);tctx.drawImage(terrainCache,p.x,p.y,W*camera.zoom,H*camera.zoom);mapDirty=false;}
@@ -802,7 +849,7 @@ $('#showPaths').onchange=e=>showPaths=e.target.checked;$('#showLabels').onchange
 $('#fullscreenBtn').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await $('#app').requestFullscreen();}catch(e){toast('مرورگر تمام‌صفحه را پشتیبانی نمی‌کند.');}};$('#soundBtn').onclick=()=>{sound=!sound;$('#soundBtn').textContent='صدا: '+(sound?'روشن':'خاموش');if(sound)beep(240,.09);};
 function newSeed(){const data=new Uint32Array(1);if(globalThis.crypto?.getRandomValues)crypto.getRandomValues(data);else data[0]=Math.random()*4294967295;return data[0]||7351;}
 
-function currentMap(){const original=MAPS[config.map]||MAPS[0],m=JSON.parse(JSON.stringify(original));m.battleMode=config.battleMode||'land';m.bases=m.bases||[{x:340,y:1100},{x:2860,y:1100}];m.weather=m.weather||[ellipse('fog',1570,650,420,340),ellipse('fog',1620,1650,370,300),ellipse('cloud',1950,1100,310,200)];if(['siege','raid'].includes(m.battleMode)){m.attacker=config.role==='defend'?1:0;m.defender=1-m.attacker;if(config.role==='defend'){m.zones=m.zones.map(z=>({...z,x:z.shape==='ellipse'?W-z.x:W-z.x-z.w}));m.bases=m.bases.map(b=>({x:W-b.x,y:b.y})).reverse();m.castle={...m.castle,x:W-m.castle.x-m.castle.w};m.benefit='آبی';}}return m;}
+function currentMap(){const original=MAPS[config.map]||MAPS[0],m=JSON.parse(JSON.stringify(original));m.battleMode=config.battleMode||'land';m.bases=m.bases||[{x:340,y:1100},{x:2860,y:1100}];m.weather=m.weather||[ellipse('fog',1570,650,420,340),ellipse('fog',1620,1650,370,300),ellipse('cloud',1950,1100,310,200)];if(['siege','raid'].includes(m.battleMode)){m.attacker=config.role==='defend'?1:0;m.defender=1-m.attacker;if(config.role==='defend'){m.zones=m.zones.map(z=>({...z,x:z.shape==='ellipse'?W-z.x:W-z.x-z.w}));m.bases=m.bases.map(b=>({x:W-b.x,y:b.y})).reverse();m.castle={...m.castle,x:W-m.castle.x-m.castle.w};m.entrances=m.entrances.map(e=>({...e,x:W-e.x,side:e.side==='west'?'east':e.side==='east'?'west':e.side}));m.benefit='آبی';}}return m;}
 
 function availableTypes(t=activeTeam,mode=config.battleMode||'land',role=config.role){const b=mode,support=[32,37,38,39];if(b==='sea')return[24,25,26,27,28,29,30,31,...support];if(b==='siege'||b==='raid'){if(t===(role==='defend'?0:1))return[...[0,2,3,8,9,10,11,14,34,40,41,42],...support];return b==='raid'?[24,25,26,27,28,29,30,31,36,...support]:Array.from({length:24},(_,i)=>i).concat(34,35,36,...support);}if(b==='coast')return[0,1,2,3,4,8,14,24,25,26,27,28,29,30,31,36,...support];return Array.from({length:24},(_,i)=>i).concat(34,35,36,...support);}
 

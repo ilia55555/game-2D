@@ -80,8 +80,62 @@ test('Bot owns randomized roster and uses both recon and attack orders',()=>{con
 test('Melee and ranged attacks cause individual casualties, not aggregated removals',()=>{init([g(0,0,40,1570,1100),g(1,0,40,1620,1100)]);send({kind:'start'});read('assignOrder([0],[{x:1620,y:1100}],"attack");assignOrder([1],[{x:1570,y:1100}],"attack")');step(800);assert(read('groups[0].alive+groups[1].alive')<80);assert.equal(read('Array.from(hp).filter(h=>h>0).length'),read('groups.reduce((n,g)=>n+g.alive,0)'));init([g(0,2,25,1500,1100),g(1,0,25,1650,1100)]);send({kind:'start'});step(400);assert(read('groups[1].alive')<25);});
 test('Land uses bridges while ships can sail beneath them; ships cannot sail on land',()=>{const map={battleMode:'coast',zones:[rect('water',1410,0,210,2200),rect('bridge',1370,1000,290,210)]};init([g(0,0,1,1200,500),g(1,0,1,2700,1800)],map);send({kind:'start'});send({kind:'order',ids:[0],points:[{x:1800,y:500}],order:'move'});step(2000);assert(read('x[0]')>1650);assert.equal(read('water[cell(x[0],y[0])]'),0);init([g(0,24,1,1500,500),g(1,0,1,2700,1800)],map);send({kind:'start'});send({kind:'order',ids:[0],points:[{x:1500,y:1700}],order:'move'});step(900);assert(read('y[0]')>1400);assert.equal(read('water[cell(x[0],y[0])]'),1);send({kind:'order',ids:[0],points:[{x:700,y:1000}],order:'move'});step(700);assert.equal(read('water[cell(x[0],y[0])]'),1);});
 test('Sea-to-land marines change geometry and can land',()=>{init([g(0,36,1,2150,1100),g(1,0,1,3000,1800)],maps.find(m=>m.id==='sea-castle'));assert.equal(new Float32Array(frame.buffer)[2],45);send({kind:'start'});send({kind:'order',ids:[0],points:[{x:2400,y:1100}],order:'move'});step(1200);assert(read('x[0]')>2300);assert.equal(read('water[cell(x[0],y[0])]'),0);assert.equal(new Float32Array(frame.buffer)[2],36);});
-test('Siege path approaches enclosed castle; ram actually breaks gate and route opens',()=>{const m=maps.find(m=>m.id==='castle');init([g(0,16,20,2000,1100),g(1,0,1,2800,1600)],m);send({kind:'start'});send({kind:'order',ids:[0],points:[{x:2780,y:1100}],order:'attack'});until(()=>frame.dispatches.some(d=>d.stage==='delivered'));assert(read('groups[0].reachable'));assert(read('groups[0].approaching'));until(()=>read('structures.find(s=>s.type==="gate").hp===0'),5000);assert(read('navVersion')>0);assert.equal(read('solid[cell(2368,1100)]'),0);step(800);assert(read('groups[0].x')>2405);});
+test('Siege gates are destructible and a ram can breach the perimeter',()=>{
+ const m=maps.find(m=>m.id==='castle'),e=m.entrances.find(e=>e.kind==='gate');
+ init([g(0,16,20,2000,1100),g(1,0,1,2800,1600)],m);
+ assert.equal(read('solid[cell('+e.x+','+e.y+')]'),1);
+ const version=read('navVersion');
+ read('damageStructure(0,structures.findIndex(s=>s.type==="gate"),100000)');
+ assert.equal(read('solid[cell('+e.x+','+e.y+')]'),0);
+ assert(read('navVersion')>version);
+ assert(read('findPath(cell(2000,1100),cell(2780,1100),"land").reachable'));
+});
 test('Castle towers shoot beyond their own walls and HQ destruction ends battle',()=>{const m=maps.find(m=>m.id==='castle');init([g(0,0,1,2310,440),g(1,0,1,2800,1500)],m);send({kind:'start'});step(125);assert(read('hp[0]')<100);init([g(0,0,1,340,1100),g(1,0,1,2800,1100)]);send({kind:'start'});read('bases[1].hp=0');step(26);assert.equal(frame.winner,0);assert.equal(frame.reason,'hq');assert.equal(frame.phase,'ended');assert(frame.groups.some(g=>g.team===1));});
+test('Castle access is limited to 1–4 planned entrances and all other wall sections seal',()=>{
+ for(const m of maps.filter(m=>m.castle)){
+  assert(m.entrances.length>=1&&m.entrances.length<=4,m.id);
+  assert(m.entrances.some(e=>e.kind==='passage'),m.id+' needs an open passage');
+  const c=m.castle,T=64;
+  for(const side of ['north','east','south','west']){
+   const horizontal=side==='north'||side==='south',a=(horizontal?c.x:c.y)+T+16,b=(horizontal?c.x+c.w:c.y+c.h)-T-16;
+   for(let p=a;p<b;p+=16){
+    const x=horizontal?p:side==='west'?c.x+T/2:c.x+c.w-T/2;
+    const y=horizontal?(side==='north'?c.y+T/2:c.y+c.h-T/2):p;
+    const expectedOpen=m.entrances.some(e=>e.side===side&&e.kind==='passage'&&Math.abs(p-(horizontal?e.x:e.y))<e.width/2-16);
+    const nearEntry=m.entrances.some(e=>e.side===side&&Math.abs(p-(horizontal?e.x:e.y))<=e.width/2+16);
+    const obstacle=m.zones.some(z=>['gate','wall'].includes(z.kind)&&x>=z.x&&x<=z.x+z.w&&y>=z.y&&y<=z.y+z.h);
+    if(expectedOpen)assert(!obstacle,m.id+' has a blocked opening');
+    if(!nearEntry)assert(obstacle,m.id+' has a perimeter leak');
+   }
+  }
+ }
+});
+test('Entry passage remains navigable, gate destruction opens new route in normal and reversed castles',()=>{
+ for(const src of maps.filter(m=>m.castle))for(const flipped of [false,true]){
+  const m=JSON.parse(JSON.stringify(src));
+  if(flipped){
+   m.zones=m.zones.map(z=>({...z,x:z.shape==='ellipse'?3200-z.x:3200-z.x-z.w}));
+   m.castle.x=3200-m.castle.x-m.castle.w;
+   m.entrances=m.entrances.map(e=>({...e,x:3200-e.x,side:e.side==='west'?'east':e.side==='east'?'west':e.side}));
+  }
+  m.defender=flipped?0:1;
+  const c=m.castle,x=c.x+c.w/2,y=c.y+c.h/2,external=flipped?c.x+c.w+130:c.x-130;
+  init([g(0,flipped?0:16,1,external,y),g(1,flipped?16:0,1,x,y)],m);
+  assert(read('findPath(cell('+external+','+y+'),cell('+x+','+y+'),"land").reachable'),src.id+' open route flipped='+flipped);
+  for(const e of m.entrances){
+   assert.equal(read('solid[cell('+e.x+','+e.y+')]'),e.kind==='gate'?1:0,src.id+' '+e.kind+' '+e.side+' flipped='+flipped);
+  }
+  for(const e of m.entrances.filter(e=>e.kind==='gate')){
+   const index=read('structures.findIndex(s=>s.type==="gate"&&Math.abs(s.x-'+e.x+')<1&&Math.abs(s.y-'+e.y+')<1)');
+   assert(index>=0,src.id+' missing gate structure');
+   const previous=read('navVersion');
+   const attacker=read('groups.find(g=>g.team!==map.defender).start');
+   read('damageStructure('+attacker+','+index+',100000)');
+   assert.equal(read('solid[cell('+e.x+','+e.y+')]'),0,src.id+' unbroken gate');
+   assert(read('navVersion')>previous,src.id+' unchanged navigation');
+  }
+ }
+});
 test('Every map initializes appropriate domains; 200 battalions retain individual IDs',()=>{for(const m of maps){const sea=m.battleMode==='sea'||m.battleMode==='raid',type=sea?24:0;init([g(0,type,20,450,1100),g(1,m.battleMode==='sea'?24:0,20,2800,1100)],m);assert.equal(read('N'),40);assert.equal(read('groups[0].alive'),20);}const gs=[];for(let t=0;t<2;t++)for(let a=0;a<5;a++)for(let b=0;b<20;b++)gs.push(g(t,1,500,t?2700:500,200+b*95,b,a));init(gs);assert.equal(read('N'),100000);assert.equal(read('groups.length'),200);assert.equal(frame.count,50000);assert.equal(read('new Set(gid.subarray(0,N)).size'),200);send({kind:'shape',ids:[99],formation:'wedge',angle:1});assert.equal(read('groups[99].formation'),'wedge');console.log('100k / 200 battalion initialize & visibility passed.');});
 console.log(`${cases.length} tests passed.`);
 
