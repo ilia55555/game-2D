@@ -80,6 +80,72 @@ test('Bot owns randomized roster and uses both recon and attack orders',()=>{con
 test('Melee and ranged attacks cause individual casualties, not aggregated removals',()=>{init([g(0,0,40,1570,1100),g(1,0,40,1620,1100)]);send({kind:'start'});read('assignOrder([0],[{x:1620,y:1100}],"attack");assignOrder([1],[{x:1570,y:1100}],"attack")');step(800);assert(read('groups[0].alive+groups[1].alive')<80);assert.equal(read('Array.from(hp).filter(h=>h>0).length'),read('groups.reduce((n,g)=>n+g.alive,0)'));init([g(0,2,25,1500,1100),g(1,0,25,1650,1100)]);send({kind:'start'});step(400);assert(read('groups[1].alive')<25);});
 test('Land uses bridges while ships can sail beneath them; ships cannot sail on land',()=>{const map={battleMode:'coast',zones:[rect('water',1410,0,210,2200),rect('bridge',1370,1000,290,210)]};init([g(0,0,1,1200,500),g(1,0,1,2700,1800)],map);send({kind:'start'});send({kind:'order',ids:[0],points:[{x:1800,y:500}],order:'move'});step(2000);assert(read('x[0]')>1650);assert.equal(read('water[cell(x[0],y[0])]'),0);init([g(0,24,1,1500,500),g(1,0,1,2700,1800)],map);send({kind:'start'});send({kind:'order',ids:[0],points:[{x:1500,y:1700}],order:'move'});step(900);assert(read('y[0]')>1400);assert.equal(read('water[cell(x[0],y[0])]'),1);send({kind:'order',ids:[0],points:[{x:700,y:1000}],order:'move'});step(700);assert.equal(read('water[cell(x[0],y[0])]'),1);});
 test('Sea-to-land marines change geometry and can land',()=>{init([g(0,36,1,2150,1100),g(1,0,1,3000,1800)],maps.find(m=>m.id==='sea-castle'));assert.equal(new Float32Array(frame.buffer)[2],45);send({kind:'start'});send({kind:'order',ids:[0],points:[{x:2400,y:1100}],order:'move'});step(1200);assert(read('x[0]')>2300);assert.equal(read('water[cell(x[0],y[0])]'),0);assert.equal(new Float32Array(frame.buffer)[2],36);});
+
+test('A standard ram needs three full hits on a gate but six on a stone wall',()=>{
+ const m=maps.find(m=>m.id==='castle');
+ for(const kind of ['gate','wall']){
+  // Avoid corner panels shared with another wall when verifying a direct corridor.
+  const z=m.zones.find(z=>z.kind===kind&&z.h>80&&z.w<=64);
+  assert(z,m.id+' missing '+kind);
+  const px=z.x+z.w/2,py=z.y+z.h/2;
+  init([g(0,16,1,z.x-30,py),g(1,0,1,2800,1600)],m);
+  const id=read('structures.findIndex(s=>s.type==="'+kind+'"&&Math.abs(s.x-'+px+')<.01&&Math.abs(s.y-'+py+')<.01)');
+  assert(id>=0);
+  const hp=read('structures['+id+'].maxHp'),hit=read('UNIT_TYPES[16].damage*UNIT_TYPES[16].building');
+  assert.equal(hp,kind==='gate'?1800:3900);
+  const blows=Math.ceil(hp/hit);assert.equal(blows,kind==='gate'?3:6);
+  const k='cell('+px+','+py+')',version=read('navVersion');
+  assert.equal(read('solid['+k+']'),1);
+  for(let j=1;j<blows;j++){
+   read('launch(0,-1,'+id+')');
+   assert(read('structures['+id+'].hp')>0,kind+' was destroyed prematurely');
+   assert.equal(read('solid['+k+']'),1);
+   assert.equal(read('navVersion'),version);
+  }
+  read('launch(0,-1,'+id+')');
+  assert.equal(read('structures['+id+'].hp'),0);
+  assert.equal(read('solid['+k+']'),0);
+  assert.equal(read('navVersion'),version+1);
+  assert(read('pass('+k+',"land")'),kind+' breach remains blocked');
+  assert(read('los('+(z.x-50)+','+py+','+(z.x+z.w+50)+','+py+',"land")'),kind+' direct passage blocked');
+ }
+});
+test('Destroying a wall panel leaves adjacent panels and gates intact on every fortress',()=>{
+ for(const m of maps.filter(m=>m.castle)){
+  const z=m.zones.find(z=>z.kind==='wall'&&z.h>80&&z.w<=64);
+  assert(z,m.id+' lacks separate wall panels');
+  init([g(0,m.battleMode==='raid'?36:16,1,1900,1100),g(1,0,1,2800,1100)],m);
+  const x=z.x+z.w/2,y=z.y+z.h/2;
+  const id=read('structures.findIndex(s=>s.type==="wall"&&Math.abs(s.x-'+x+')<.01&&Math.abs(s.y-'+y+')<.01)');
+  assert(id>=0);
+  const count=read('structures.filter(s=>s.type==="wall"&&s.hp>0).length');
+  const gates=read('structures.filter(s=>s.type==="gate").map(s=>s.hp)');
+  const nav=read('navVersion');
+  read('damageStructure(0,'+id+',100000)');
+  assert.equal(read('structures.filter(s=>s.type==="wall"&&s.hp>0).length'),count-1);
+  assert.deepEqual(read('structures.filter(s=>s.type==="gate").map(s=>s.hp)'),gates);
+  assert.equal(read('solid[cell('+x+','+y+')]'),0);
+  assert.equal(read('navVersion'),nav+1);
+ }
+});
+test('Rams in live battle smash an obstacle, then advance into castle through new breach',()=>{
+ const m=maps.find(m=>m.id==='castle'),c=m.castle;
+ for(const [y,kind] of [[1100,'gate'],[790,'wall']]){
+  init([g(0,16,1,c.x-12,y),g(1,0,1,2800,1680)],m);
+  send({kind:'start'});
+  read('assignOrder([0],[{x:2750,y:'+y+'}],"attack")');
+  const x0=read('x[0]'),initialNav=read('navVersion');
+  let broken=false;
+  for(let i=0;i<10&&!broken;i++){
+   step(100);
+   broken=read('structures.some(s=>s.type==="'+kind+'"&&s.hp===0)');
+  }
+  assert(broken,kind+' was never destroyed by attacks');
+  assert(read('navVersion')>initialNav);
+  for(let i=0;i<10&&read('x[0]')<c.x+140;i++)step(100);
+  assert(read('x[0]')>x0+140,kind+' breaching did not permit actual advance');
+ }
+});
 test('Siege gates are destructible and a ram can breach the perimeter',()=>{
  const m=maps.find(m=>m.id==='castle'),e=m.entrances.find(e=>e.kind==='gate');
  init([g(0,16,20,2000,1100),g(1,0,1,2800,1600)],m);

@@ -168,8 +168,9 @@ function rnd(){seed^=seed<<13;seed^=seed>>>17;seed^=seed<<5;return(seed>>>0)/429
 function inside(z,px,py){return z.shape==='ellipse'?((px-z.x)/z.rx)**2+((py-z.y)/z.ry)**2<1:px>=z.x&&px<=z.x+z.w&&py>=z.y&&py<=z.y+z.h;}
 function domain(t){return UNIT_TYPES[t].domain;}
 function pass(k,d){return k>=0&&k<GC&&!solid[k]&&(d==='amphib'||(d==='sea'?water[k]===1:water[k]===0||bridge[k]===1));}
+const CASTLE_GATE_HP=1800,CASTLE_WALL_HP=3900;
 function makeTerrain(){terrain.fill(0);bridge.fill(0);water.fill(map.ocean?1:0);solid.fill(0);height.fill(0);cover.fill(0);wallAt.fill(-1);structures=[];
- for(const z of map.zones)if(z.kind==='wall'||z.kind==='gate'){z.structure=structures.length;structures.push({id:structures.length,type:z.kind,x:z.x+z.w/2,y:z.y+z.h/2,w:z.w,h:z.h,team:map.defender??1,hp:z.kind==='gate'?5400:3800,maxHp:z.kind==='gate'?5400:3800,cooldown:0});}
+ for(const z of map.zones)if(z.kind==='wall'||z.kind==='gate'){z.structure=structures.length;structures.push({id:structures.length,type:z.kind,x:z.x+z.w/2,y:z.y+z.h/2,w:z.w,h:z.h,team:map.defender??1,hp:z.kind==='gate'?CASTLE_GATE_HP:CASTLE_WALL_HP,maxHp:z.kind==='gate'?CASTLE_GATE_HP:CASTLE_WALL_HP,cooldown:0});}
  for(let k=0;k<GC;k++){let px=(k%CW+.5)*CELL,py=((k/CW|0)+.5)*CELL;for(const z of map.zones)if(inside(z,px,py)){if(z.kind==='hill')height[k]=z.level||1;else if(z.kind==='forest'){terrain[k]=2;cover[k]=.4;}else if(z.kind==='swamp')terrain[k]=3;else if(z.kind==='water')water[k]=1;else if(z.kind==='land'){water[k]=0;}else if(z.kind==='rock')solid[k]=1;else if(z.kind==='wall'||z.kind==='gate'){solid[k]=1;wallAt[k]=z.structure;}else if(z.kind==='bridge'){bridge[k]=1;solid[k]=0;cover[k]=0;}else if(z.kind==='passage'){solid[k]=0;wallAt[k]=-1;water[k]=0;}}}
  if(map.castle){const z=map.castle;for(let j=0;j<4;j++)structures.push({id:structures.length,type:'tower',x:z.x+(j%2?z.w-80:80),y:z.y+(j<2?80:z.h-80),w:44,h:44,team:map.defender??1,hp:2600,maxHp:2600,cooldown:0});}
 }
@@ -257,6 +258,18 @@ function areaHit(i,px,py,radius,damage){const at=cell(px,py),cx=at%CW,cy=at/CW|0
 function structureAt(id){return id>=structures.length?bases[id-structures.length]:structures[id];}
 function damageStructure(i,id,damage){const s=structureAt(id);if(!s||s.hp<=0||s.team===team[i])return;const u=UNIT_TYPES[typ[i]];s.hp=Math.max(0,s.hp-damage*botDamage(team[i])*(u.building||.45));if(s.hp===0&&id<structures.length&&(s.type==='wall'||s.type==='gate')){for(let k=0;k<GC;k++)if(wallAt[k]===id){solid[k]=0;wallAt[k]=-1;}navVersion++;events.push({team:team[i],text:s.type==='gate'?'دروازه شکسته شد.':'بخشی از بارو فرو ریخت.'});}}
 function nearestStructure(i){let best=-1,bd=Infinity;const enemy=1-team[i];for(let id=0;id<structures.length+2;id++){const s=structureAt(id);if(!s||s.hp<=0||s.team!==enemy)continue;let px=clamp(x[i],s.x-(s.w||0)/2,s.x+(s.w||0)/2),py=clamp(y[i],s.y-(s.h||0)/2,s.y+(s.h||0)/2),d=dist(x[i],y[i],px,py);if(d<bd&&d<RANGE[typ[i]]+Math.max(s.w||0,s.h||0)*.08+35&&visibility[team[i]][cell(px,py)]){bd=d;best=id;}}return best;}
+function nearestBreachable(i){
+ if(!map.castle||typ[i]!==16)return -1;
+ const reach=RANGE[typ[i]]+8;let best=-1,score=Infinity;
+ for(const s of structures){
+  if((s.type!=='wall'&&s.type!=='gate')||s.hp<=0||s.team===team[i])continue;
+  const px=clamp(x[i],s.x-s.w/2,s.x+s.w/2),py=clamp(y[i],s.y-s.h/2,s.y+s.h/2),d=dist(x[i],y[i],px,py);
+  if(d>reach||!structureLos(x[i],y[i],px,py,s.id))continue;
+  const priority=d-(s.type==='gate'?3:0);
+  if(priority<score){score=priority;best=s.id;}
+ }
+ return best;
+}
 function advanceGroup(g,dt){if(!g.queue.length||!g.alive)return;if(g.navVersion!==navVersion)plan(g,g.queue[0]);if(!g.reachable)return;const goal=g.queue[0];let p=g.navPath[g.pathIndex]||goal,dx=p.x-g.x,dy=p.y-g.y,d=Math.sqrt(dx*dx+dy*dy);if(d<8&&g.pathIndex<g.navPath.length-1){p=g.navPath[++g.pathIndex];dx=p.x-g.x;dy=p.y-g.y;d=Math.sqrt(dx*dx+dy*dy);}let step=Math.min(d,SPEED[g.type]*terrainSpeed(g.type,cell(g.x,g.y))*dt*(g.agent?(wounded[g.start]?.38:1):.91));if(d>.01){const nx=g.x+dx/d*step,ny=g.y+dy/d*step;if(pass(cell(nx,ny),domain(g.type))){g.x=nx;g.y=ny;}if(!g.faceLocked)g.angle=Math.atan2(dy,dx);}if(dist(g.x,g.y,goal.x,goal.y)<11){g.queue.shift();if(g.queue.length)plan(g,g.queue[0]);}}
 function moveGroups(dt){for(const g of groups){if(g.agent||!g.alive)continue;if(g.attackTarget>=0){const e=groups[g.attackTarget];if(!e||!e.alive||!seenGroup(g.team,e)){g.attackTarget=-1;}else if(tick%45===0||!g.queue.length){const contact=e.contacts[g.team];g.queue=[{x:contact.x,y:contact.y}];plan(g,g.queue[0]);}}let range=RANGE[g.type];if(g.order==='attack'&&range>50&&g.enemy>=0&&g.enemyDistance<range*.74)continue;advanceGroup(g,dt);}}
 function bots(){const profile=difficultyProfile();if(mode!=='bot'||elapsed<profile.grace||elapsed<nextBot)return;nextBot=elapsed+profile.interval;for(const g of groups)if(g.team===1&&g.alive&&!g.agent&&!g.hqRole&&g.type!==32&&g.type<37){const def=UNIT_TYPES[g.type],e=null,records=[...reports[1].values()],last=records.length?records.reduce((a,b)=>a.observedAt>b.observedAt?a:b):null;
@@ -306,13 +319,15 @@ function sim(dt){worldTime+=dt;tick++;rebuildGrid();updateVisibility();missionTi
  for(const g of groups){g.ca=Math.cos(g.angle);g.sa=Math.sin(g.angle);g.seek=g.stance==='guard'?RANGE[g.type]+8:UNIT_TYPES[g.type].range>50?RANGE[g.type]:g.order==='attack'?Math.min(750,g.radius+(groups[g.enemy]?.radius||0)+100):65;}
  for(let i=0;i<N;i++){if(hp[i]<=0||storedHQ(i))continue;const g=groups[gid[i]],t=typ[i],def=UNIT_TYPES[t],hk=cell(x[i],y[i]),onRampart=def.fortress&&map.castle&&team[i]===(map.defender??1)&&x[i]>=map.castle.x&&x[i]<=map.castle.x+map.castle.w&&y[i]>=map.castle.y&&y[i]<=map.castle.y+map.castle.h,range=def.range*(1+height[hk]*.12+(onRampart&&def.range>50?.12:0)),seek=def.range>50?range:g.seek;let j=targets[i],canFight=!wounded[i]&&def.damage>0&&!def.agent&&g.stance!=='hold'&&(g.order!=='move'||!g.queue.length);
   if(canFight&&(i+tick)%10===0)j=targets[i]=searchEnemy(i,seek);if(j>=0&&(!canSee(team[i],j)||!canFight))targets[i]=j=-1;
+  const breach=canFight&&t===16&&g.order==='attack'&&g.queue.length&&!los(x[i],y[i],g.queue[0].x,g.queue[0].y,def.domain)?nearestBreachable(i):-1;
   let tx=g.x+ox[i]*g.ca-oy[i]*g.sa,ty=g.y+ox[i]*g.sa+oy[i]*g.ca;if(!pass(cell(tx,ty),def.domain)){tx=g.x;ty=g.y;}const de=j>=0?dist(x[i],y[i],x[j],y[j]):Infinity;
   if(j>=0&&g.stance==='aggressive'&&de<seek){if(def.range<=50&&de>range*.76){tx=x[j];ty=y[j];}else if(def.range>50&&de<26){tx=x[i]+(x[i]-x[j])*.4;ty=y[i]+(y[i]-y[j])*.4;}else{tx=x[i];ty=y[i];}}
   if(j<0&&g.order==='attack'&&g.approaching){const id=nearestStructure(i);if(id>=0){const st=structureAt(id),px=clamp(x[i],st.x-(st.w||0)/2,st.x+(st.w||0)/2),py=clamp(y[i],st.y-(st.h||0)/2,st.y+(st.h||0)/2);if(dist(x[i],y[i],px,py)>range*.76){tx=px;ty=py;}}}
+  if(breach>=0){tx=x[i];ty=y[i];}
   if(j>=0&&(i+tick)%3===0){let near=head[hk+team[i]*GC],c=0;while(near>=0&&c++<9){if(near!==i&&hp[near]>0){const rx=x[i]-x[near],ry=y[i]-y[near],rr=rx*rx+ry*ry;if(rr<12.25&&rr>.002){const dd=Math.sqrt(rr),force=(3.5-dd)*.8;tx+=rx/dd*force;ty+=ry/dd*force;}}near=links[near];}}
   let dx=tx-x[i],dy=ty-y[i],d=Math.sqrt(dx*dx+dy*dy),sp=def.speed*terrainSpeed(t,hk)*(wounded[i]?.38:1);if(navTime[i]>0&&g.flow){let at=cell(x[i],y[i]),nk=g.flow[at];if(nk>=0&&nk!==at){dx=(nk%CW+.5)*CELL-x[i];dy=((nk/CW|0)+.5)*CELL-y[i];d=Math.sqrt(dx*dx+dy*dy);}navTime[i]-=dt;}
   vx[i]=vy[i]=0;if(d>1.2){let step=Math.min(d,sp*dt*1.13),nx=clamp(x[i]+dx/d*step,3,W-3),ny=clamp(y[i]+dy/d*step,3,H-3);if(pass(cell(nx,ny),def.domain)){vx[i]=(nx-x[i])/dt;vy[i]=(ny-y[i])/dt;x[i]=nx;y[i]=ny;}else{navTime[i]=1.4;if(pass(cell(nx,y[i]),def.domain))x[i]=nx;else if(pass(cell(x[i],ny),def.domain))y[i]=ny;}ang[i]=j<0?g.angle:Math.atan2(dy,dx);}
-  cd[i]-=dt;if(!canFight||cd[i]>0)continue;if(j>=0&&de<=range&&(onRampart&&def.range>50?structureLos(x[i],y[i],x[j],y[j],-1,team[i]):los(x[i],y[i],x[j],y[j])))launch(i,j);else if(g.order==='attack'&&(i+tick)%4===0){const id=nearestStructure(i);if(id>=0){const s=structureAt(id),px=clamp(x[i],s.x-(s.w||0)/2,s.x+(s.w||0)/2),py=clamp(y[i],s.y-(s.h||0)/2,s.y+(s.h||0)/2);if(dist(x[i],y[i],px,py)<=range+8&&structureLos(x[i],y[i],px,py,id))launch(i,-1,id);}}
+  cd[i]-=dt;if(!canFight||cd[i]>0)continue;if(breach>=0){launch(i,-1,breach);continue;}if(j>=0&&de<=range&&(onRampart&&def.range>50?structureLos(x[i],y[i],x[j],y[j],-1,team[i]):los(x[i],y[i],x[j],y[j])))launch(i,j);else if(g.order==='attack'&&(i+tick)%4===0){const id=nearestStructure(i);if(id>=0){const s=structureAt(id),px=clamp(x[i],s.x-(s.w||0)/2,s.x+(s.w||0)/2),py=clamp(y[i],s.y-(s.h||0)/2,s.y+(s.h||0)/2);if(dist(x[i],y[i],px,py)<=range+8&&structureLos(x[i],y[i],px,py,id))launch(i,-1,id);}}
  }
  towerFire(dt);medicalTick(dt);commandTick(dt);logistics(dt);if(tick%25===0)checkVictory();
 }
@@ -541,7 +556,14 @@ function fortifyCastle(m){
    const x=horizontal?a:side==='west'?c.x:c.x+c.w-th;
    const y=horizontal?(side==='north'?c.y:c.y+c.h-th):a;
    const w=horizontal?b-a:th,ht=horizontal?th:b-a;
-   m.zones.push(rect(kind,x,y,w,ht));
+   if(kind==='wall'){
+    // Each ram breach removes one local stone panel, never an entire wall side.
+    const length=horizontal?w:ht,pieces=Math.ceil(length/160);
+    for(let k=0;k<pieces;k++){
+     const a=Math.round(length*k/pieces),b=Math.round(length*(k+1)/pieces);
+     m.zones.push(horizontal?rect(kind,x+a,y,b-a,ht):rect(kind,x,y+a,w,b-a));
+    }
+   }else m.zones.push(rect(kind,x,y,w,ht));
    if(kind!=='wall')m.entrances.push({side,kind,x:x+w/2,y:y+ht/2,width:b-a});
   }
   // Horizontal segments own all four corners, vertical segments meet their ends.
