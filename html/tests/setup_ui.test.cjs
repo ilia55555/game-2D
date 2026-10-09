@@ -76,16 +76,14 @@ test('Local multiplayer supports deploying both armies before the same explicit 
  click('newBattle');change('setupMode','local');click('setupNext');click('setupNext');change('setupTeam',1);change('setupTotal',3000);assert.equal(mainApp.inspect('activeTeam'),1);click('setupNext');click('setupNext');assert.equal(stats().phase,'setup');click('redTeam');assert.equal(mainApp.inspect('activeTeam'),1);const red=stats().groups.find(g=>g.team===1&&!g.agent&&!g.hqRole);workers[0].postMessage({kind:'teleport',positions:[{id:red.index,x:2450,y:600}]});assert.equal(stats().groups.find(g=>g.index===red.index).y,600);tick(100);assert.equal(mainApp.inspect('frame.elapsed'),0);click('startBtn');assert.equal(stats().phase,'battle');
 });
 
-test('The unit gallery previews all 43 blue and red SVGs and is usable without starting a battle',()=>{
- el('spriteTeam').value='0';click('unitGalleryBtn');assert(!el('unitGalleryDialog').classList.contains('hidden'));assert.equal((el('unitGalleryGrid').innerHTML.match(/data-unit=/g)||[]).length,43);assert.equal((el('unitGalleryGrid').innerHTML.match(/data-download-svg=/g)||[]).length,43);assert(el('unitGalleryGrid').innerHTML.includes('#428fbf'));change('spriteTeam',1);assert(el('unitGalleryGrid').innerHTML.includes('#bb5866'));assert(!el('unitGalleryGrid').innerHTML.includes('#428fbf'));const svg=windowStub.BattleField.getUnitSVG(0,1);assert(svg.includes('data-team="1"'));assert(svg.includes('data-hand="left" data-equipment="shield"'));assert(svg.includes('data-hand="right" data-equipment="sword"'));
+test('No unit catalog buttons, modal, handlers or download controls remain in any screen',()=>{
+ for(const id of ['unitGalleryBtn','setupGallery','unitGalleryDialog','unitGalleryGrid','spriteTeam'])assert(!elements.has(id));
+ assert(!/renderUnitGallery|openUnitGallery|downloadUnitSVG|data-download-svg|unit-legend/.test(html));
+ mainApp.render(performance.now());assert(stats().ready);
 });
-test('Selection and map legend show vector portraits instead of the former geometric type glyph',()=>{
- const chosen=stats().groups.find(g=>g.team===1&&!g.hqRole&&!g.agent);mainApp.inspect('selected=new Set(['+chosen.index+']);updateSelection();renderMapInfo()');assert(el('selectionInfo').innerHTML.includes('unit-portrait'));assert(el('selectionInfo').innerHTML.includes('data-unit="'+chosen.type+'"'));assert(elements.get('unit-legend').innerHTML.includes('<svg'));assert(!elements.get('unit-legend').innerHTML.includes('class="symbol"'));
+test('Selecting an individual battalion still shows its correct vector portrait',()=>{
+ const chosen=stats().groups.find(g=>g.team===1&&!g.hqRole&&!g.agent);mainApp.inspect('selected=new Set(['+chosen.index+']);updateSelection();renderMapInfo()');assert(el('selectionInfo').innerHTML.includes('unit-portrait'));assert(el('selectionInfo').innerHTML.includes('data-unit="'+chosen.type+'"'));
 });
 
-test('The gallery download emits an SVG document for the selected type and team',()=>{
- const b=new Element('button');b.matches=['[data-download-svg]'];b.dataset.downloadSvg='4';el('unitGalleryGrid').emit('click',{target:b});assert.equal(createdBlobs.at(-1).type,'image/svg+xml;charset=utf-8');assert.equal(createdLinks.at(-1).download,'unit-04-red.svg');
-});
+
 console.log(passed+' setup UI tests passed');
-
-
