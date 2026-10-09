@@ -14,6 +14,42 @@ function until(test,max=3000){let i=0;while(!test()&&i++<max)step(1);assert(test
 const cases=[];
 function test(name,f){f();cases.push(name);console.log('PASS',name);}
 const maps= new Function('const W=3200,H=2200;'+scripts[1].slice(scripts[1].indexOf('const ellipse='),scripts[1].indexOf('let layoutCache='))+'return MAPS;')();
+
+test('Enemy HQ always visible in both intel modes, retaining realistic fog on enemy health',()=>{
+ for(const intel of ['realistic','open'])for(const mode of ['local','bot']){
+  send({kind:'init',serial:1,map:{zones:[],battleMode:'land'},groups:[g(0,0,1,340,1100),g(1,0,1,2860,1100)],mode,intelMode:intel,seed:731,bot:'balanced',difficulty:'normal',speed:1,viewTeam:0});
+  assert.equal(frame.bases.length,2);
+  assert(frame.bases.some(b=>b.team===1&&b.x===2860&&b.y===1100));
+  assert(intel==='realistic'?frame.bases.find(b=>b.team===1).hp===null:frame.bases.find(b=>b.team===1).hp>0);
+  if(mode==='local'){send({kind:'view',team:1});assert.equal(frame.bases.length,2);assert(intel==='realistic'?frame.bases.find(b=>b.team===0).hp===null:frame.bases.find(b=>b.team===0).hp>0);}
+ }
+});
+test('Demolition produces one wall-collapse animation event and resets on a new map',()=>{
+ const m=maps.find(m=>m.id==='castle'),gate=m.zones.find(z=>z.kind==='gate');
+ init([g(0,16,1,2000,1100),g(1,0,1,2800,1600)],m);
+ const id=read('structures.findIndex(s=>s.type==="gate")');
+ const before=read('navVersion');
+ read('damageStructure(0,'+id+',100000)');
+ send({kind:'view',team:0});
+ assert.equal(frame.breaches.length,1);
+ assert.equal(frame.breaches[0].id,1);
+ assert.equal(frame.breaches[0].type,'gate');
+ assert.equal(frame.breaches[0].x,gate.x+gate.w/2);
+ assert(read('navVersion')>before);
+ assert.equal(read('solid[cell('+frame.breaches[0].x+','+frame.breaches[0].y+')]'),0);
+ read('damageStructure(0,'+id+',100000)');
+ send({kind:'view',team:0});
+ assert.equal(frame.breaches.length,1);
+ init([g(0,0,1,340,1100),g(1,0,1,2860,1100)]);
+ assert.equal(frame.breaches.length,0);
+});
+test('Castle visuals provide unique doors, open entrances, rubble and timed collapse effects',()=>{
+ assert(scripts[1].includes('function paintFortressEntry(p,z)'));
+ assert(scripts[1].includes('function paintRubble(p,z)'));
+ assert(scripts[1].includes('function paintCollapseEffects()'));
+ assert(scripts[1].includes('queueCollapseEffects(d)'));
+ assert(scripts[1].includes('for(const b of frame.bases||[])'));
+});
 test('Castle defender-only troops and siege attackers stay distinct',()=>{
  const availableSource=scripts[1].slice(scripts[1].indexOf('function availableTypes(t=activeTeam,'),scripts[1].indexOf('function convertRoster(){'));
  const chooser=new Function('activeTeam','config','UNIT_TYPES',availableSource+'return availableTypes;');
