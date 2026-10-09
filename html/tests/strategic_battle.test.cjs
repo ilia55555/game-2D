@@ -14,7 +14,28 @@ function until(test,max=3000){let i=0;while(!test()&&i++<max)step(1);assert(test
 const cases=[];
 function test(name,f){f();cases.push(name);console.log('PASS',name);}
 const maps= new Function('const W=3200,H=2200;'+scripts[1].slice(scripts[1].indexOf('const ellipse='),scripts[1].indexOf('let layoutCache='))+'return MAPS;')();
-test('Single offline file, valid JS, unique IDs, 40 unit definitions and five battle modes',()=>{const ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(m=>m[1]);assert.equal(new Set(ids).size,ids.length);assert.equal(read('UNIT_TYPES.length'),40);assert.equal(maps.length,17);assert(!/<script[^>]+src=|<link[^>]+href=|<img[^>]+src="https?:/.test(html));});
+test('Castle defender-only troops and siege attackers stay distinct',()=>{
+ const availableSource=scripts[1].slice(scripts[1].indexOf('function availableTypes(t=activeTeam,'),scripts[1].indexOf('function convertRoster(){'));
+ const chooser=new Function('activeTeam','config','UNIT_TYPES',availableSource+'return availableTypes;');
+ for(const mode of ['siege','raid'])for(const role of ['attack','defend']){
+  const f=chooser(0,{battleMode:mode,role},read('UNIT_TYPES')),def=role==='defend'?0:1,d=f(def),a=f(1-def);
+  assert([40,41,42].every(t=>d.includes(t)&&!a.includes(t)));
+  assert([1,4,12,13,15,16,17,24,25,36].every(t=>!d.includes(t)));
+  assert(mode==='siege'?[15,16,17].every(t=>a.includes(t)):[24,29,36].every(t=>a.includes(t)));
+ }
+ assert(read('UNIT_TYPES.slice(40).every(u=>u.fortress&&u.cost>0)'));
+});
+test('Castle worker rejects wrong-role units and recognizes garrison attacks',()=>{
+ const map={battleMode:'siege',defender:1,attacker:0,castle:{x:1350,y:600,w:1050,h:1000},zones:[]};
+ init([g(0,40,1,1250,1100),g(1,16,1,1650,1100)],map);
+ assert.equal(read('groups[0].type'),0);
+ assert.equal(read('groups[1].type'),0);
+ init([g(0,0,1,1570,1100),g(1,41,12,1690,1100)],map);
+ assert.equal(read('groups[1].type'),41);
+ send({kind:'start'});step(300);
+ assert(read('hp[0]')<100,'New castle archer must actually deal damage');
+});
+test('Single offline file, valid JS, unique IDs, 43 unit definitions and five battle modes',()=>{const ids=[...html.matchAll(/\bid="([^"]+)"/g)].map(m=>m[1]);assert.equal(new Set(ids).size,ids.length);assert.equal(read('UNIT_TYPES.length'),43);assert.equal(maps.length,17);assert(!/<script[^>]+src=|<link[^>]+href=|<img[^>]+src="https?:/.test(html));});
 test('Original five land maps stay unchanged; every other mode has three maps',()=>{
  const ids=maps.map(m=>m.id);
  assert.deepEqual(ids.slice(0,5),['ridge','gorge','river','forest','plains']);
