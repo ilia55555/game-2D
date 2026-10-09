@@ -125,13 +125,13 @@ test('A U around impassable ground keeps a passable anchor and the exact drawn p
 const support=(over={})=>({scouts:20,couriers:20,guards:40,medics:20,...over});
 const withHQ=(gs,extra={})=>init(gs,{headquarters:[support(),support()],...extra});
 test('Each commander has exactly three HQ battalions, including four real support types',()=>{
- withHQ([g(0,0,900,850,1100),g(1,0,900,2800,1100)]);assert.equal(frame.friendlyAlive,1000);assert.equal(frame.total,1000);assert.equal(frame.count,1000);
+ withHQ([g(0,0,900,850,1100),g(1,0,900,2800,1100)]);assert.equal(frame.friendlyAlive,1000);assert.equal(frame.total,1000);assert.equal(frame.count,940);
  for(const t of [0,1]){assert.equal(read(`groups.filter(g=>g.team===${t}&&g.hqRole&&!g.agent).length`),3);assert.equal(read(`groups.filter(g=>g.team===${t}&&g.hqRole).reduce((s,g)=>s+g.alive,0)`),100);}
  assert.deepEqual(frame.headquarters,{scouts:20,couriers:20,guards:40,medics:20,deployed:0,alive:100});assert.equal(frame.groups.filter(g=>g.hqRole==='signals')[0].dead,0);
 });
 test('Command couriers use the HQ allocation, and return alive with no new people or casualties',()=>{
- withHQ([g(0,0,900,850,1100),g(1,0,20,2800,1100)]);send({kind:'start'});send({kind:'stop',ids:[0]});assert.equal(frame.headquarters.couriers,19);assert.equal(frame.headquarters.deployed,1);assert.equal(frame.friendlyAlive,1000);assert.equal(frame.dead,0);assert.equal(frame.count,1000);assert.equal(frame.groups.find(g=>g.hqRole==='signals').dead,0);
- until(()=>read('dispatches[0].archived'));assert.equal(frame.headquarters.couriers,20);assert.equal(frame.headquarters.deployed,0);assert.equal(frame.friendlyAlive,1000);assert.equal(frame.dead,0);assert.equal(frame.count,1000);
+ withHQ([g(0,0,900,850,1100),g(1,0,20,2800,1100)]);send({kind:'start'});send({kind:'stop',ids:[0]});assert.equal(frame.headquarters.couriers,19);assert.equal(frame.headquarters.deployed,1);assert.equal(frame.friendlyAlive,1000);assert.equal(frame.dead,0);assert.equal(frame.count,941);assert.equal(frame.groups.find(g=>g.hqRole==='signals').dead,0);
+ until(()=>read('dispatches[0].archived'));assert.equal(frame.headquarters.couriers,20);assert.equal(frame.headquarters.deployed,0);assert.equal(frame.friendlyAlive,1000);assert.equal(frame.dead,0);assert.equal(frame.count,940);
 });
 test('HQ courier exhaustion refuses an order instead of generating a new carrier',()=>{
  withHQ([g(0,0,900,850,1100),g(1,0,20,2800,1100)],{headquarters:[support({couriers:1}),support()]});send({kind:'start'});send({kind:'stop',ids:[0]});const n=read('L');send({kind:'order',ids:[0],order:'move',points:[{x:1400,y:1100}]});assert.equal(frame.dispatches.length,1);assert.equal(read('L'),n);assert(frame.events.some(e=>e.text.includes('نامه‌بر آماده')));assert.equal(read('groups[0].queue.length'),0);
@@ -161,6 +161,59 @@ test('Sea-mode HQ uses real marine guards and all support personnel remain on pa
  withHQ([g(0,24,40,500,1100),g(1,24,40,2800,1100)],{map:{zones:[{shape:'rect',kind:'water',x:0,y:0,w:3200,h:2200}],battleMode:'sea'}});assert.equal(read('groups.find(g=>g.team===0&&g.hqRole==="guard").type'),36);assert(read('groups.filter(g=>g.hqRole).every(g=>Array.from({length:g.end-g.start},(_,j)=>g.start+j).every(i=>pass(cell(x[i],y[i]),domain(typ[i]))))'));
 });
 
+
+test('Five levels scale bot attack damage monotonically without changing local multiplayer',()=>{
+ const damage=[];
+ for(const difficulty of ['training','easy','normal','hard','nightmare']){init([g(0,0,1,500,1100),g(1,0,1,520,1100)]);read(`mode='bot';difficulty='${difficulty}';seed=237;hit(1,0,20,false)`);damage.push(read('HEALTH[0]-hp[0]'));}
+ assert.equal(damage.length,5);assert(damage.every((d,i)=>i===0||d>damage[i-1]));assert(damage[0]<damage[4]*.25);
+ init([g(0,0,1,500,1100),g(1,0,1,520,1100)]);read("difficulty='training';seed=237;hit(1,0,20,false)");assert(read('HEALTH[0]-hp[0]')>18);
+});
+test('Five levels delay the first attack and respect their different decision intervals',()=>{
+ for(const difficulty of ['training','easy','normal','hard','nightmare']){
+  init([g(0,0,20,500,1100),g(1,0,20,2700,1100)]);read(`mode='bot';difficulty='${difficulty}';elapsed=difficultyProfile().grace-.1;bots()`);assert.equal(read('dispatches.length'),0);
+  read('elapsed=difficultyProfile().grace;bots()');assert.equal(read('dispatches.length'),1);assert.equal(read('nextBot-elapsed'),read('difficultyProfile().interval'));
+ }
+});
+test('Very easy gives the player a winnable battle against otherwise identical troops',()=>{
+ init([g(0,0,40,1570,1100),g(1,0,40,1590,1100)]);read("mode='bot';difficulty='training'");send({kind:'start'});until(()=>frame.phase==='ended',6000);assert.equal(frame.winner,0);assert(read('groups[0].alive')>15);
+});
+test('Every difficulty preserves the declared enemy-budget estimate while varying its roster',()=>{
+ for(const difficulty of ['training','easy','normal','hard','nightmare']){withHQ([g(0,0,40,500,1100)],{mode:'bot',enemyEstimate:50000,difficulty,seed:731});const spent=read('groups.filter(g=>g.team===1&&!g.hqRole&&!g.agent&&g.type!==39).reduce((n,g)=>n+g.total*unitCost(g.type),0)+map.botReserve+hqCount(map.botHQ)');assert(spent>=47000&&spent<=59000);assert.equal(frame.reports.length,0);assert(!frame.groups.some(g=>g.team===1));}
+});
+test('Individual vision differs across infantry, cavalry, archers and long-range siege',()=>{
+ const d=read('UNIT_TYPES.map(u=>u.vision)');assert(d[1]>d[0]);assert(d[12]>d[2]);assert(d[4]>d[1]);assert(d[15]>d[4]);
+ for(const [type,visible] of [[0,false],[1,true],[15,true]]){init([g(0,type,1,1200,1100),g(1,0,1,1470,1100)]);assert.equal(read('seenGroup(0,groups[1])'),visible);assert(!frame.groups.some(g=>g.team===1),'local sight must not reveal live commander intelligence');}
+});
+test('Couriers are fastest, then spies, cavalry and slow siege; actual travel obeys that order',()=>{
+ const speeds=read('SPEED');assert(speeds[33]>speeds[32]);assert(speeds[32]>Math.max(...speeds.filter((_,i)=>![32,33].includes(i)))*1.13);assert(speeds[1]>speeds[0]);assert(speeds[0]>speeds[15]);
+ withHQ([g(0,0,10,1500,1100),g(1,0,10,2800,1100)]);send({kind:'scout',x:1300,y:1100,count:1,withCourier:true});step(50);assert(read('x[missions[0].courier]>x[missions[0].scout]'));
+});
+test('Standby HQ staff are not rendered, targeted or disclosed even when enemy observes HQ',()=>{
+ withHQ([g(0,0,10,850,1100),g(1,37,1,430,1100)]);step(100);assert.equal(frame.count,51);assert.equal(frame.friendlyAlive,110);assert.equal(new Float32Array(frame.buffer).filter((_,i)=>i%6===2).some(t=>[32,33,38].includes(t)),false);
+ send({kind:'view',team:1});assert(!frame.groups.some(g=>g.team===0&&[32,33,38].includes(g.type)));assert(!frame.reports.some(r=>[32,33,38].includes(r.type)));
+});
+test('Five battalion orders borrow exactly five of 500 couriers until each physically returns',()=>{
+ withHQ(Array.from({length:5},(_,b)=>g(0,0,10,900+b*50,1100,b)).concat(g(1,0,20,2800,1100)),{headquarters:[support({couriers:500}),support()]});send({kind:'start'});send({kind:'stop',ids:[0,1,2,3,4]});assert.equal(frame.headquarters.couriers,495);assert.equal(frame.headquarters.deployed,5);assert.equal(read('new Set(dispatches.map(d=>d.courier)).size'),5);until(()=>read('dispatches.every(d=>d.archived)'));assert.equal(frame.headquarters.couriers,500);assert.equal(frame.headquarters.deployed,0);assert.equal(frame.dead,0);
+});
+test('Every allocated scout is independently available; the old 16-mission cap is gone',()=>{
+ withHQ([g(0,0,10,850,1100),g(1,0,10,2800,1100)],{headquarters:[support({scouts:25}),support()]});for(let j=0;j<3;j++)send({kind:'scout',x:1300,y:1100,count:8});assert.equal(read('missions.length'),24);assert.equal(frame.headquarters.scouts,1);assert.equal(read('new Set(missions.map(m=>m.scout)).size'),24);send({kind:'recall'});until(()=>read('missions.every(m=>m.archived)'));assert.equal(frame.headquarters.scouts,25);
+});
+test('Individual medics leave the hidden HQ pool, heal in the field and return with no new people',()=>{
+ withHQ([g(0,0,5,700,1100),g(1,0,20,2800,1100)],{headquarters:[support({medics:2}),support()]});read('hp[0]=30');send({kind:'start'});const before=frame.friendlyAlive;send({kind:'medic',x:700,y:1100,count:3});assert.equal(frame.headquarters.medics,0);assert.equal(frame.headquarters.deployed,2);assert.equal(frame.friendlyAlive,before);assert.equal(frame.medics.length,2);assert.equal(read('new Set(medicalMissions.map(m=>m.agent)).size'),2);until(()=>read('hp[0]>HEALTH[0]*.8'));send({kind:'recallMedics'});assert.equal(frame.headquarters.medics,0);until(()=>read('medicalMissions.every(m=>m.archived)'));assert.equal(frame.headquarters.medics,2);assert.equal(frame.dead,0);
+});
+test('An individual spy reroutes only after its courier arrives and does not reveal undelivered information',()=>{
+ withHQ([g(0,0,10,850,1100),g(1,0,20,2800,1100)]);send({kind:'scout',x:1450,y:1100,count:1});step(130);send({kind:'start'});const id=read('gid[missions[0].scout]');send({kind:'supportOrder',ids:[id],points:[{x:1300,y:1550}]});assert.equal(read('missions[0].target[1]'),1065);assert.equal(frame.headquarters.couriers,19);until(()=>read('missions[0].target[1]===1550'));assert.equal(frame.reports.length,0);send({kind:'supportRecall',ids:[id]});until(()=>read('missions[0].archived'));assert.equal(frame.headquarters.scouts,20);
+});
+test('Medic loans survive repacking; killed medics never replenish HQ stock',()=>{
+ withHQ([g(0,0,20,900,1100),g(1,0,20,2800,1100)]);send({kind:'medic',x:800,y:1100,count:1});read('withdrawGroup(groups[0],2,false)');assert(read('medicalMissions[0].agent>=N'));read('hp[medicalMissions[0].agent]=0');step(1);assert.equal(frame.headquarters.medics,19);assert.equal(frame.medics[0].stage,'failed');assert.equal(frame.dead,1);send({kind:'recallMedics'});step(100);assert.equal(frame.headquarters.medics,19);
+});
+
+
+test('Stationed individual spy sends stale reports by a physical courier and stays in the field',()=>{
+ withHQ([g(0,0,10,850,1100),g(1,0,20,1200,1100)]);read('groups[1].stance="hold"');send({kind:'scout',x:940,y:1100,count:1});const id=read('gid[missions[0].scout]');send({kind:'supportPolicy',ids:[id],policy:'station'});until(()=>read('missions[0].stage==="stationed"'));assert.equal(frame.reports.length,0);assert(frame.dispatches.some(d=>d.category==='intel'));until(()=>frame.reports.length>0);assert(frame.reports.every(r=>r.source==='courier'&&!r.live));assert.equal(read('missions[0].stage'),'stationed');assert.equal(frame.headquarters.scouts,19);send({kind:'supportPolicy',ids:[id],policy:'return'});until(()=>read('missions[0].archived'));assert.equal(frame.headquarters.scouts,20);
+});
+
 console.log(passed+' commander tests passed');
+
 
 
