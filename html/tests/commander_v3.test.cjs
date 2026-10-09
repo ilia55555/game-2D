@@ -127,7 +127,7 @@ const withHQ=(gs,extra={})=>init(gs,{headquarters:[support(),support()],...extra
 test('Each commander has exactly three HQ battalions, including four real support types',()=>{
  withHQ([g(0,0,900,850,1100),g(1,0,900,2800,1100)]);assert.equal(frame.friendlyAlive,1000);assert.equal(frame.total,1000);assert.equal(frame.count,940);
  for(const t of [0,1]){assert.equal(read(`groups.filter(g=>g.team===${t}&&g.hqRole&&!g.agent).length`),3);assert.equal(read(`groups.filter(g=>g.team===${t}&&g.hqRole).reduce((s,g)=>s+g.alive,0)`),100);}
- assert.deepEqual(frame.headquarters,{scouts:20,couriers:20,guards:40,medics:20,deployed:0,alive:100});assert.equal(frame.groups.filter(g=>g.hqRole==='signals')[0].dead,0);
+ assert.deepEqual(frame.headquarters,{scouts:20,couriers:20,observers:0,guards:40,medics:20,deployed:0,alive:100});assert.equal(frame.groups.filter(g=>g.hqRole==='signals')[0].dead,0);
 });
 test('Command couriers use the HQ allocation, and return alive with no new people or casualties',()=>{
  withHQ([g(0,0,900,850,1100),g(1,0,20,2800,1100)]);send({kind:'start'});send({kind:'stop',ids:[0]});assert.equal(frame.headquarters.couriers,19);assert.equal(frame.headquarters.deployed,1);assert.equal(frame.friendlyAlive,1000);assert.equal(frame.dead,0);assert.equal(frame.count,941);assert.equal(frame.groups.find(g=>g.hqRole==='signals').dead,0);
@@ -214,6 +214,7 @@ test('Stationed individual spy sends stale reports by a physical courier and sta
 });
 
 console.log(passed+' commander tests passed');
+
 
 
 

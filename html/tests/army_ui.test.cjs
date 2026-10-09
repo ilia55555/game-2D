@@ -5,7 +5,7 @@ let host=fs.readFileSync(path.join(__dirname,'setup_ui.test.cjs'),'utf8');host=h
 host+=String.raw`
 let passed=0;function test(name,f){f();passed++;console.log('PASS '+name);}
 function change(id,value){el(id).value=String(value);el(id).onchange?.({target:el(id)});}
-function fresh(mode='local') {mainApp.inspect('wizardOpen=false;deployment=true;config.mode="'+mode+'";config.map=4;config.battleMode="land";config.role="attack";activeTeam=0;config.teams=[[{battalions:[{type:0,count:4},{type:1,count:4},{type:2,count:4}]},{battalions:[{type:0,count:4}]}],[{battalions:[{type:0,count:4}]}]];config.headquarters=[{scouts:2,couriers:5,guards:2,medics:2},{scouts:2,couriers:5,guards:2,medics:2}];config.reserves=[0,0];config.budgets=[1000,1000];rebuild(false);renderEditor()');}
+function fresh(mode='local') {mainApp.inspect('wizardOpen=false;deployment=true;config.intelMode="realistic";config.mode="'+mode+'";config.map=4;config.battleMode="land";config.role="attack";activeTeam=0;config.teams=[[{battalions:[{type:0,count:4},{type:1,count:4},{type:2,count:4}]},{battalions:[{type:0,count:4}]}],[{battalions:[{type:0,count:4}]}]];config.headquarters=[{scouts:2,couriers:5,guards:2,medics:2},{scouts:2,couriers:5,guards:2,medics:2}];config.reserves=[0,0];config.budgets=[1000,1000];rebuild(false);renderEditor()');}
 function pickArmy(army) {const target=new Element('button');target.matches=['[data-army-select]'];target.dataset.armySelect=String(army);el('armyList').onclick({target});}
 test('Five army badges have unique heraldry, team colors, and a separate HQ crown',()=>{
  const blue=new Set(),red=new Set();for(let a=0;a<5;a++){const b=windowStub.BattleField.getArmyBadgeSVG(a,0),r=windowStub.BattleField.getArmyBadgeSVG(a,1);assert(b.includes('data-army-emblem="'+a+'"'));assert(b.includes('#2e5e86'));assert(r.includes('#81394a'));blue.add(b.match(/<g[\s\S]*<\/g>/)[0]);red.add(r.match(/<g[\s\S]*<\/g>/)[0]);}assert.equal(blue.size,5);assert.equal(red.size,5);assert(windowStub.BattleField.getArmyBadgeSVG(-2).includes('تاج مقر'));assert.equal(windowStub.BattleField.getArmyBadgeSVG(-1),'');
@@ -33,3 +33,4 @@ test('Badges survive layout export/import by army identity; rebuild and team swi
 console.log(passed+' army UI tests passed');
 `;
 new Function('require','__dirname',host)(require,__dirname);
+
