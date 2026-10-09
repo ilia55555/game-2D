@@ -58,14 +58,15 @@ test('Team names use saved config, escape markup and support legacy default name
 test('Deployment tab hides budget, blocks other tabs and cannot be reopened during battle',()=>{
  const tab=ui.slice(ui.indexOf('function setTab(name){'),ui.indexOf('function updateSelection(',ui.indexOf('function setTab(name){')));
  const nodes=new Map(),el=selector=>{
-  if(!nodes.has(selector))nodes.set(selector,{classList:{values:{},toggle(key,value){this.values[key]=value;}}});
+  if(!nodes.has(selector))nodes.set(selector,{classList:{values:{},remove(){},toggle(key,value){this.values[key]=value;}}});
   return nodes.get(selector);
  };
- const buttons=['army','layout','orders','map','intel'].map(tab=>({dataset:{tab},classList:{toggle(){}}}));
- const run=new Function('$','$$',"let phase='setup',deployment=true,activeSidebarTab='army';const placementOnly=()=>phase==='setup'&&(deployment||activeSidebarTab==='layout');let tool='';function setTool(x){tool=x;}\n"+tab+"\nsetTab('layout');const first=[activeSidebarTab,$('#sidebarBudget').classList.values.hidden,tool];setTab('orders');const refused=activeSidebarTab;deployment=false;phase='battle';setTab('layout');return {first,refused,last:activeSidebarTab};");
+ const buttons=['army','layout','map','intel'].map(tab=>({dataset:{tab},classList:{toggle(){}}}));
+ const run=new Function('$','$$',"let phase='setup',deployment=true,activeSidebarTab='army';const placementOnly=()=>phase==='setup'&&(deployment||activeSidebarTab==='layout');let tool='';function closeCommandPanel(){}function setTool(x){tool=x;}\n"+tab+"\nsetTab('layout');const first=[activeSidebarTab,$('#sidebarBudget').classList.values.hidden,tool];setTab('orders');const refused=activeSidebarTab;deployment=false;phase='battle';setTab('layout');return {first,refused,last:activeSidebarTab};");
  const result=run(el,()=>buttons);
  assert.deepEqual(result,{first:['layout',true,'select'],refused:'layout',last:'layout'});
  assert(html.includes('if(placementOnly())return;const supports='));
  assert(html.includes('if(phase===\'ended\'||placementOnly())return;'));
 });
 console.log(passed+' setup/map tests passed.');
+
