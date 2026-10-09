@@ -122,5 +122,45 @@ test('Stroke rejects terrain barriers while sea strokes keep ships in water',()=
 test('A U around impassable ground keeps a passable anchor and the exact drawn positions',()=>{
  init([g(0,0,100,900,900),g(1,0,20,2800,1100)]);read('solid[cell(900,900)]=1');const points=linePoints([[600,600],[600,1200],[1200,1200],[1200,600]]);send({kind:'stroke',ids:[0],points});assert.equal(read('groups[0].formation'),'custom');assert(read('pass(cell(groups[0].x,groups[0].y),domain(0))'));assert(positions().every(p=>nearStroke(p,points)<.01));
 });
+const support=(over={})=>({scouts:20,couriers:20,guards:40,medics:20,...over});
+const withHQ=(gs,extra={})=>init(gs,{headquarters:[support(),support()],...extra});
+test('Each commander has exactly three HQ battalions, including four real support types',()=>{
+ withHQ([g(0,0,900,850,1100),g(1,0,900,2800,1100)]);assert.equal(frame.friendlyAlive,1000);assert.equal(frame.total,1000);assert.equal(frame.count,1000);
+ for(const t of [0,1]){assert.equal(read(`groups.filter(g=>g.team===${t}&&g.hqRole&&!g.agent).length`),3);assert.equal(read(`groups.filter(g=>g.team===${t}&&g.hqRole).reduce((s,g)=>s+g.alive,0)`),100);}
+ assert.deepEqual(frame.headquarters,{scouts:20,couriers:20,guards:40,medics:20,deployed:0,alive:100});assert.equal(frame.groups.filter(g=>g.hqRole==='signals')[0].dead,0);
+});
+test('Command couriers use the HQ allocation, and return alive with no new people or casualties',()=>{
+ withHQ([g(0,0,900,850,1100),g(1,0,20,2800,1100)]);send({kind:'start'});send({kind:'stop',ids:[0]});assert.equal(frame.headquarters.couriers,19);assert.equal(frame.headquarters.deployed,1);assert.equal(frame.friendlyAlive,1000);assert.equal(frame.dead,0);assert.equal(frame.count,1000);assert.equal(frame.groups.find(g=>g.hqRole==='signals').dead,0);
+ until(()=>read('dispatches[0].archived'));assert.equal(frame.headquarters.couriers,20);assert.equal(frame.headquarters.deployed,0);assert.equal(frame.friendlyAlive,1000);assert.equal(frame.dead,0);assert.equal(frame.count,1000);
+});
+test('HQ courier exhaustion refuses an order instead of generating a new carrier',()=>{
+ withHQ([g(0,0,900,850,1100),g(1,0,20,2800,1100)],{headquarters:[support({couriers:1}),support()]});send({kind:'start'});send({kind:'stop',ids:[0]});const n=read('L');send({kind:'order',ids:[0],order:'move',points:[{x:1400,y:1100}]});assert.equal(frame.dispatches.length,1);assert.equal(read('L'),n);assert(frame.events.some(e=>e.text.includes('نامه‌بر آماده')));assert.equal(read('groups[0].queue.length'),0);
+});
+test('Killed HQ couriers consume one person, lose the order and never return to the available pool',()=>{
+ withHQ([g(0,0,900,850,1100),g(1,0,20,2800,1100)]);send({kind:'start'});send({kind:'order',ids:[0],order:'move',points:[{x:1400,y:1100}]});read('hp[dispatches[0].courier]=0;groups[gid[dispatches[0].courier]].alive=0');step(100);assert.equal(frame.friendlyAlive,999);assert.equal(frame.dead,1);assert.equal(frame.headquarters.couriers,19);assert.equal(frame.headquarters.deployed,0);assert.equal(frame.groups.find(g=>g.hqRole==='signals').dead,1);assert.equal(read('groups[0].queue.length'),0);
+});
+test('HQ scouts are finite and return to their real battalion after recall',()=>{
+ withHQ([g(0,0,900,850,1100),g(1,0,20,2800,1100)],{headquarters:[support({scouts:1}),support()]});send({kind:'scout',x:1400,y:1100,count:2});assert.equal(frame.missions.length,1);assert.equal(frame.headquarters.scouts,0);assert.equal(frame.headquarters.deployed,1);assert(frame.events.some(e=>e.text.includes('جاسوس آماده')));assert.equal(frame.dead,0);send({kind:'recall'});until(()=>read('missions[0].archived'));assert.equal(frame.headquarters.scouts,1);assert.equal(frame.headquarters.deployed,0);assert.equal(frame.dead,0);
+});
+test('A failed scout plus courier allocation returns the borrowed scout without inventing one',()=>{
+ withHQ([g(0,0,900,850,1100),g(1,0,20,2800,1100)],{headquarters:[support({couriers:0}),support()]});send({kind:'scout',x:1400,y:1100,count:1,withCourier:true});assert.equal(frame.missions.length,0);assert.equal(frame.headquarters.scouts,20);assert.equal(frame.headquarters.deployed,0);assert.equal(frame.dead,0);
+});
+test('Army repacking during a dispatch preserves the carrier home slot and manpower',()=>{
+ withHQ([g(0,0,900,1500,1100),g(1,0,20,2800,1100)]);send({kind:'start'});send({kind:'stop',ids:[0]});read('withdrawGroup(groups[0],2,false)');assert.equal(read('groups[gid[dispatches[0].courier]].hqOrigin>=0'),true);step(1);assert.equal(frame.dead,0);assert.equal(frame.friendlyAlive,1000);until(()=>read('dispatches[0].archived'));assert.equal(frame.headquarters.couriers,20);assert.equal(frame.headquarters.alive,100);assert.equal(frame.friendlyAlive,1000);
+});
+test('Zero-sized HQ retains its three fixed battalions and refuses unavailable services',()=>{
+ withHQ([g(0,0,900,850,1100),g(1,0,20,2800,1100)],{headquarters:[{scouts:0,couriers:0,guards:0,medics:0},support()]});assert.equal(frame.groups.filter(g=>g.hqRole).length,3);send({kind:'start'});send({kind:'stop',ids:[0]});assert.equal(frame.dispatches.length,0);assert.equal(frame.friendlyAlive,900);
+});
+test('HQ medic heals real wounded soldiers and the special guard fights attackers near HQ',()=>{
+ withHQ([g(0,0,5,340,1100),g(1,0,20,700,1100)]);read('hp[0]=30');send({kind:'start'});until(()=>read('hp[0]>HEALTH[0]*.8'));step(1);assert.equal(frame.wounded,0);const guard=read('groups.find(g=>g.team===0&&g.hqRole==="guard").index');read(`const enemy=groups.find(g=>g.team===1&&!g.hqRole);enemy.x=groups[${guard}].x+12;enemy.y=groups[${guard}].y;enemy.stance='hold';for(let i=enemy.start;i<enemy.end;i++){x[i]=enemy.x;y[i]=enemy.y;}`);const before=read('groups.find(g=>g.team===1&&!g.hqRole).alive');step(500);assert(read('groups.find(g=>g.team===1&&!g.hqRole).alive')<before);
+});
+test('Bot HQ is deducted from its estimated budget and never joins a field attack order',()=>{
+ withHQ([g(0,0,900,850,1100)],{mode:'bot',enemyEstimate:50000,seed:765432});const budget=read('groups.filter(g=>g.team===1&&!g.agent&&!g.hqRole&&g.type!==39).reduce((n,g)=>n+g.total*unitCost(g.type),0)+map.botReserve+hqCount(map.botHQ)');assert(budget>=47000&&budget<=59000,budget);assert.equal(read('groups.filter(g=>g.team===1&&g.hqRole).length'),3);send({kind:'start'});step(20);assert(read('groups.filter(g=>g.team===1&&g.hqRole).every(g=>g.queue.length===0)'));assert(!frame.groups.some(g=>g.team===1));
+});
+test('Sea-mode HQ uses real marine guards and all support personnel remain on passable terrain',()=>{
+ withHQ([g(0,24,40,500,1100),g(1,24,40,2800,1100)],{map:{zones:[{shape:'rect',kind:'water',x:0,y:0,w:3200,h:2200}],battleMode:'sea'}});assert.equal(read('groups.find(g=>g.team===0&&g.hqRole==="guard").type'),36);assert(read('groups.filter(g=>g.hqRole).every(g=>Array.from({length:g.end-g.start},(_,j)=>g.start+j).every(i=>pass(cell(x[i],y[i]),domain(typ[i]))))'));
+});
+
 console.log(passed+' commander tests passed');
+
 
