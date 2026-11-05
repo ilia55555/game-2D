@@ -157,7 +157,7 @@ const SCENE_FX=[
  {zone:2,x:5910,y:227,id:'lightning/tesla-coil',ttl:3.6,seen:false},
  {zone:2,x:6710,y:194,id:'scifi/force-field',ttl:3,seen:false}
 ];
-function makeWorld(){function makeWorld(){for(const spot of SCENE_FX)spot.seen=false;platforms=[];hazards=[];ornaments=[];movers=[];bosses=[];world=[];ambient=[];
+function makeWorld(){for(const spot of SCENE_FX)spot.seen=false;platforms=[];hazards=[];ornaments=[];movers=[];bosses=[];world=[];ambient=[];
  for(let z=0;z<3;z++){
    const base=z*ZONE_SIZE; let x=base,idx=0;
    while(x<base+2160){const len=Math.min(base+2160-x,idx===0?392:246+(idx*79+z*47)%160),elev=(idx%5===2)?10:(idx%4===3?-7:0),y=243-elev;
