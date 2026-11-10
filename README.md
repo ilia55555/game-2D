@@ -85,3 +85,7 @@ Levels are seeded asymmetric traversable masks on a 32-unit occupancy grid. Buil
 ## Navigation physics
 
 A floating-point actor travels independently of 32-unit tile centers. The planner first checks a direct line with a clearance buffer, uses A* on grid occupancy if obstructed, shortcuts the polyline, and accepts rounded quadratic corners only after collision sampling. Hitboxes still enforce collision every movement step. 32-unit tiles are not movement steps; **stationary soldiers are never pushed by routing**.
+
+## Friendly-fire discipline
+
+No shot is spawned if it would cross an allied body. Moving allies also intercept bullets rather than taking damage. Only a squad with an explicit fire/attack/clear order may take a short **bounded lateral firing-lane step**; idle or self-defending soldiers stay where ordered. Fire-lane AI, ray tests, and shot enforcement remain in separate JS/COMBAT/FRIENDLY-FIRE files.

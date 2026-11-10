@@ -6,6 +6,8 @@ function canFollowPath(u){
 }
 function desiredVelocity(u,dt){
   if(!alive(u))return{x:0,y:0};
+  const firingOffset=fireLaneVelocity(u,dt);
+  if(firingOffset)return firingOffset;
   let dx=0,dy=0;
   const manual=u.i===controlledId&&!autoRetreat;
   if(manual){
