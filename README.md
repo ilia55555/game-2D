@@ -81,3 +81,7 @@ Keep these behaviors in their dedicated AI / PHYSICS / INPUT files, not bundled 
 ## World generation (2026-11)
 
 Levels are seeded asymmetric traversable masks on a 32-unit occupancy grid. Buildings, trees, shelves, and rocks mark exact blocked tiles. Different stages vary map dimensions, silhouette, road turns, cul-de-sacs, indoor structures, and entry/extraction points. Actor positions remain continuous. Press **N** to inspect blocked tiles. The generator and renderer are separate files; never embed gameplay in HTML.
+
+## Navigation physics
+
+A floating-point actor travels independently of 32-unit tile centers. The planner first checks a direct line with a clearance buffer, uses A* on grid occupancy if obstructed, shortcuts the polyline, and accepts rounded quadratic corners only after collision sampling. Hitboxes still enforce collision every movement step. 32-unit tiles are not movement steps; **stationary soldiers are never pushed by routing**.

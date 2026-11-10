@@ -88,7 +88,7 @@ function generateStage(seed,index){
  if(!w.buildings.length){
   const p=hubs[1]||hubs[0];for(let k=0;k<120&&!w.buildings.length;k++){
    const tx=p.x+rand(-11,11),ty=p.y+rand(-11,11);
-   if(gridRectAvailable(g,tx,ty,5,5))building(tx,ty,5,5);
+   if(gridRectAvailable(g,tx,ty,5,5,true))building(tx,ty,5,5);
   }
  }
  for(let i=0;i<rand(20,60);i++){
