@@ -1,0 +1,12 @@
+#tacticalMap[hidden]{display:none!important}
+#tacticalMap{position:fixed;z-index:80;inset:0;display:flex;flex-direction:column;gap:9px;padding:12px;background:#0a1015f5;color:#e9e0d6;direction:rtl;font:12px Tahoma,Arial}
+#tacticalMap *{box-sizing:border-box;cursor:auto!important}
+#tacticalMap header{display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap}
+#tacticalMap h2{font-size:19px;margin:0;color:#e3c89f}
+#tacticalMap .map-buttons{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+#tacticalMap button,#tacticalMap select{font:12px Tahoma;min-height:38px;border-radius:4px;padding:8px 10px;background:#283545;border:1px solid #627187;color:#f8ede0}
+#tacticalMap button{background:#455d71;cursor:pointer!important}
+#tacticalMapClose{background:#793f49!important}
+#tacticalMapCanvas{display:block;flex:1;min-height:0;width:100%;border:1px solid #607080;background:#0b1419;cursor:crosshair!important;touch-action:none}
+#tacticalMapHint{color:#c9c4b8;line-height:1.6;margin:0;font-size:12px}
+@media(max-width:650px){#tacticalMap{padding:7px;gap:6px}#tacticalMap h2{font-size:15px}#tacticalMap button,#tacticalMap select{min-height:32px;padding:4px;font-size:10px}}

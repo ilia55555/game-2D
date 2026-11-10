@@ -34,6 +34,7 @@
 <link rel="stylesheet" href="../CSS/PLAYER/commander-28.css">
 <link rel="stylesheet" href="../CSS/PLAYER/deputy-29.css">
 <link rel="stylesheet" href="../CSS/UI/panels-30.css">
+<link rel="stylesheet" href="../CSS/UI/tactical-map.css">
 <script src="../JS/PLAYER/APPEARANCE/skins/sf.js" defer></script>
 <script src="../JS/PLAYER/APPEARANCE/skins/df.js" defer></script>
 <script src="../JS/PLAYER/APPEARANCE/skins/officers.js" defer></script>
@@ -145,6 +146,8 @@
 <script src="../JS/COMBAT/FRIENDLY-FIRE/line-safety.js" defer></script>
 <script src="../JS/COMBAT/FRIENDLY-FIRE/firing-lanes.js" defer></script>
 <script src="../JS/COMBAT/FRIENDLY-FIRE/safe-shoot.js" defer></script>
+<script src="../JS/INPUT/command-cursor.js" defer></script>
+<script src="../JS/UI/tactical-map.js" defer></script>
 <script src="../JS/CORE/start.js" defer></script>
 </head>
 <body>
@@ -158,7 +161,7 @@
 <h1>BLACK VEIL</h1>
 <button class="action" id="pause">ادامهٔ عملیات</button>
 <div class="menugrid">
-<button class="action secondary" id="manual">تعویض افسر — Tab</button>
+<button class="action secondary" id="manual">تعویض افسر</button>
 <button class="action secondary" id="all">
 </button>
 <button class="action secondary" id="settingsOpen">تنظیم کلیدها</button>
@@ -301,5 +304,14 @@
 <button class="action secondary" id="retry">تکرار همین مرحله</button>
 </section>
 </div>
+<section id="tacticalMap" role="dialog" aria-modal="true" aria-label="نقشه فرماندهی" hidden>
+<header><h2>نقشهٔ فرماندهی · Tab</h2><div class="map-buttons">
+<label>گروه <select id="tacticalMapScope"><option value="all">SF + DF</option><option value="alpha">SF</option><option value="bravo">DF</option><option value="selected">انتخاب‌شده‌ها</option></select></label>
+<label>فرمان <select id="tacticalMapOrder"><option value="11">حرکت</option><option value="5">دفاع</option><option value="6">حمله</option><option value="7">پاک‌سازی</option><option value="4">حفظ موقعیت</option><option value="8">تجمع</option><option value="9">عقب‌نشینی</option><option value="10">استخراج</option><option value="0">تغییر اجازه آتش</option></select></label>
+<button id="tacticalMapIssue" type="button">صدور فرمان</button><button id="tacticalMapClose" type="button">بستن · Tab</button>
+</div></header>
+<p id="tacticalMapHint">روی نقشه مقصد را انتخاب کن. انتخاب نقطه بدون صدور فرمان باعث حرکت نیروها نمی‌شود.</p>
+<canvas id="tacticalMapCanvas" aria-label="نمای کامل مرحله"></canvas>
+</section>
 </body>
 </html>

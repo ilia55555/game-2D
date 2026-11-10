@@ -89,3 +89,7 @@ A floating-point actor travels independently of 32-unit tile centers. The planne
 ## Friendly-fire discipline
 
 No shot is spawned if it would cross an allied body. Moving allies also intercept bullets rather than taking damage. Only a squad with an explicit fire/attack/clear order may take a short **bounded lateral firing-lane step**; idle or self-defending soldiers stay where ordered. Fire-lane AI, ray tests, and shot enforcement remain in separate JS/COMBAT/FRIENDLY-FIRE files.
+
+## Strategy map & free command cursor
+
+**Tab** opens a paused commander map. Clicking a passable point selects a destination; issuing an explicit command to SF, DF, both teams or selected soldiers applies it. Choosing a destination alone does not move soldiers. Middle-click holds a free-moving marker at mouse world coordinates (not the weapon ray), and release issues a squad movement order. Officer switching remains accessible from the pause menu. The map, CSS, and cursor input are independent modules.
