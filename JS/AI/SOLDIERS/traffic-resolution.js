@@ -1,4 +1,54 @@
 'use strict';
-/** JS/AI/SOLDIERS/traffic-resolution.js — modularized game mechanic; loaded in manifest order. */
-
-simulateMovement=function(dt){const actors=units.filter(alive),preferred=new Map(actors.map(u=>[u.i,desiredVelocity(u,dt)]));actors.sort((a,b)=>a.i===controlledId?-1:b.i===controlledId?1:a.i-b.i);for(const u of actors){const v=preferred.get(u.i),dx=v.x*dt,dy=v.y*dt,ox=u.x,oy=u.y,free=(x,y)=>!isBlocked(x,y,15)&&actors.every(o=>o.i===u.i||Math.hypot(x-o.x,y-o.y)>=30);if(free(u.x+dx,u.y+dy)){u.x+=dx;u.y+=dy}else{if(free(u.x+dx,u.y))u.x+=dx;if(free(u.x,u.y+dy))u.y+=dy}const moved=Math.hypot(u.x-ox,u.y-oy);u.moving=moved>.025;if(u.moving){u.phase+=moved*.14;u.legA=Math.atan2(u.y-oy,u.x-ox);u.blockedTime=0;if(u.i!==controlledId&&!u.engage)u.a=u.legA}else if(Math.hypot(dx,dy)>.05){u.blockedTime=(u.blockedTime||0)+dt;if(u.i!==controlledId&&u.blockedTime>.85&&u.routeGoal){u.blockedTime=0;const route=pathTo(u,u.routeGoal,true);if(route.length){u.path=route;u.waitUntil=t+.08}else{const direction=Math.atan2(v.y,v.x),yieldPoint=safeGoal({x:u.x-Math.cos(direction)*35-Math.sin(direction)*50,y:u.y-Math.sin(direction)*35+Math.cos(direction)*50});if(yieldPoint&&segmentOpen(u,yieldPoint,15)&&actors.every(o=>o.i===u.i||distance(o,yieldPoint)>34&&segmentDistance(o,u,yieldPoint)>=30)){u.path=[yieldPoint,...pathTo(yieldPoint,u.routeGoal)];u.waitUntil=t+.18}else u.waitUntil=t+.3+(u.i%3)*.1}}}}};
+/** Movement applies only to an explicitly ordered path, or the officer controlled by WASD.
+ * No steering around idle soldiers, automatic jostling, or invented side-steps. */
+function canFollowPath(u){
+  return u.task && ['move','follow','search','clear','cover','regroup','retreat','fallback','attack','defend','extract'].includes(u.task);
+}
+function desiredVelocity(u,dt){
+  if(!alive(u))return{x:0,y:0};
+  let dx=0,dy=0;
+  const manual=u.i===controlledId&&!autoRetreat;
+  if(manual){
+    dx=Number(keys.has(bindings.right))-Number(keys.has(bindings.left));
+    dy=Number(keys.has(bindings.down))-Number(keys.has(bindings.up));
+    u.a=Math.atan2(mouse.y-u.y,mouse.x-u.x);
+  }else{
+    if(!canFollowPath(u)||t<(u.waitUntil||0))return{x:0,y:0};
+    while(u.path?.length&&distance(u,u.path[0])<7)u.path.shift();
+    const goal=u.path?.[0];
+    if(!goal)return{x:0,y:0};
+    dx=goal.x-u.x;dy=goal.y-u.y;
+  }
+  const length=Math.hypot(dx,dy);
+  if(length<1e-7)return{x:0,y:0};
+  const speed=(u.stance==='prone'?34:u.stance==='crouch'?62:108)*weaponMoveMultiplier(u);
+  const velocity=Math.min(speed,manual?speed:length/Math.max(dt,1e-6));
+  return{x:dx/length*velocity,y:dy/length*velocity};
+}
+function simulateMovement(dt){
+  const actors=units.filter(alive);
+  // Process the controlled officer first; all other actors keep their current box.
+  actors.sort((a,b)=>a.i===controlledId?-1:b.i===controlledId?1:a.i-b.i);
+  for(const u of actors){
+    const velocity=desiredVelocity(u,dt),dx=velocity.x*dt,dy=velocity.y*dt;
+    const ox=u.x,oy=u.y;
+    const moved=moveWithHitbox(u,dx,dy);
+    u.moving=moved>.02;
+    if(u.moving){
+      u.phase+=moved*.14;
+      u.legA=Math.atan2(u.y-oy,u.x-ox);
+      u.blockedTime=0;
+      if(u.i!==controlledId&&!u.engage)u.a=u.legA;
+    }else if(Math.hypot(dx,dy)>.03){
+      u.blockedTime=(u.blockedTime||0)+dt;
+      // Recompute a route only for an existing user-issued destination.
+      if(u.i!==controlledId&&u.blockedTime>1.2&&u.routeGoal&&canFollowPath(u)){
+        u.blockedTime=0;
+        const next=pathTo(u,u.routeGoal,true);
+        if(next.length)u.path=next;
+        else{u.path=[];u.routeGoal=null;u.task='hold';}
+        u.waitUntil=t+.2;
+      }
+    }else u.blockedTime=0;
+  }
+}

@@ -68,3 +68,12 @@ This site is static HTML/CSS/JS. The root `index.html` opens `HTML/index.html`, 
 **Important:** The repository is currently **private**. GitHub Pages for a private repository requires GitHub Pro/Team/Enterprise (according to GitHub's plan rules). On GitHub Free, a public repository is required. Do **not** change repository visibility without owner approval. Even when source repository is private, a GitHub Pages website is typically publicly accessible. A repository has only one Pages website; selecting this branch could replace a previously configured Pages source.
 
 Changes to `Ilia` are not needed. The `tactical-zombie` branch is the only intended publishing source.
+
+## Strict AI + collision contract
+
+- **No autonomous soldier movement:** start in HOLD, no default follow, cover search or officer escort. Soldiers move only for explicitly issued player tasks. They do not physically push stationary units out of the way.
+- **Fire discipline:** SF and DF start with free fire OFF. They shoot normally only after an explicit Fire, Attack or Clear command. Without it, an uncontrolled soldier fires solely at an unobstructed zombie within 64 world units as emergency self-defense and never chases it.
+- **Solid hitboxes:** soldiers use a 26×26 AABB; standard zombies 24×24, large zombies 30×30. Movement is swept in increments and blocked by walls, world edges, and ALL living actors. Hitbox debug overlay: **B**.
+- **Controls:** Q tactical smoke; E grenade. Lean/peeking is removed, and X/Z no longer trigger equipment by default. C toggles crouch (hold: prone).
+
+Keep these behaviors in their dedicated AI / PHYSICS / INPUT files, not bundled back into HTML.

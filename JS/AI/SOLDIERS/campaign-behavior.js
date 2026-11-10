@@ -1,5 +1,68 @@
 'use strict';
-/** JS/AI/SOLDIERS/campaign-behavior.js — modularized game mechanic; loaded in manifest order. */
-
-planSquads=function(){maintainReservations();const leader=units[leaderId]||units.find(alive),followers=units.filter(u=>alive(u)&&!u.isOfficer&&u.task==='follow');const anchor=followAnchor();if(followers.length&&(['alpha','bravo'].some(g=>followers.some(u=>u.group===g)&&(!squads[g].followAnchor||distance(anchor,squads[g].followAnchor)>65))||followers.some(u=>u.slotRevision!==formationRevision))){assignFormation(followers,anchor,'follow',anchor.a);for(const g of ['alpha','bravo'])squads[g].followAnchor={...anchor}}
-for(const u of units){if(!alive(u)||u.i===controlledId)continue;if(u.isOfficer){if(autoRetreat)continue;if(distance(u,leader)>120&&(!u.routeGoal||distance(u.routeGoal,leader)>85))setRoute(u,safeGoal({x:leader.x+55,y:leader.y+65})||leader);continue}const task=u.task;if(task==='cover'){if(!u.cover){assignReservedCover([u]);continue}const nearHide=distance(u,u.cover.hide)<8,nearPeek=distance(u,u.cover.peek)<8,visible=zombies.some(z=>!z.dead&&clearSight(u.cover.peek,z)&&distance(u.cover.peek,z)<WEAPONS[u.weapon].range);u.coverPhase??='toHide';if(u.coverPhase==='toHide'&&nearHide){u.coverPhase='hidden';u.coverTimer=t+1.1}else if(u.coverPhase==='hidden'&&t>=u.coverTimer&&visible&&squads[u.group].fire){u.coverPhase='toPeek'}else if(u.coverPhase==='toPeek'&&nearPeek){u.coverPhase='firing';u.coverTimer=t+1.6}else if(u.coverPhase==='firing'&&t>=u.coverTimer){u.coverPhase='toHide'}const peek=['toPeek','firing'].includes(u.coverPhase);u.coverPeeking=u.coverPhase==='firing';u.stance='crouch';const goal=peek?u.cover.peek:u.cover.hide;if(distance(u,goal)>7&&(!u.routeGoal||distance(u.routeGoal,goal)>5||!u.path.length))setRoute(u,goal);if(!u.moving)u.a=Math.atan2(u.cover.threat.y-u.y,u.cover.threat.x-u.x)}else if(task==='clear'||task==='search'){if(u.path.length)continue;const building=task==='clear'?missionBuildings.find(b=>b.id===u.assignedBuilding):missionBuildings[(u.searchStep||0)%missionBuildings.length];if(!building)continue;const corners=[{x:building.x+32,y:building.y+32},{x:building.x+building.w-32,y:building.y+32},{x:building.x+building.w-32,y:building.y+building.h-32},{x:building.x+32,y:building.y+building.h-32}],goal=corners[(u.searchStep||0)%4];u.searchStep=(u.searchStep||0)+1;if(task==='clear'&&building.cleared){u.task='hold';continue}setRoute(u,safeGoal(goal)||goal,true)}else if(task==='extract'){if(!u.path.length&&u.evacGoal&&distance(u,u.evacGoal)>9)setRoute(u,u.evacGoal)}else if(['move','regroup','retreat','attack'].includes(task)&&u.path.length===0){u.task='hold';u.orderAnchor={x:u.x,y:u.y};u.routeGoal=null}}};
+/** Strict order-driven soldier AI. Idle, HOLD, DEFEND without a travel path,
+ * and all officers remain still until the player issues a command. */
+function planSquads(){
+  maintainReservations();
+  const anchor=followAnchor();
+  for(const u of units){
+    if(!alive(u)||u.i===controlledId)continue;
+    const task=u.task||'hold';
+    if(task==='hold')continue;
+    if(task==='follow'){
+      // Follow is opt-in; no follow state is created by starting a mission.
+      const anchorUnit=units[controlledId]||units[leaderId];
+      if(!anchorUnit||!alive(anchorUnit))continue;
+      const side=u.group==='alpha'?-85:u.group==='bravo'?85:45;
+      const row=Math.floor((u.slot||0)/2),column=(u.slot||0)%2;
+      const desired=safeGoal({x:anchor.x+side+(column-.5)*40,y:anchor.y+row*44});
+      if(!desired)continue;
+      const movedAnchor=!u.followAnchor||distance(anchor,u.followAnchor)>32;
+      const tooFar=distance(u,desired)>65;
+      if((movedAnchor||tooFar)&&distance(u,desired)>38&&(!u.routeGoal||distance(u.routeGoal,desired)>30)){
+        setRoute(u,desired,true);
+        u.followAnchor={x:anchor.x,y:anchor.y};
+      }
+      continue;
+    }
+    if(task==='cover'){
+      if(!u.cover){assignReservedCover([u]);continue;}
+      // Cover is a static order: reach the hide spot and stay there.
+      u.stance='crouch';u.coverPeeking=false;
+      if(distance(u,u.cover.hide)>12&&!u.path?.length&&(!u.routeGoal||distance(u.routeGoal,u.cover.hide)>8)){
+        setRoute(u,u.cover.hide,true);
+      }
+      continue;
+    }
+    if(task==='clear'||task==='search'){
+      if(u.path?.length)continue;
+      const building=task==='clear'
+        ?missionBuildings.find(b=>b.id===u.assignedBuilding)
+        :missionBuildings[(u.searchStep||0)%missionBuildings.length];
+      if(!building){u.task='hold';continue;}
+      if(task==='clear'&&building.cleared){u.task='hold';continue;}
+      const spots=[
+        {x:building.x+32,y:building.y+32},
+        {x:building.x+building.w-32,y:building.y+32},
+        {x:building.x+building.w-32,y:building.y+building.h-32},
+        {x:building.x+32,y:building.y+building.h-32}
+      ];
+      const step=(u.searchStep||0)%spots.length;
+      const goal=safeGoal(spots[step]);
+      if(goal&&setRoute(u,goal,true))u.searchStep=(u.searchStep||0)+1;
+      else u.task='hold';
+      continue;
+    }
+    if(task==='extract'){
+      if(!u.path?.length&&u.evacGoal&&distance(u,u.evacGoal)>12&&(!u.routeGoal||distance(u.routeGoal,u.evacGoal)>10))setRoute(u,u.evacGoal);
+      continue;
+    }
+    // Move, attack, defend, retreat and regroup are one-shot orders.
+    if(['move','attack','defend','regroup','retreat','fallback'].includes(task)&&!u.path?.length){
+      if(!u.routeGoal||distance(u,u.routeGoal)<12){
+        u.task=task==='defend'?'defend':'hold';
+        u.routeGoal=null;
+        u.orderAnchor={x:u.x,y:u.y};
+      }
+    }
+  }
+}
