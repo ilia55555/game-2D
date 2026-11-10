@@ -53,3 +53,18 @@ SOUNDS/AMBIENCE             # future environment audio
 The uploaded single-file game had multiple historical override layers. This first migration preserves the **original evaluation order** in ordered `defer` scripts listed inside `HTML/index.html` so gameplay does not break. These legacy overrides and shared globals are temporary compatibility infrastructure. When modifying a subsystem, consolidate its layers behind a small documented API, eliminate obsolete overrides, and cover its behavior with tests rather than adding more overrides. This is an intermediate modularization, not complete code isolation.
 
 No additional sound files or unimplemented zombie types have been generated.
+
+## Play online with GitHub Pages
+
+This site is static HTML/CSS/JS. The root `index.html` opens `HTML/index.html`, whose resources use relative paths, so it can be served from a GitHub Pages project URL without a build step. The root `.nojekyll` file prevents Jekyll processing.
+
+**One-time repository setup (requires repository admin access):**
+
+1. Open [Settings → Pages](https://github.com/ilia55555/game-2D/settings/pages).
+2. Under **Build and deployment**, set **Source** to **Deploy from a branch**.
+3. Choose branch `tactical-zombie` and directory `/(root)`, then press **Save**.
+4. When GitHub reports successful publication, open **https://ilia55555.github.io/game-2D/** (or the actual URL shown under Pages settings).
+
+**Important:** The repository is currently **private**. GitHub Pages for a private repository requires GitHub Pro/Team/Enterprise (according to GitHub's plan rules). On GitHub Free, a public repository is required. Do **not** change repository visibility without owner approval. Even when source repository is private, a GitHub Pages website is typically publicly accessible. A repository has only one Pages website; selecting this branch could replace a previously configured Pages source.
+
+Changes to `Ilia` are not needed. The `tactical-zombie` branch is the only intended publishing source.
