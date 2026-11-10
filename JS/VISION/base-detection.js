@@ -1,0 +1,9 @@
+'use strict';
+/** JS/VISION/base-detection.js — modularized game mechanic; loaded in manifest order. */
+
+function rayDistance(x,y,a,range){const dx=Math.cos(a),dy=Math.sin(a);let hit=range;const blocks=walls.concat([{x:0,y:0,w:55,h:850},{x:1045,y:0,w:55,h:850},{x:0,y:0,w:1100,h:48},{x:0,y:817,w:1100,h:33}]);for(const b of blocks){let near=-Infinity,far=Infinity;for(const [p,v,lo,hi]of [[x,dx,b.x,b.x+b.w],[y,dy,b.y,b.y+b.h]]){if(Math.abs(v)<1e-9){if(p<lo||p>hi){far=-Infinity;break}}else{const t1=(lo-p)/v,t2=(hi-p)/v;near=Math.max(near,Math.min(t1,t2));far=Math.min(far,Math.max(t1,t2))}}if(far>=Math.max(0,near)&&far>=0)hit=Math.min(hit,Math.max(0,near))}return hit}
+function clearSight(a,b){const d=distance(a,b);return rayDistance(a.x,a.y,Math.atan2(b.y-a.y,b.x-a.x),d+.2)>=d-.5}
+function lampOrigin(u){const dx=Math.cos(u.a)*47-Math.sin(u.a)*(7+u.lean*10),dy=Math.sin(u.a)*47+Math.cos(u.a)*(7+u.lean*10),d=Math.hypot(dx,dy),r=Math.min(d,Math.max(0,rayDistance(u.x,u.y,Math.atan2(dy,dx),d)-2));return{x:u.x+dx/d*r,y:u.y+dy/d*r}}
+function seesFromUnit(u,p){if(u.hp<=0)return false;const d=distance(u,p);if(d<=BASE_VIEW&&clearSight(u,p))return true;if(!u.light)return false;const origin=lampOrigin(u),r=distance(origin,p),angle=Math.atan2(p.y-origin.y,p.x-origin.x),delta=Math.atan2(Math.sin(angle-u.a),Math.cos(angle-u.a));return r<=LIGHT_VIEW&&Math.abs(delta)<=LIGHT_HALF&&clearSight(origin,p)}
+function teamSees(p){return units.some(u=>seesFromUnit(u,p))}
+function chooseTarget(u){const candidates=zombies.filter(z=>!z.dead&&seesFromUnit(u,z)&&clearSight(u,z)).sort((a,b)=>distance(u,a)-distance(u,b));const nearest=candidates[0];if(nearest&&distance(u,nearest)<BASE_VIEW){u.attackTarget=null;return nearest}if(u.attackTarget&&!u.attackTarget.dead&&candidates.includes(u.attackTarget))return u.attackTarget;return nearest||null}

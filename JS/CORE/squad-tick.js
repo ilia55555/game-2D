@@ -1,0 +1,4 @@
+'use strict';
+/** JS/CORE/squad-tick.js — modularized game mechanic; loaded in manifest order. */
+
+update=function(dt){if(paused||state!=='playing')return;dt*=wheel.open?.12:1;if(!ensureLeadership()){finish(false);return}active=controlledId;damagePulse=Math.max(0,damagePulse-dt*1.5);units.forEach(u=>u.hit=Math.max(0,(u.hit||0)-dt));const hp=units.map(u=>u.hp),controlled=controlledId;if(t>=lastAIPlan){planSquads();lastAIPlan=t+.45}originalUpdate(dt);for(const u of units){const lost=(hp[u.i]||0)-u.hp;if(lost>0){u.hit=.42;if(u.i===controlled)damagePulse=Math.min(.65,damagePulse+.28+lost*.012);for(let j=0;j<7;j++)damageBlood.push({x:u.x,y:u.y,vx:(Math.random()-.5)*70,vy:(Math.random()-.5)*70,life:.45})}}for(let i=damageBlood.length-1;i>=0;i--){const p=damageBlood[i];p.life-=dt;p.x+=p.vx*dt;p.y+=p.vy*dt;if(p.life<=0)damageBlood.splice(i,1)}if(!ensureLeadership()&&state==='playing')finish(false);active=controlledId;mode='manual'};

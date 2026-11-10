@@ -1,55 +1,55 @@
-# AERO — Unity 2.5D
+# DELTA SIX — Tactical Zombie
 
-بازیِ تصویر مرجع: **شش مرحله، شش سلاح، شش باس و VEXAR با سه فرم**؛ محیط و مدل‌ها سه‌بعدی، حرکت روی X/Y و دوربین ثابت از بغل.
+Branch: `tactical-zombie`. The existing `Ilia` branch is untouched.
 
-پروژه در **`Unity/`** است. مدل‌ها و انیمیشن‌های نهایی Blender هنوز وارد نشده‌اند؛ نقش‌های خالی با مدل‌های موقت سه‌بعدی اجرا می‌شوند. اعتبارسنجی داده و نحو C# انجام شده است؛ اجرای Editor، تست‌های PlayMode و بیلد نهایی در این محیط ممکن نبود.
+## Run
 
-## اجرای سریع
+Serve the repository over HTTP (for example `python -m http.server 8000`) and open `http://localhost:8000/HTML/`. The root `index.html` is a lightweight redirect to `HTML/index.html`. No packages or external runtime dependencies.
 
-1. شاخهٔ حاوی این تغییرات را دانلود و استخراج کن.
-2. Unity Hub → **Add project from disk** → پوشهٔ **`Unity`**؛ نسخهٔ ثبت‌شده **6000.6.2f1** است.
-3. پس از Import، صحنهٔ **`Assets/Velocity/Scenes/Main.unity`** یا **AERO → Open Game** را باز کن.
-4. **Play → Continue journey**.
+## Structure
 
-**[راهنمای کامل فارسی اجرا، مدل‌ها، انیمیشن و طراحی مرحله](docs/AERO-UNITY-START.md)**
-
-## آنچه اضافه شده
-
-- جنگل، صحرا، کوهستان، یخ، آتشفشان و کارخانه؛ ۱۵۱ دشمن، ۱۲۹۷ سکه، ۳۰ چک‌پوینت و ۱۸ Core مخفی.
-- مراحل ۴۱۸ تا ۶۸۷ متری با دره، صعود، پل‌های شکسته و استراحتگاه؛ دو پایگاه تحت کنترل دشمن در هر مرحله.
-- زمین باس با ۱۲ قطعهٔ قابل‌تغییر، هشدار پیش از آسیب و سه سکوی فرار؛ سختی تدریجی از KING KONA تا سه فرم VEXAR.
-- حرکت جانبی، پرش دوم و متغیر، دش، نشستن، سکوهای یک‌طرفه/متحرک/شکننده و زمین یخی.
-- تفنگ اصلی، Scatter، لیزر شارژی و نفوذکننده، موشک انفجاری، یخ و پلاسما؛ انرژی مشترک و برخورد سریع تیرها.
-- باس‌های تصویر با هشدار و الگوی حمله؛ IRONHORN سپس VEXAR با فرم‌های وحشی، زرهی و نهایی در مرحلهٔ ششم.
-- منو، انتخاب مرحله، HUD، توقف، تنظیمات، رکورد و ذخیرهٔ محلی با فایل پشتیبان.
-- **AERO → Art Setup**: اتصال FBX/Prefab، تنظیم اندازه و جهت، ساخت Animator از کلیپ‌ها و ساکت تفنگ/Muzzle.
-- **AERO → Stage Layout Editor**: ویرایش جای سکو، آیتم، تله و دشمن با نشانگرهای قابل‌جابه‌جایی در Unity.
-- موسیقی‌ها و افکت‌های موجود حفظ شده‌اند؛ صدای جدید یا مدل نهایی تولید نشده است.
-
-## کنترل‌ها
-
-حرکت **A/D**، پرش دوبل **Space**، شلیک **J یا کلیک**، دش **Shift**، سلاح **Q/E یا 1–6**، نشستن **S**، توقف **Esc**. برای لیزر دکمهٔ شلیک را نگه دار و رها کن. گیم‌پلی از دسته و کنترل لمسی نیز پشتیبانی می‌کند؛ منو با ماوس یا لمس است.
-
-## بررسی و خروجی
-
-```bash
-python -m pip install tree-sitter tree-sitter-c-sharp
-python tools/verify_unity_source.py --require-audio
+```text
+index.html                  # launcher only
+HTML/index.html             # HTML DOM skeleton and ordered file manifest
+CSS/CORE                    # shared baseline
+CSS/UI                      # panels, HUD, responsive, operations
+CSS/PLAYER                  # separate SF / DF / commander / deputy styles
+JS/CORE                     # runtime state, startup, lifecycle, game loops
+JS/PLAYER                   # manual controls, drawing, animations, skins, movement, abilities
+JS/TEAM                     # officers, formations and squad relationships
+JS/AI/SOLDIERS              # allied AI, cover, path traffic and tactical tasks
+JS/ZOMBIES/WALKER           # walker spawn, sight, navigation, walking, AI
+JS/ZOMBIES/BRUTE            # special zombie visual variation
+JS/COMMANDS                 # orders, wheels, formations and scoped commands
+JS/COMBAT                   # weapon firing, reload, impacts and damage
+JS/VISION                   # visibility, fog, flashlight and raycasts
+JS/MAP                      # map generation, collision, geometry and navigation
+JS/ZONES                    # green / yellow / red / black danger levels
+JS/EXTRACTION               # blue extraction, helicopter and evacuation
+JS/RENDER                   # canvas drawing and overlays
+JS/INPUT                    # keyboard, pointer, zoom and camera
+JS/UI                       # DOM/menu wiring and roster
+JS/AUDIO                    # audio subsystem files go here
+ASSETS/ZOMBIES/WALKER       # imported sprite sheet
+SOUNDS/WEAPONS              # future gunfire audio
+SOUNDS/ZOMBIES              # future enemy audio
+SOUNDS/UI                   # future interface audio
+SOUNDS/AMBIENCE             # future environment audio
 ```
 
-داخل Unity: **AERO → Validate Project** و **Test Runner → EditMode / PlayMode → Run All**. اجرای خودکار ویندوز در `tools/test_unity.ps1` است. خروجی با **AERO → Build Windows** در `Unity/Builds/Windows/AERO.exe` ساخته می‌شود؛ ماژول Build Support لازم است.
+## Mandatory architecture rules
 
-**[گزارش اعتبارسنجی و محدودیت‌های آزمون](docs/UNITY-VALIDATION.md)**
+1. **One mechanic, one responsibility.** Each input, AI decision, animation, movement routine, attack pattern, navigation system, renderer, and UI component must have its own focused JS/CSS file. Do not build generic 5,000-line files.
+2. **Separate zombie types.** Each actual zombie model must have independent files/folders for its behavior and graphics. Seven zombie models require seven sets of files, not one 5,000-line AI. ~700 lines in a file is a reason to refactor further, not a desired size. Share only reusable low-level math, navigation or collision helpers.
+3. **Separate teams and officers.** SF, DF, commander and deputy have different appearance files; Canvas soldier colors are controlled in dedicated JS skin modules, with roster CSS in separate files.
+4. **HTML is only a skeleton.** No gameplay logic, inline style or base64 assets in HTML. Keep JS under `JS`, CSS under `CSS`, graphics under `ASSETS`, and audio under `SOUNDS`.
+5. **Preserve mechanics.** SF enters and clears; DF defends and supports; the commanding officer and deputy operate over both; there are four danger zones green → yellow → red → black, and blue is exclusively extraction (not a fifth danger level).
+6. **Protect branch boundaries.** This code must be developed on `tactical-zombie` only unless the user directs otherwise. Do not merge into `Ilia` automatically.
+7. **Test each mechanic.** Before committing, verify JavaScript parses, referenced assets load, the game starts, controls react, zombie AI updates, and squads/command wheels operate.
+8. **Keep expansion independent.** New sound models, maps and actors must be grouped by subtype under their parent asset/logic directories rather than appended to a giant catch-all file.
 
-## نسخهٔ قبلی
+## Migration note
 
-فایل‌های Godot برای مرجع مهاجرت و حفظ نسخهٔ قبلی نگه داشته شده‌اند؛ Unity هیچ GDScript یا Sprite دوبعدی را در زمان اجرا بارگذاری نمی‌کند. راهنمای قدیمی در [GODOT-LEGACY.md](docs/GODOT-LEGACY.md) است. ذخیره‌های Godot به‌طور خودکار به Unity وارد نمی‌شوند.
+The uploaded single-file game had multiple historical override layers. This first migration preserves the **original evaluation order** in ordered `defer` scripts listed inside `HTML/index.html` so gameplay does not break. These legacy overrides and shared globals are temporary compatibility infrastructure. When modifying a subsystem, consolidate its layers behind a small documented API, eliminate obsolete overrides, and cover its behavior with tests rather than adding more overrides. This is an intermediate modularization, not complete code isolation.
 
-## پروژهٔ Godot و ریگ ۱۶ تکهٔ خرگوش
-
-برای جلوگیری از مخلوط‌شدن فایل‌های دو موتور، کل پروژهٔ Godot اکنون در پوشهٔ [`Godot/`](Godot) قرار دارد. برای خرگوش، ۱۶ تصویر شفاف را با نام `frame_01.png` تا `frame_16.png` در [`Godot/assets/rabbit/parts/`](Godot/assets/rabbit/parts) بگذار. راهنمای مهمِ Canvas مشترک و اجرای پیش‌نمایش در [`Godot/assets/rabbit/README.md`](Godot/assets/rabbit/README.md) نوشته شده است.
-
-## ابزار آماده‌سازی قطعات خرگوش
-
-وب‌اپ مستقل [`AnchorEditor`](AnchorEditor) تصاویر Crop‌شده را به PNG شفاف تبدیل می‌کند و مختصات Pivot، Anchor و مرز مش را به‌صورت هماهنگ در JSON و SVG خروجی می‌دهد. برای اجرا، `AnchorEditor/index.html` را در مرورگر باز کن.
-
+No additional sound files or unimplemented zombie types have been generated.

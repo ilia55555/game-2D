@@ -1,0 +1,2 @@
+/* CSS/CORE/base-22.css */
+body.playing,body.playing *,body.playing canvas#game{cursor:none!important}body.paused,body.paused *{cursor:auto!important}.

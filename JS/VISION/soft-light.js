@@ -1,0 +1,10 @@
+'use strict';
+/** JS/VISION/soft-light.js — modularized game mechanic; loaded in manifest order. */
+
+// Soft light intensities are combined by maximum, so overlapping beams never form bands.
+const LIGHT_SCALE=4,LW=275,LH=213,lightMap=document.createElement('canvas');lightMap.width=LW;lightMap.height=LH;const lc=lightMap.getContext('2d',{willReadFrequently:true});fog.width=LW;fog.height=LH;
+const beamTexture=document.createElement('canvas');beamTexture.width=384;beamTexture.height=384;const bc=beamTexture.getContext('2d');
+function smoothStep(a,b,x){const v=clamp((x-a)/(b-a),0,1);return v*v*(3-2*v)}
+function beamStrength(x,y){const r=Math.hypot(x,y);if(r>=1)return 0;const angle=Math.abs(Math.atan2(y,x));return .93/(1+1.3*r*r)*(1-smoothStep(.57,1,r))*(1-smoothStep(.21,LIGHT_HALF,angle))}
+const tex=bc.createImageData(384,384);for(let y=0;y<384;y++)for(let x=0;x<384;x++){const k=(y*384+x)*4,v=Math.round(beamStrength((x-192)/192,(y-192)/192)*255);tex.data[k]=tex.data[k+1]=tex.data[k+2]=v;tex.data[k+3]=255}bc.putImageData(tex,0,0);const fogPixels=fc.createImageData(LW,LH);
+lighting=function(){lc.setTransform(1,0,0,1,0,0);lc.globalCompositeOperation='source-over';lc.fillStyle='#000';lc.fillRect(0,0,LW,LH);lc.scale(1/LIGHT_SCALE,1/LIGHT_SCALE);lc.globalCompositeOperation='lighten';for(const v of visibility){lc.save();polygon(lc,v.points);lc.clip();if(v.cone){const u=units.find(u=>u.hp>0&&distance(lampOrigin(u),v.origin)<1);lc.translate(v.origin.x,v.origin.y);lc.rotate(u?u.a:0);lc.drawImage(beamTexture,-v.range,-v.range,v.range*2,v.range*2)}else{const g=lc.createRadialGradient(v.origin.x,v.origin.y,0,v.origin.x,v.origin.y,v.range);g.addColorStop(0,'#999');g.addColorStop(.55,'#666');g.addColorStop(1,'#000');lc.fillStyle=g;lc.fillRect(v.origin.x-v.range,v.origin.y-v.range,v.range*2,v.range*2)}lc.restore()}lc.setTransform(1,0,0,1,0,0);const pixels=lc.getImageData(0,0,LW,LH).data;for(let i=0;i<pixels.length;i+=4){fogPixels.data[i]=3;fogPixels.data[i+1]=1;fogPixels.data[i+2]=5;fogPixels.data[i+3]=Math.round(244-pixels[i]*.92)}fc.putImageData(fogPixels,0,0);c.imageSmoothingEnabled=true;c.drawImage(fog,0,0,1100,850)};

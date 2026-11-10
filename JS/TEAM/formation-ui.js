@@ -1,0 +1,4 @@
+'use strict';
+/** JS/TEAM/formation-ui.js — modularized game mechanic; loaded in manifest order. */
+
+function applyFormation(type){const groups=groupTargets();groups.forEach(g=>squads[g].formation=type);formation=type;formationRevision++;const actors=selectedTroops();for(const g of groups){const group=actors.filter(u=>u.group===g);if(!group.length)continue;if(group.every(u=>u.task==='follow')){squads[g].followAnchor=null;group.forEach(u=>u.slotRevision=-1);continue}if(group.every(u=>u.task==='cover'))continue;const moving=group.find(u=>['move','attack','regroup','retreat','defend'].includes(u.task)),anchor=moving?.orderAnchor||{x:group.reduce((a,u)=>a+u.x,0)/group.length,y:group.reduce((a,u)=>a+u.y,0)/group.length};assignFormation(group,anchor,moving?.task||'hold',(units[controlledId]||units[leaderId]).a)}refreshOperators()}

@@ -1,0 +1,5 @@
+'use strict';
+/** JS/COMBAT/reloading-and-fire.js — modularized game mechanic; loaded in manifest order. */
+
+function isIlluminating(u,p){if(!alive(u)||!u.light)return false;const o=lampOrigin(u),d=distance(o,p);if(d>LIGHT_VIEW)return false;const a=Math.atan2(p.y-o.y,p.x-o.x)-u.a;return beamStrength(d/LIGHT_VIEW*Math.cos(a),d/LIGHT_VIEW*Math.sin(a))>.035&&clearSight(o,p)}
+function zombieCanSee(z,u){if(!alive(u))return false;if(isIlluminating(u,z))return true;const d=distance(z,u),angle=Math.atan2(u.y-z.y,u.x-z.x),delta=Math.abs(Math.atan2(Math.sin(angle-z.a),Math.cos(angle-z.a)));if(d>36&&delta>Math.PI*.62)return false;let range=190*(u.stance==='prone'?.32:u.stance==='crouch'?.57:1);if(u.cover&&!u.coverPeeking&&distance(u,u.cover.hide)<26)range*=.5;const nearCover=walls.some(w=>w.cover&&u.x>w.x-30&&u.x<w.x+w.w+30&&u.y>w.y-30&&u.y<w.y+w.h+30);if(nearCover)range*=.72;if(d>range)return false;const offsets=[{x:u.x,y:u.y},{x:u.x+Math.sin(u.a)*7,y:u.y-Math.cos(u.a)*7},{x:u.x-Math.sin(u.a)*7,y:u.y+Math.cos(u.a)*7}];return offsets.filter(p=>clearSight(z,p)).length>=(u.stance==='stand'?1:2)}

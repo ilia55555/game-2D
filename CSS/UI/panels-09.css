@@ -1,0 +1,2 @@
+/* CSS/UI/panels-09.css */
+bindrow{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid #412b32;font-size:12px}.bind{background:#3a252d;color:#e1c8b7;border:1px solid #77505b;border-radius:2px;padding:8px 12px;min-width:100px;cursor:pointer}.bind:disabled{opacity:.6}#guide{line-height:2.1;font-size:11px;color:#a89594}#toast{line-height:1.9;color:#d0b7a5;font-size:11px;min-height:20px}#status{font-size:11px;color:#bdb09c;line-height:2}#

@@ -1,0 +1,2 @@
+/* CSS/UI/panels-03.css */
+modal{position:fixed;z-index:10;inset:0;display:grid;place-items:center;background:#080508cb;backdrop-filter:blur(7px);padding:20px}.panel{width:min(610px,100%);max-height:91vh;overflow:auto;background:linear-gradient(150deg,#25171d,#121014);border:1px solid #75434b;border-radius:6px;padding:30px;box-shadow:0 22px 120px #0009}.

@@ -1,0 +1,3 @@
+/* CSS/CORE/base-01.css */
+
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#09080a;color:#d9d3cf;font:13px Tahoma,Arial}[hidden]{display:none!important}canvas#game{display:block;position:fixed;inset:0;width:100%;height:100%;outline:none;cursor:none;touch-action:none}#

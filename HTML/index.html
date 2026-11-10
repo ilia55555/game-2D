@@ -1,0 +1,295 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DELTA SIX · مراحل عملیاتی</title>
+<link rel="stylesheet" href="../CSS/CORE/base-01.css">
+<link rel="stylesheet" href="../CSS/PLAYER/roster-02.css">
+<link rel="stylesheet" href="../CSS/UI/panels-03.css">
+<link rel="stylesheet" href="../CSS/CORE/base-04.css">
+<link rel="stylesheet" href="../CSS/UI/panels-05.css">
+<link rel="stylesheet" href="../CSS/CORE/base-06.css">
+<link rel="stylesheet" href="../CSS/UI/panels-07.css">
+<link rel="stylesheet" href="../CSS/CORE/base-08.css">
+<link rel="stylesheet" href="../CSS/UI/panels-09.css">
+<link rel="stylesheet" href="../CSS/CORE/base-10.css">
+<link rel="stylesheet" href="../CSS/UI/panels-11.css">
+<link rel="stylesheet" href="../CSS/UI/responsive-12.css">
+<link rel="stylesheet" href="../CSS/PLAYER/roster-13.css">
+<link rel="stylesheet" href="../CSS/PLAYER/commander-14.css">
+<link rel="stylesheet" href="../CSS/PLAYER/deputy-15.css">
+<link rel="stylesheet" href="../CSS/PLAYER/sf-16.css">
+<link rel="stylesheet" href="../CSS/PLAYER/df-17.css">
+<link rel="stylesheet" href="../CSS/PLAYER/commander-18.css">
+<link rel="stylesheet" href="../CSS/UI/panels-19.css">
+<link rel="stylesheet" href="../CSS/PLAYER/roster-20.css">
+<link rel="stylesheet" href="../CSS/UI/responsive-21.css">
+<link rel="stylesheet" href="../CSS/CORE/base-22.css">
+<link rel="stylesheet" href="../CSS/PLAYER/roster-23.css">
+<link rel="stylesheet" href="../CSS/UI/operations-24.css">
+<link rel="stylesheet" href="../CSS/PLAYER/sf-25.css">
+<link rel="stylesheet" href="../CSS/PLAYER/df-26.css">
+<link rel="stylesheet" href="../CSS/UI/panels-27.css">
+<link rel="stylesheet" href="../CSS/PLAYER/commander-28.css">
+<link rel="stylesheet" href="../CSS/PLAYER/deputy-29.css">
+<link rel="stylesheet" href="../CSS/UI/panels-30.css">
+<script src="../JS/PLAYER/APPEARANCE/skins/sf.js" defer></script>
+<script src="../JS/PLAYER/APPEARANCE/skins/df.js" defer></script>
+<script src="../JS/PLAYER/APPEARANCE/skins/officers.js" defer></script>
+<script src="../JS/PLAYER/APPEARANCE/skins/resolve.js" defer></script>
+<script src="../JS/CORE/runtime.js" defer></script>
+<script src="../JS/CORE/keyboard-state.js" defer></script>
+<script src="../JS/MAP/starting-geometry.js" defer></script>
+<script src="../JS/PLAYER/base-controller.js" defer></script>
+<script src="../JS/MAP/basic-navigation.js" defer></script>
+<script src="../JS/INPUT/viewport.js" defer></script>
+<script src="../JS/COMMANDS/initial-input.js" defer></script>
+<script src="../JS/COMBAT/initial-weapons.js" defer></script>
+<script src="../JS/CORE/base-tick.js" defer></script>
+<script src="../JS/RENDER/MAP/base-background.js" defer></script>
+<script src="../JS/ZOMBIES/WALKER/base-draw.js" defer></script>
+<script src="../JS/RENDER/frame-start.js" defer></script>
+<script src="../JS/RENDER/drawing-primitives.js" defer></script>
+<script src="../JS/PLAYER/ANIMATION/base-soldier-draw.js" defer></script>
+<script src="../JS/ZOMBIES/WALKER/sprite.js" defer></script>
+<script src="../JS/VISION/base-state.js" defer></script>
+<script src="../JS/VISION/base-detection.js" defer></script>
+<script src="../JS/COMMANDS/attack-orders.js" defer></script>
+<script src="../JS/UI/base-interface.js" defer></script>
+<script src="../JS/INPUT/base-events.js" defer></script>
+<script src="../JS/VISION/flashlight-and-fog.js" defer></script>
+<script src="../JS/RENDER/MAP/night-background.js" defer></script>
+<script src="../JS/ZOMBIES/WALKER/walk-frames.js" defer></script>
+<script src="../JS/RENDER/night-overlay.js" defer></script>
+<script src="../JS/CORE/base-mission-end.js" defer></script>
+<script src="../JS/TEAM/squad-state.js" defer></script>
+<script src="../JS/TEAM/command-leadership.js" defer></script>
+<script src="../JS/UI/team-roster.js" defer></script>
+<script src="../JS/COMMANDS/squad-orders.js" defer></script>
+<script src="../JS/AI/SOLDIERS/squad-targeting.js" defer></script>
+<script src="../JS/AI/SOLDIERS/squad-plan.js" defer></script>
+<script src="../JS/CORE/squad-tick.js" defer></script>
+<script src="../JS/PLAYER/APPEARANCE/squad-overlays.js" defer></script>
+<script src="../JS/VISION/soft-light.js" defer></script>
+<script src="../JS/COMMANDS/radial-commands.js" defer></script>
+<script src="../JS/RENDER/combat-overlay.js" defer></script>
+<script src="../JS/INPUT/squad-bindings.js" defer></script>
+<script src="../JS/UI/squad-settings.js" defer></script>
+<script src="../JS/CORE/tactical-state.js" defer></script>
+<script src="../JS/COMMANDS/order-labels.js" defer></script>
+<script src="../JS/CORE/tactical-bridge.js" defer></script>
+<script src="../JS/MAP/cover-geometry.js" defer></script>
+<script src="../JS/PLAYER/roles-and-weapons.js" defer></script>
+<script src="../JS/AI/SOLDIERS/cover-ownership.js" defer></script>
+<script src="../JS/ZOMBIES/WALKER/spawn.js" defer></script>
+<script src="../JS/CORE/tactical-setup.js" defer></script>
+<script src="../JS/TEAM/tactical-leadership.js" defer></script>
+<script src="../JS/UI/tactical-roster.js" defer></script>
+<script src="../JS/COMBAT/reloading-and-fire.js" defer></script>
+<script src="../JS/VISION/light-awareness.js" defer></script>
+<script src="../JS/ZOMBIES/WALKER/perception.js" defer></script>
+<script src="../JS/ZOMBIES/WALKER/navigation.js" defer></script>
+<script src="../JS/ZOMBIES/WALKER/ai.js" defer></script>
+<script src="../JS/AI/SOLDIERS/cover-allocation.js" defer></script>
+<script src="../JS/COMMANDS/tactical-orders.js" defer></script>
+<script src="../JS/AI/SOLDIERS/tactical-behavior.js" defer></script>
+<script src="../JS/ZONES/threat-and-evacuation.js" defer></script>
+<script src="../JS/CORE/tactical-tick.js" defer></script>
+<script src="../JS/PLAYER/APPEARANCE/officer-overlays.js" defer></script>
+<script src="../JS/ZOMBIES/BRUTE/render.js" defer></script>
+<script src="../JS/RENDER/tactical-overlay.js" defer></script>
+<script src="../JS/COMMANDS/radial-wheel.js" defer></script>
+<script src="../JS/INPUT/pointer-tracking.js" defer></script>
+<script src="../JS/UI/tactical-controls.js" defer></script>
+<script src="../JS/UI/settings-behavior.js" defer></script>
+<script src="../JS/VISION/sight-memo.js" defer></script>
+<script src="../JS/VISION/geometry-rays.js" defer></script>
+<script src="../JS/COMBAT/combat-effects.js" defer></script>
+<script src="../JS/CORE/campaign-state.js" defer></script>
+<script src="../JS/MAP/random-and-save.js" defer></script>
+<script src="../JS/MAP/stage-generator.js" defer></script>
+<script src="../JS/MAP/pathfinding.js" defer></script>
+<script src="../JS/TEAM/formation-calculations.js" defer></script>
+<script src="../JS/TEAM/officers-and-retreat.js" defer></script>
+<script src="../JS/COMMANDS/campaign-orders.js" defer></script>
+<script src="../JS/EXTRACTION/evacuation-orders.js" defer></script>
+<script src="../JS/TEAM/formation-ui.js" defer></script>
+<script src="../JS/AI/SOLDIERS/campaign-behavior.js" defer></script>
+<script src="../JS/PLAYER/MOVEMENT/group-collision.js" defer></script>
+<script src="../JS/VISION/world-light.js" defer></script>
+<script src="../JS/ZONES/danger-districts.js" defer></script>
+<script src="../JS/CORE/campaign-stage.js" defer></script>
+<script src="../JS/UI/campaign-roster.js" defer></script>
+<script src="../JS/VISION/campaign-vision.js" defer></script>
+<script src="../JS/RENDER/MAP/procedural-city.js" defer></script>
+<script src="../JS/INPUT/camera.js" defer></script>
+<script src="../JS/EXTRACTION/extraction-progress.js" defer></script>
+<script src="../JS/CORE/campaign-tick.js" defer></script>
+<script src="../JS/COMMANDS/formation-wheel.js" defer></script>
+<script src="../JS/PLAYER/ABILITIES/smoke-and-vision.js" defer></script>
+<script src="../JS/INPUT/final-bindings.js" defer></script>
+<script src="../JS/INPUT/game-events.js" defer></script>
+<script src="../JS/RENDER/campaign-frame.js" defer></script>
+<script src="../JS/UI/campaign-controls.js" defer></script>
+<script src="../JS/COMMANDS/last-hooks.js" defer></script>
+<script src="../JS/MAP/crowd-aware-pathfinding.js" defer></script>
+<script src="../JS/AI/SOLDIERS/traffic-resolution.js" defer></script>
+<script src="../JS/CORE/start.js" defer></script>
+</head>
+<body>
+<canvas id="game" tabindex="0" aria-label="محیط بازی تاکتیکی">
+</canvas>
+<nav id="roster" aria-label="گروه عملیاتی">
+</nav>
+<div class="modal" id="menu" hidden>
+<section class="panel" role="dialog" aria-modal="true" aria-label="منوی توقف">
+<div class="eyebrow">DELTA SIX / OPERATIONS</div>
+<h1>BLACK VEIL</h1>
+<button class="action" id="pause">ادامهٔ عملیات</button>
+<div class="menugrid">
+<button class="action secondary" id="manual">تعویض افسر — Tab</button>
+<button class="action secondary" id="all">
+</button>
+<button class="action secondary" id="settingsOpen">تنظیم کلیدها</button>
+<button class="action secondary" id="fullscreen">نمایش تمام‌صفحه</button>
+<button class="action secondary" id="minus">کوچک‌نمایی −</button>
+<button class="action secondary" id="plus">بزرگ‌نمایی +</button>
+</div>
+<label class="settingsline">تعداد نیروها (شروع دوباره) <select id="squadSize">
+<option value="5" >5 نفر</option>
+<option value="6" >6 نفر</option>
+<option value="7" selected>7 نفر</option>
+<option value="8" >8 نفر</option>
+<option value="9" >9 نفر</option>
+<option value="10" >10 نفر</option>
+<option value="11" >11 نفر</option>
+<option value="12" >12 نفر</option>
+</select>
+</label>
+<label class="settingsline">چراغ‌قوهٔ تیم <input type="checkbox" id="lights" checked>
+</label>
+<label class="settingsline">صدای شلیک <input type="checkbox" id="sound">
+</label>
+<div class="line">
+</div>
+<details open>
+<summary>عملیات و کنترل نیروها</summary>
+<div class="ops-grid">
+<label>کنترل مستقیم<select id="operatorSelect">
+</select>
+</label>
+<label>تیم سرباز<select id="operatorTeam">
+<option value="alpha">SF — ورود و پاک‌سازی</option>
+<option value="bravo">DF — پشتیبانی و دفاع</option>
+</select>
+</label>
+<label>سلاح مستقل<select id="weaponSelect">
+<option value="carbine">M4 — کاربین</option>
+<option value="smg">MP5 — نبرد نزدیک</option>
+<option value="marksman">DMR — تیرانداز</option>
+<option value="lmg">M249 — پشتیبانی</option>
+</select>
+</label>
+<label>آرایش گروه<select id="formation">
+<option value="wedge">مثلثی</option>
+<option value="diamond">لوزی</option>
+<option value="staggered">زیگزاگ</option>
+<option value="twoColumns">دو ستونی</option>
+<option value="spread">پراکنده</option>
+<option value="column">ستونی</option>
+<option value="line">خطی</option>
+<option value="defensive">دفاعی</option>
+</select>
+</label>
+<label>محدودهٔ فرمان<select id="commandScope">
+<option value="all">هر دو تیم</option>
+<option value="alpha">SF</option>
+<option value="bravo">DF</option>
+<option value="selected">افراد انتخاب‌شده</option>
+</select>
+</label>
+<label>دستور<select id="commandSelect">
+<option value="0">آتش به اختیار</option>
+<option value="1">دنبال کردن</option>
+<option value="2">جست‌وجو</option>
+<option value="3">پناهگیری</option>
+<option value="4">حفظ موقعیت</option>
+<option value="5">دفاع</option>
+<option value="6">حمله</option>
+<option value="7">پاک‌سازی</option>
+<option value="8">تجمع مجدد</option>
+<option value="9">عقب‌نشینی</option>
+<option value="10">استخراج</option>
+<option value="11">حرکت</option>
+</select>
+</label>
+</div>
+<div class="opstats" id="weaponStats">
+</div>
+<button class="action secondary" id="executeCommand">صدور فرمان به سمت آخرین نشانه</button>
+<button class="action secondary" id="reloadWeapon">تعویض خشاب [R]</button>
+</details>
+<details>
+<summary>زون‌ها و استخراج</summary>
+<canvas id="zoneMap" width="540" height="260" aria-label="نقشهٔ زون‌های خطر و استخراج">
+</canvas>
+<div class="ops-grid">
+<label>هدف پاک‌سازی<select id="missionTarget">
+<option value="both">دو ساختمان شمالی</option>
+<option value="west">ساختمان شمال غربی</option>
+<option value="east">ساختمان شمال شرقی</option>
+</select>
+</label>
+<label>نقطهٔ تخلیه<select id="extractionSelect">
+<option value="center">جنوب — مرکزی</option>
+<option value="west">جنوب — غربی</option>
+<option value="east">جنوب — شرقی</option>
+</select>
+</label>
+</div>
+<p id="operationStatus">
+</p>
+<p>رنگ زون آبی مخصوص تخلیه است و تضمین امنیت نیست. برای خروج جزئی، فقط یک تیم را انتخاب و فرمان استخراج بده. تغییر تراکم دشمن و پاک‌سازی، سطح خطر مناطق را تغییر می‌دهد.</p>
+</details>
+<p>SF را برای پاک‌سازی و DF را برای پشتیبانی به کار بگیر؛ سپس نیروها را از نقطهٔ آبی تخلیه کن.<br>نگه‌داشتن راست‌کلیک: دایرهٔ فرمان؛ رهاکردن: اجرای فرمان انتخاب‌شده.<br>کلیک وسط: حرکت تیم به مقصد. کنترل مستقیم فقط فرمانده و معاون؛ کارت SF یا DF محدودهٔ فرمان را انتخاب می‌کند. ۲: SF، ۳: DF، T: هر دو گروه.<br>دید پایه در شب ۲۰ متر؛ چراغ‌قوه تا ۵۰ متر؛ دید روز گسترده‌تر است. دیوار و سنگر دید را مسدود می‌کنند.</p>
+<div id="guide">
+</div>
+<p id="status">
+</p>
+<div id="toast">
+</div>
+<p id="stageInfo">
+</p>
+<button class="action secondary" id="newCampaign">کارزار تازه از مرحلهٔ اول</button>
+<button class="action secondary" id="newStage">مرحلهٔ تازه</button>
+<button class="action secondary" id="restart">تکرار همین مرحله</button>
+<button id="grenade" hidden>
+</button>
+<span id="paused" hidden>
+</span>
+</section>
+</div>
+<div class="modal" id="settings" hidden>
+<section class="panel" role="dialog" aria-modal="true" aria-label="تنظیم کلیدها">
+<h2>تنظیم کلیدها</h2>
+<p>فرمان را انتخاب کن و کلید جدید را بزن. شلیک را می‌توان به کلیک چپ یا کلید کیبورد سپرد؛ راست‌کلیک برای دایرهٔ فرمان و کلیک وسط برای حرکت نیروها رزرو شده‌اند. کلید تکراری با فرمان قبلی جابه‌جا می‌شود. Esc لغو انتخاب / بازگشت.</p>
+<div id="bindrows">
+</div>
+<button class="action secondary" id="defaults">کلیدهای پیش‌فرض</button>
+<button class="action" id="settingsClose">بازگشت به منوی توقف</button>
+</section>
+</div>
+<div class="modal" id="end" hidden>
+<section class="panel" role="dialog" aria-label="نتیجه عملیات">
+<div class="eyebrow">OPERATION / DEBRIEF</div>
+<h2 id="endTitle">
+</h2>
+<p id="endText">
+</p>
+<button class="action" id="nextStage">مرحلهٔ بعد</button>
+<button class="action secondary" id="retry">تکرار همین مرحله</button>
+</section>
+</div>
+</body>
+</html>

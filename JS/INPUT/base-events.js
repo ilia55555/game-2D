@@ -1,0 +1,9 @@
+'use strict';
+/** JS/INPUT/base-events.js — modularized game mechanic; loaded in manifest order. */
+
+window.addEventListener('keyup',e=>{keys.delete(e.code);if(e.code===bindings.stance&&stanceStart!==null){const u=units[active];if(!proneTriggered)u.stance=stanceBefore==='stand'?'crouch':'stand';stanceStart=null;proneTriggered=false}});
+canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=clamp(zoom-e.deltaY*.001,.7,2)},{passive:false});
+$('#plus').onclick=()=>zoom=clamp(zoom+.15,.7,2);$('#minus').onclick=()=>zoom=clamp(zoom-.15,.7,2);$('#manual').onclick=()=>{if(state==='playing')toggleMode()};$('#all').onclick=()=>{mode='tactical';units.forEach(u=>u.selected=u.hp>0);syncControls();updateRoster()};$('#grenade').onclick=()=>{if(!paused)grenade()};$('#restart').onclick=reset;$('#retry').onclick=reset;$('#pause').onclick=togglePause;
+$('#settingsOpen').onclick=()=>{clearInput();paused=true;$('#menu').hidden=true;$('#settings').hidden=false;syncControls()};$('#settingsClose').onclick=closeSettings;$('#defaults').onclick=()=>{bindings={...defaults};listening=null;try{localStorage.removeItem('delta-bindings-night-v3')}catch{}syncControls()};document.addEventListener('pointerdown',e=>{if(!$('#settings').hidden&&listening&&!e.target.closest('button')){e.preventDefault();captureBinding('Mouse'+e.button)}},true);
+$('#lights').onchange=e=>{units.forEach(u=>u.light=e.target.checked)};$('#fullscreen').onclick=async()=>{try{if(document.fullscreenElement)await document.exitFullscreen();else await document.documentElement.requestFullscreen()}catch{notify('نمایش بازی تمام فضای این پنجره را پوشش می‌دهد.')}};
+document.addEventListener('fullscreenchange',()=>{if(!document.fullscreenElement&&state==='playing'&&!paused)togglePause()});

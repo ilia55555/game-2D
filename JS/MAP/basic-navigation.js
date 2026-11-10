@@ -1,0 +1,8 @@
+'use strict';
+/** JS/MAP/basic-navigation.js — modularized game mechanic; loaded in manifest order. */
+
+function isBlocked(x,y,r=18){return x<55+r||x>1045-r||y<48+r||y>817-r||walls.some(w=>x>w.x-r&&x<w.x+w.w+r&&y>w.y-r&&y<w.y+w.h+r)}
+function moveBody(u,dx,dy,r=18){const ox=u.x,oy=u.y;if(!isBlocked(u.x+dx,u.y,r))u.x+=dx;if(!isBlocked(u.x,u.y+dy,r))u.y+=dy;return Math.hypot(u.x-ox,u.y-oy)}
+function pathTo(u,goal){const cell=22,cols=50,rows=39,start={x:Math.round(u.x/cell),y:Math.round(u.y/cell)},end={x:Math.round(goal.x/cell),y:Math.round(goal.y/cell)},id=(x,y)=>y*cols+x;const queue=[start],prev=new Map([[id(start.x,start.y),null]]);let found=null;for(let h=0;h<queue.length;h++){const p=queue[h];if(p.x===end.x&&p.y===end.y){found=p;break}for(const [dx,dy]of [[1,0],[-1,0],[0,1],[0,-1]]){const x=p.x+dx,y=p.y+dy,k=id(x,y);if(x<0||x>=cols||y<0||y>=rows||prev.has(k)||isBlocked(x*cell,y*cell,19))continue;prev.set(k,p);queue.push({x,y})}}if(!found)return [];const path=[];for(let p=found;prev.get(id(p.x,p.y))!==null;p=prev.get(id(p.x,p.y)))path.unshift({x:p.x*cell,y:p.y*cell});path.push(goal);return path}
+function order(p){if(isBlocked(p.x,p.y,20)){notify('این نقطه داخل مانع است؛ یک نقطهٔ باز را انتخاب کن.');return}units.filter(u=>u.selected&&u.hp>0).forEach((u,i)=>{let goal={x:clamp(p.x+(i%3-1)*60,78,1020),y:clamp(p.y+Math.floor(i/3)*60,75,790)};if(isBlocked(goal.x,goal.y,20))goal=p;u.path=pathTo(u,goal);if(u.path.length){u.tx=goal.x;u.ty=goal.y}})}
+function lineClear(a,b){const d=distance(a,b),n=Math.ceil(d/9);for(let i=1;i<n;i++)if(isBlocked(a.x+(b.x-a.x)*i/n,a.y+(b.y-a.y)*i/n,2))return false;return true}
