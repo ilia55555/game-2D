@@ -77,3 +77,7 @@ Changes to `Ilia` are not needed. The `tactical-zombie` branch is the only inten
 - **Controls:** Q tactical smoke; E grenade. Lean/peeking is removed, and X/Z no longer trigger equipment by default. C toggles crouch (hold: prone).
 
 Keep these behaviors in their dedicated AI / PHYSICS / INPUT files, not bundled back into HTML.
+
+## World generation (2026-11)
+
+Levels are seeded asymmetric traversable masks on a 32-unit occupancy grid. Buildings, trees, shelves, and rocks mark exact blocked tiles. Different stages vary map dimensions, silhouette, road turns, cul-de-sacs, indoor structures, and entry/extraction points. Actor positions remain continuous. Press **N** to inspect blocked tiles. The generator and renderer are separate files; never embed gameplay in HTML.
