@@ -93,3 +93,7 @@ No shot is spawned if it would cross an allied body. Moving allies also intercep
 ## Strategy map & free command cursor
 
 **Tab** opens a paused commander map. Clicking a passable point selects a destination; issuing an explicit command to SF, DF, both teams or selected soldiers applies it. Choosing a destination alone does not move soldiers. Middle-click holds a free-moving marker at mouse world coordinates (not the weapon ray), and release issues a squad movement order. Officer switching remains accessible from the pause menu. The map, CSS, and cursor input are independent modules.
+
+## Playability validation
+
+Before accepting a newly seeded irregular world, `JS/MAP/GENERATOR/map-validator.js` tests actual collision-cleared routes from spawn to extraction and **every mission building entry** using the same A* planner as soldiers. An unreachable topology is reseeded instead of trapping the squad. Run `node tests/map-navigation.cjs` to regression-test seeded worlds.
