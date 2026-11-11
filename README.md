@@ -74,7 +74,7 @@ Changes to `Ilia` are not needed. The `tactical-zombie` branch is the only inten
 - **No autonomous soldier movement:** start in HOLD, no default follow, cover search or officer escort. Soldiers move only for explicitly issued player tasks. They do not physically push stationary units out of the way.
 - **Fire discipline:** SF and DF start with free fire OFF. They shoot normally only after an explicit Fire, Attack or Clear command. Without it, an uncontrolled soldier fires solely at an unobstructed zombie within 64 world units as emergency self-defense and never chases it.
 - **Solid hitboxes:** soldiers use a rotating 78×56 footprint including the rifle; infected use a torso-only rotating 46×52 footprint (64×68 for brutes), with reaching hands intentionally outside. Movement is swept in increments and blocked by walls, world edges, and ALL living actors. Hitbox debug overlay: **B**.
-- **Controls:** Q/E held lean; Z grenade; X tactical smoke; R reload; F held formation wheel; V night vision/torch; C crouch (hold: prone). Key rebinding persists across reloads in `delta-bindings-tactical-v4`.
+- **Controls:** Z grenade; X tactical smoke; R reload; F held formation wheel; V night vision/torch; C crouch (hold: prone). Key rebinding persists across reloads in `delta-bindings-tactical-v4`.
 
 Keep these behaviors in their dedicated AI / PHYSICS / INPUT files, not bundled back into HTML.
 
@@ -124,6 +124,9 @@ Run `node tests/footprint-contact.cjs` for contact, rotating collision, melee an
 
 Maps now start from 2240×2080 world units, with a larger clear deployment apron. Soldiers deploy behind the commander, with wider formation gaps. Regression coverage checks 120 units of unobstructed movement in all four directions for squad sizes 5–12.
 
-The sprite renderer trims transparent margins once, fits the opaque soldier image to its physical rectangle, and uses the same dimensions for collision, crouch/prone and leaning. Weapon-light dots and the controlled-officer ground circle are removed; beam illumination remains.
+The sprite renderer trims transparent margins once, fits the opaque soldier image to its physical rectangle, and uses the same dimensions for collision, crouch/prone . Weapon-light dots and the controlled-officer ground circle are removed; beam illumination remains.
 
 Separate PNG files can replace each character automatically under `ASSETS/CHARACTERS/INDIVIDUAL/`; see its README for filenames. Missing images use the existing sheet.
+
+
+Team equipment: L toggles flashlights for every living unit. V toggles NVG for the entire team on equipped stages, otherwise all team flashlights. Leaning is removed. Gunfire audio is always enabled after the first browser interaction; there are no flashlight or sound checkboxes in pause settings.

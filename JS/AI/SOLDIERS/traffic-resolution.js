@@ -14,7 +14,6 @@ function desiredVelocity(u,dt){
     dx=Number(keys.has(bindings.right))-Number(keys.has(bindings.left));
     dy=Number(keys.has(bindings.down))-Number(keys.has(bindings.up));
     tryActorFacing(u,Math.atan2(mouse.y-u.y,mouse.x-u.x));
-    const oldLean=u.lean;u.lean=Number(keys.has(bindings.leanRight))-Number(keys.has(bindings.leanLeft));if(!isActorSpaceFree(u,u.x,u.y))u.lean=oldLean;
   }else{
     if(!canFollowPath(u)||t<(u.waitUntil||0))return{x:0,y:0};
     while(u.path?.length&&distance(u,u.path[0])<7)u.path.shift();

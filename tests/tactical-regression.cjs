@@ -25,7 +25,7 @@ for(let count=5;count<=12;count++){
 }
 
 run('squadCount=7;stageSeed=1234;resetStage(true)');
-assert.equal(run('bindings.leanLeft'),'KeyQ');assert.equal(run('bindings.leanRight'),'KeyE');assert.equal(run('bindings.grenade'),'KeyZ');assert.equal(run('bindings.special'),'KeyX');
+assert.equal(run("'leanLeft' in bindings"),false);assert.equal(run("'leanRight' in bindings"),false);assert.equal(run('bindings.grenade'),'KeyZ');assert.equal(run('bindings.special'),'KeyX');
 run("commandGroup='alpha';issueCommand(1)");assert(run("units.filter(u=>u.group==='alpha').every(u=>u.task==='follow')"));assert(run("units.filter(u=>u.group==='bravo').every(u=>u.task==='hold')"));
 run('issueCommand(1)');assert(run("units.filter(u=>u.group==='alpha').every(u=>u.task==='hold'&&!u.path.length)"));
 run("commandGroup='all';issueCommand(3)");assert(run('coverReservations.size>0'));
@@ -44,4 +44,12 @@ run("squadCount=6;stageSeed=1234;resetStage(true);zombies=[];units.filter(u=>u.i
 assert(run('autoRetreat'));assert.equal(run('controlledId'),-1);assert(run("units.filter(alive).every(u=>u.task==='extract')"));
 run('units.filter(alive).forEach(u=>{u.x=extraction.point.x;u.y=extraction.point.y});updateExtractionCampaign(5.1)');assert.equal(run('state'),'won');
 run('stageSeed=1234;resetStage(true);for(let i=0;i<100;i++)update(.02);draw()');
-console.log('PASS: complete module startup/update/render; scoped orders; follow toggle; cover capacity and cancellation; individual fire; formation; long-range swept bullets; officer-loss evacuation; Q/E and Z/X controls');
+console.log('PASS: complete module startup/update/render; scoped orders; follow toggle; cover capacity and cancellation; individual fire; formation; long-range swept bullets; officer-loss evacuation; Z/X controls');
+
+run("world.nvgAvailable=true;teamVision={lights:false,nvg:false};toggleLights()");
+assert(run('units.filter(alive).every(u=>u.light&&!u.nvg)'),'L lights the whole team');
+run('toggleVision()');assert(run('units.filter(alive).every(u=>u.nvg&&!u.light)'),'V activates team NVG and switches torches off');
+run('toggleVision()');assert(run('units.filter(alive).every(u=>!u.nvg)'),'V disables team NVG');
+run('world.nvgAvailable=false;toggleVision()');assert(run('units.filter(alive).every(u=>u.light&&!u.nvg)'),'V controls all torches without NVG equipment');
+assert(!html.includes('id="sound"')&&!html.includes('id="lights"'),'No sound/light checkbox in pause settings');
+console.log('PASS: removed lean bindings; central team flashlight/NVG; no sound/light settings');
