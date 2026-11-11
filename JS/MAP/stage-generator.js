@@ -42,7 +42,7 @@ function generateStage(seed,index){
    const d=Math.hypot(hubs[a].x-hubs[b].x,hubs[a].y-hubs[b].y);
    if(!edge||d<edge.d)edge={a,b,d};
   }
-  bendRoad(hubs[edge.a],hubs[edge.b],rand(1,2));connected.add(edge.b);
+  bendRoad(hubs[edge.a],hubs[edge.b],rand(2,3));connected.add(edge.b);
  }
  // A few short service-road dead ends, aligned with the local street network.
  for(let i=0;i<rand(1,3);i++){
@@ -59,7 +59,7 @@ function generateStage(seed,index){
  function building(tx,ty,bw,bh){
   const nearX=Math.max(tx*size,Math.min((tx+bw)*size,w.spawn.x)),nearY=Math.max(ty*size,Math.min((ty+bh)*size,w.spawn.y));
   if(Math.hypot(nearX-w.spawn.x,nearY-w.spawn.y)<220)return;
-  const id='b'+w.buildings.length,doorSide=rand(0,3),gap=rand(2,Math.min(4,(doorSide%2?bh:bw)-3));
+  const id='b'+w.buildings.length,doorSide=rand(0,3),gap=Math.min(5,(doorSide%2?bh:bw)-2);
   const b={id,x:(tx+1)*size,y:(ty+1)*size,w:(bw-2)*size,h:(bh-2)*size,
   outer:{x:tx*size,y:ty*size,w:bw*size,h:bh*size},doorSide,cleared:false,visited:false};
   const gx=Math.floor((bw-gap)/2),gy=Math.floor((bh-gap)/2);
@@ -91,19 +91,19 @@ function generateStage(seed,index){
  }
  // Supplemental diverse structures use the same collision tiles.
  for(let i=0;i<rand(3,10);i++){
-  const p=hubs[rand(0,hubs.length-1)],bw=rand(4,8),bh=rand(4,8),tx=p.x+rand(-13,13),ty=p.y+rand(-10,10);
+  const p=hubs[rand(0,hubs.length-1)],bw=rand(6,10),bh=rand(6,10),tx=p.x+rand(-13,13),ty=p.y+rand(-10,10);
   if(gridRectAvailable(g,tx,ty,bw,bh))building(tx,ty,bw,bh);
  }
  // Fill spare district plots before accepting a sparse world.
  for(let i=0;i<500&&w.buildings.length<5;i++){
-  const bw=rand(5,9),bh=rand(5,9),tx=rand(3,cols-bw-4),ty=rand(3,rows-bh-4);
+  const bw=rand(6,10),bh=rand(6,10),tx=rand(3,cols-bw-4),ty=rand(3,rows-bh-4);
   if(gridRectAvailable(g,tx,ty,bw,bh))building(tx,ty,bw,bh);
  }
  // Guaranteed mission target without falsifying navigable space.
  if(!w.buildings.length){
   const p=hubs[1]||hubs[0];for(let k=0;k<120&&!w.buildings.length;k++){
    const tx=p.x+rand(-11,11),ty=p.y+rand(-11,11);
-   if(gridRectAvailable(g,tx,ty,5,5,true))building(tx,ty,5,5);
+   if(gridRectAvailable(g,tx,ty,7,7,true))building(tx,ty,7,7);
   }
  }
  for(let i=0;i<rand(20,60);i++){

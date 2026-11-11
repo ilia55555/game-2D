@@ -1,6 +1,6 @@
 'use strict';
 /** Direct visibility test in continuous world coordinates, not grid-node traversal. */
-function routeSegmentClear(a,b,clearance=22,avoid=[]){
+function routeSegmentClear(a,b,clearance=50,avoid=[]){
  if(!a||!b)return false;
  const length=Math.hypot(b.x-a.x,b.y-a.y),count=Math.max(1,Math.ceil(length/7));
  for(let i=0;i<=count;i++){
@@ -14,7 +14,7 @@ function routeSegmentClear(a,b,clearance=22,avoid=[]){
  }
  return true;
 }
-function routeSafeGoal(point,clearance=22){
+function routeSafeGoal(point,clearance=50){
  if(!point||!world?.grid)return null;
  const g=world.grid;
  const x=Math.max(40,Math.min(world.width-40,point.x)),y=Math.max(40,Math.min(world.height-40,point.y));

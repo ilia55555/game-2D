@@ -8,7 +8,7 @@ function stageRoutesValid(candidate){
  const savedWorld=world,savedNav=nav;
  try{
   world=candidate;nav=null;
-  const actor={...candidate.spawn,i:-999,hp:100,hitbox:{hx:13,hy:13}};
+  const actor={...candidate.spawn,i:-999,hp:100,hitbox:{hx:39,hy:28}};
   const goals=[candidate.extractionPoint,...candidate.buildings.map(b=>b.entry)];
   for(const destination of goals){
    if(!destination) return false;

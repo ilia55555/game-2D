@@ -5,7 +5,7 @@ function zombie(z){
 if(tacticalAtlas.complete&&tacticalAtlas.naturalWidth){
  c.save();c.translate(z.x,z.y);ellipse(2,6,z.special?27:20,z.special?23:17,'#080b1288');c.rotate(z.a);
  const cell=z.special?6:[4,5,7][z.variant??(z.id||0)%3];
- drawTacticalActor(cell,z.special?86:66,z.special?86:66,z.phase,z.state==='chase'||z.speed>0);
+ drawTacticalActor(cell,z.special?92:72,z.special?92:72,z.phase,z.state==='chase'||z.speed>0);
  c.restore();return;
 }
 const stride=Math.sin(z.phase),bob=Math.cos(z.phase*2)*.5;c.save();c.translate(z.x,z.y);c.rotate(z.a+Math.PI/2);ellipse(2,5,18,25,'#02020566');if(zombieArt.complete&&zombieArt.naturalWidth){const sw=zombieArt.naturalWidth/4,sh=zombieArt.naturalHeight/2,frame=Math.floor(z.phase/(Math.PI*2)*8)%8;c.drawImage(zombieArt,frame%4*sw,Math.floor(frame/4)*sh,sw,sh,-27,-42+bob,54,88)}else{const skin='#a6a18e',cloth='#574348';c.lineCap='round';line(-8,7,-10+stride*3,24, '#343139',8);line(7,7,9-stride*3,25,'#393039',8);ellipse(-10+stride*3,26,5,8,'#222028');ellipse(9-stride*3,27,5,8,'#222028');c.save();c.rotate(stride*.08);ellipse(0,-1,14,19,cloth);line(-11,-9,-18,-22+stride*3,cloth,7);line(-18,-22+stride*3,-13,-32,skin,5);line(11,-9,19,-20-stride*3,cloth,7);line(19,-20-stride*3,15,-31,skin,5);ellipse(0,-16,8,9,skin);ellipse(-3,-18,4,5,'#6a665d');line(0,-2,6,6,'#42252e',4);c.restore()}c.restore()}

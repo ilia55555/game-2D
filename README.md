@@ -73,7 +73,7 @@ Changes to `Ilia` are not needed. The `tactical-zombie` branch is the only inten
 
 - **No autonomous soldier movement:** start in HOLD, no default follow, cover search or officer escort. Soldiers move only for explicitly issued player tasks. They do not physically push stationary units out of the way.
 - **Fire discipline:** SF and DF start with free fire OFF. They shoot normally only after an explicit Fire, Attack or Clear command. Without it, an uncontrolled soldier fires solely at an unobstructed zombie within 64 world units as emergency self-defense and never chases it.
-- **Solid hitboxes:** soldiers use a 26×26 AABB; standard zombies 24×24, large zombies 30×30. Movement is swept in increments and blocked by walls, world edges, and ALL living actors. Hitbox debug overlay: **B**.
+- **Solid hitboxes:** soldiers use a rotating 78×56 footprint including the rifle; infected use a torso-only rotating 46×52 footprint (64×68 for brutes), with reaching hands intentionally outside. Movement is swept in increments and blocked by walls, world edges, and ALL living actors. Hitbox debug overlay: **B**.
 - **Controls:** Q/E held lean; Z grenade; X tactical smoke; R reload; F held formation wheel; V night vision/torch; C crouch (hold: prone). Key rebinding persists across reloads in `delta-bindings-tactical-v4`.
 
 Keep these behaviors in their dedicated AI / PHYSICS / INPUT files, not bundled back into HTML.
@@ -84,7 +84,7 @@ Levels are seeded asymmetric traversable masks on a 32-unit occupancy grid. Buil
 
 ## Navigation physics
 
-A floating-point actor travels independently of 32-unit tile centers. The planner first checks a direct line with a clearance buffer, uses A* on grid occupancy if obstructed, shortcuts the polyline, and accepts rounded quadratic corners only after collision sampling. Hitboxes still enforce collision every movement step. 32-unit tiles are not movement steps; **stationary soldiers are never pushed by routing**.
+A floating-point actor travels independently of 32-unit tile centers. The planner first checks a direct line with a clearance buffer, uses A* on grid occupancy if obstructed, shortcuts the polyline, and accepts rounded quadratic corners only after collision sampling. Hitboxes still enforce collision every movement step. The clearance planner samples at 16 units while occupancy remains 32 units. 32-unit tiles are not movement steps; **stationary soldiers are never pushed by routing**.
 
 ## Friendly-fire discipline
 
@@ -111,3 +111,10 @@ node tests/tactical-regression.cjs
 ```
 
 The effective projectile ranges are MP5 150 m, M4 300 m, M249 400 m and DMR 600 m at 8 world units/metre. Projectiles continue beyond the aim point and field of view until a swept collision, range expiry or the world boundary. Tracer visibility remains restricted by the squad's sight; seeing a tracer fade into darkness does not mean the physical bullet vanished. These are gameplay values, not a complete real-world ballistics simulation.
+
+
+### Full character footprints
+
+Collision footprints now rotate with the actors. Soldiers include the full weapon; infected reserve only their body core so their reaching arms can reach a soldier at contact. B shows green soldier / red infected footprints without revealing hidden enemies. Navigation clearance, doorway width, spawn spacing, formation spacing and cover allocation account for the larger footprints. Rotation is blocked if it would put the footprint inside a solid object or another character. Melee checks footprint contact, and projectile sweeps include the body-to-muzzle segment, preventing close enemies from becoming immune behind the muzzle. Greed chase speed is 86 world units/s; the brute is 65.
+
+Run `node tests/footprint-contact.cjs` for contact, rotating collision, melee and near-muzzle regression coverage.

@@ -13,7 +13,7 @@ function desiredVelocity(u,dt){
   if(manual){
     dx=Number(keys.has(bindings.right))-Number(keys.has(bindings.left));
     dy=Number(keys.has(bindings.down))-Number(keys.has(bindings.up));
-    u.a=Math.atan2(mouse.y-u.y,mouse.x-u.x);
+    tryActorFacing(u,Math.atan2(mouse.y-u.y,mouse.x-u.x));
     u.lean=Number(keys.has(bindings.leanRight))-Number(keys.has(bindings.leanLeft));
   }else{
     if(!canFollowPath(u)||t<(u.waitUntil||0))return{x:0,y:0};
@@ -41,7 +41,7 @@ function simulateMovement(dt){
       u.phase+=moved*.14;
       u.legA=Math.atan2(u.y-oy,u.x-ox);
       u.blockedTime=0;
-      if(u.i!==controlledId&&!u.engage)u.a=u.legA;
+      if(u.i!==controlledId&&!u.engage)tryActorFacing(u,u.legA);
     }else if(Math.hypot(dx,dy)>.03){
       u.blockedTime=(u.blockedTime||0)+dt;
       // Recompute a route only for an existing user-issued destination.

@@ -4,8 +4,10 @@
  */
 const ALLY_FIRE_PADDING=8;
 function segmentVsBox(from,to,entity,padding=ALLY_FIRE_PADDING){
- const box=actorHitbox(entity),mins={x:entity.x-box.hx-padding,y:entity.y-box.hy-padding},
-  maxs={x:entity.x+box.hx+padding,y:entity.y+box.hy+padding};
+ const box=actorHitbox(entity),angle=entity.a||0,co=Math.cos(angle),si=Math.sin(angle);
+ const local=p=>({x:(p.x-entity.x)*co+(p.y-entity.y)*si,y:-(p.x-entity.x)*si+(p.y-entity.y)*co});
+ from=local(from);to=local(to);
+ const mins={x:-box.hx-padding,y:-box.hy-padding},maxs={x:box.hx+padding,y:box.hy+padding};
  let near=0,far=1;
  for(const axis of ['x','y']){
   const delta=to[axis]-from[axis];

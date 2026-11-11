@@ -20,11 +20,8 @@ isInsideSolid=function(x,y,box){
  return legacyInsideSolid(x,y,box);
 };
 function gridClearanceGrid(){
- const g=world.grid,blocked=new Uint8Array(g.cols*g.rows),clearance=22;
- for(let y=0;y<g.rows;y++)for(let x=0;x<g.cols;x++){
-  blocked[y*g.cols+x]=tileBoxBlocked(g,(x+.5)*g.cell,(y+.5)*g.cell,clearance,clearance)?1:0;
- }
- nav={cell:g.cell,cols:g.cols,rows:g.rows,blocked};
- return nav;
+ const g=world.grid,cell=16,cols=Math.ceil(world.width/cell),rows=Math.ceil(world.height/cell),blocked=new Uint8Array(cols*rows),clearance=50;
+ for(let y=0;y<rows;y++)for(let x=0;x<cols;x++)blocked[y*cols+x]=tileBoxBlocked(g,(x+.5)*cell,(y+.5)*cell,clearance,clearance)?1:0;
+ nav={cell,cols,rows,blocked};return nav;
 }
 buildNav=function(){return world?.grid?gridClearanceGrid():null};

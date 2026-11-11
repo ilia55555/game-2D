@@ -1,14 +1,14 @@
 'use strict';
 /** Heap-based A*. Grid cells are planner nodes only; returned vertices use floating-point world coordinates. */
 function findGridRoute(from,to,avoidAgents=false){
- if(!nav||nav.cols!==world.grid.cols||nav.rows!==world.grid.rows)buildNav();
+ if(!nav||nav.cols!==Math.ceil(world.width/nav.cell)||nav.rows!==Math.ceil(world.height/nav.cell))buildNav();
  const {cols,rows,cell,blocked:solid}=nav,total=cols*rows;
  const blocked=avoidAgents?solid.slice():solid;
  if(avoidAgents)for(const unit of units){
   if(!alive(unit)||unit===from||unit.i===from.i)continue;
-  for(let y=Math.max(0,Math.floor((unit.y-39)/cell));y<Math.min(rows,Math.ceil((unit.y+39)/cell));y++)
-  for(let x=Math.max(0,Math.floor((unit.x-39)/cell));x<Math.min(cols,Math.ceil((unit.x+39)/cell));x++)
-   if(Math.abs((x+.5)*cell-unit.x)<40&&Math.abs((y+.5)*cell-unit.y)<40)blocked[y*cols+x]=1;
+  for(let y=Math.max(0,Math.floor((unit.y-105)/cell));y<Math.min(rows,Math.ceil((unit.y+105)/cell));y++)
+  for(let x=Math.max(0,Math.floor((unit.x-105)/cell));x<Math.min(cols,Math.ceil((unit.x+105)/cell));x++)
+   if(Math.abs((x+.5)*cell-unit.x)<105&&Math.abs((y+.5)*cell-unit.y)<105)blocked[y*cols+x]=1;
  }
  const idx=(x,y)=>y*cols+x;
  function closest(p){
@@ -16,7 +16,7 @@ function findGridRoute(from,to,avoidAgents=false){
   for(let rad=0;rad<=7;rad++)for(let y=cy-rad;y<=cy+rad;y++)for(let x=cx-rad;x<=cx+rad;x++){
    if(x<0||y<0||x>=cols||y>=rows||Math.max(Math.abs(x-cx),Math.abs(y-cy))!==rad||blocked[idx(x,y)])continue;
    const worldPos={x:(x+.5)*cell,y:(y+.5)*cell};
-   if(routeSegmentClear(p,worldPos,20,[]))return idx(x,y);
+   if(routeSegmentClear(p,worldPos,50,[]))return idx(x,y);
   }
   return -1;
  }
