@@ -4,7 +4,7 @@
  */
 const FIRE_LANE_STEPS=[45,72,95];
 function fireOrderAllowsSidestep(u){
- return u.i!==controlledId&&!autoRetreat&&(Boolean(squads[u.group]?.fire)||u.task==='attack'||u.task==='clear');
+ return u.i!==controlledId&&!autoRetreat&&['attack','clear','search'].includes(u.task);
 }
 function requestSafeFireLane(u,target){
  if(!fireOrderAllowsSidestep(u)||!target||t<(u.fireLaneRetryAt||0))return false;

@@ -17,7 +17,7 @@ const context={console, Math, Set, Map, world:{width:800,height:800},walls:[{x:3
   leaderId:0,formationRevision:0,coverSlots:[],coverReservations:new Map()
 };
 vm.createContext(context);
-for(const file of ['AI/SOLDIERS/tactical-behavior.js','AI/SOLDIERS/campaign-behavior.js','AI/SOLDIERS/traffic-resolution.js']){
+for(const file of ['COMBAT/FRIENDLY-FIRE/firing-lanes.js','AI/SOLDIERS/tactical-behavior.js','AI/SOLDIERS/campaign-behavior.js','AI/SOLDIERS/traffic-resolution.js']){
   vm.runInContext(fs.readFileSync(path.join(base,file),'utf8'),context,{filename:file});
 }
 vm.runInContext(fs.readFileSync(path.join(base,'PHYSICS/hitbox-collisions.js'),'utf8'),context);

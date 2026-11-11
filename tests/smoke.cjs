@@ -17,3 +17,8 @@ walk(path.join(root,'JS'));
 assert(fs.existsSync(path.join(root,'ASSETS/ZOMBIES/WALKER/zombie-walk.png')));
 for(const folder of ['WEAPONS','ZOMBIES','UI','AMBIENCE']) assert(fs.existsSync(path.join(root,'SOUNDS',folder,'README.md')));
 console.log('PASS: module paths, image assets, JS syntax and sound directory structure');
+
+const css=[...html.matchAll(/<link rel="stylesheet" href="\.\.\/([^"]+)"/g)].map(m=>fs.readFileSync(path.join(root,m[1]),'utf8')).join('\n');
+for(const selector of ['.modal{','button.action{','.ops-grid{','#roster{','@media('])assert(css.includes(selector),'Broken migrated CSS selector: '+selector);
+assert(fs.existsSync(path.join(root,'ASSETS/CHARACTERS/tactical-atlas.png')));
+console.log('PASS: repaired overlay/menu selectors and tactical atlas');

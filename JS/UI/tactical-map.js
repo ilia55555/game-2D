@@ -69,7 +69,7 @@ document.querySelector('#tacticalMapClose').onclick=()=>toggleTacticalMap(false)
 window.addEventListener('resize',()=>{if(tacticalMapOpen)drawCommandMap()});
 window.addEventListener('keydown',e=>{
  if(!tacticalMapOpen)return;
- if(e.code==='Tab'||e.code==='Escape'){e.preventDefault();e.stopImmediatePropagation();if(!e.repeat)toggleTacticalMap(false)}
+ if(e.code===bindings.map||e.code==='Escape'){e.preventDefault();e.stopImmediatePropagation();if(!e.repeat)toggleTacticalMap(false)}
  else if(!['ArrowUp','ArrowDown','Enter'].includes(e.code))e.stopImmediatePropagation();
 },true);
 window.addEventListener('keyup',e=>{if(tacticalMapOpen){e.stopImmediatePropagation();keys.delete(e.code)}},true);

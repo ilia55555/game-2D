@@ -26,21 +26,29 @@ function generateStage(seed,index){
  }
  function bendRoad(a,b,half=2){
   // Two elbows make street directions vary; a few become very indirect.
-  const mx=Math.round((a.x+b.x)/2+(rng()-.5)*12),my=Math.round((a.y+b.y)/2+(rng()-.5)*12);
+  const mx=Math.round((a.x+b.x)/2),my=b.y;
   const p={x:Math.max(3,Math.min(cols-4,mx)),y:a.y};
   const q={x:p.x,y:Math.max(3,Math.min(rows-4,my))};
+  w.roads.push({points:[a,p,q,{x:b.x,y:q.y},b].map(v=>({x:(v.x+.5)*size,y:(v.y+.5)*size})),width:(half*2+1)*size-12});
   paintLane(g,a,p,half);paintLane(g,p,q,half);paintLane(g,q,{x:b.x,y:q.y},half);
   paintLane(g,{x:b.x,y:q.y},b,half);
  }
- for(let i=1;i<hubs.length;i++)bendRoad(hubs[i-1],hubs[i],rand(2,3));
- for(let i=0;i<Math.max(1,count>>2);i++){
-  const a=hubs[rand(0,count-1)],b=hubs[rand(0,count-1)];
-  if(a!==b&&rng()>.35)bendRoad(a,b,2);
+ // Link each district to its nearest connected neighbour. This prevents random
+ // criss-cross spaghetti while retaining asymmetric connected streets.
+ const connected=new Set([0]);
+ while(connected.size<hubs.length){
+  let edge=null;
+  for(const a of connected)for(let b=0;b<hubs.length;b++)if(!connected.has(b)){
+   const d=Math.hypot(hubs[a].x-hubs[b].x,hubs[a].y-hubs[b].y);
+   if(!edge||d<edge.d)edge={a,b,d};
+  }
+  bendRoad(hubs[edge.a],hubs[edge.b],rand(1,2));connected.add(edge.b);
  }
- // Dead ends are intentional: no node is appended at their far end.
- for(let i=0;i<rand(3,8);i++){
-  const a=hubs[rand(0,count-1)],b={x:Math.max(3,Math.min(cols-4,a.x+rand(-14,14))),
-  y:Math.max(3,Math.min(rows-4,a.y+rand(-14,14)))};paintLane(g,a,b,rand(1,2));
+ // A few short service-road dead ends, aligned with the local street network.
+ for(let i=0;i<rand(1,3);i++){
+  const a=hubs[rand(0,hubs.length-1)],horizontal=rng()>.5,length=rand(6,11)*(rng()>.5?1:-1);
+  const b={x:Math.max(3,Math.min(cols-4,a.x+(horizontal?length:0))),y:Math.max(3,Math.min(rows-4,a.y+(horizontal?0:length)))};
+  const half=1;w.roads.push({points:[a,b].map(v=>({x:(v.x+.5)*size,y:(v.y+.5)*size})),width:(half*2+1)*size-12});paintLane(g,a,b,half);
  }
  w.spawn=findOpenTile(g,(spawnHub.x+.5)*size,(spawnHub.y+.5)*size,12)||{x:width/2,y:height/2};
  const wall=(tx,ty,tw,th,extra={})=>{
@@ -49,6 +57,8 @@ function generateStage(seed,index){
   w.walls.push({x:tx*size,y:ty*size,w:tw*size,h:th*size,cover:true,capacity:Math.max(tw,th)>=4?2:1,...extra});
  };
  function building(tx,ty,bw,bh){
+  const nearX=Math.max(tx*size,Math.min((tx+bw)*size,w.spawn.x)),nearY=Math.max(ty*size,Math.min((ty+bh)*size,w.spawn.y));
+  if(Math.hypot(nearX-w.spawn.x,nearY-w.spawn.y)<220)return;
   const id='b'+w.buildings.length,doorSide=rand(0,3),gap=rand(2,Math.min(4,(doorSide%2?bh:bw)-3));
   const b={id,x:(tx+1)*size,y:(ty+1)*size,w:(bw-2)*size,h:(bh-2)*size,
   outer:{x:tx*size,y:ty*size,w:bw*size,h:bh*size},doorSide,cleared:false,visited:false};
@@ -82,6 +92,11 @@ function generateStage(seed,index){
  // Supplemental diverse structures use the same collision tiles.
  for(let i=0;i<rand(3,10);i++){
   const p=hubs[rand(0,hubs.length-1)],bw=rand(4,8),bh=rand(4,8),tx=p.x+rand(-13,13),ty=p.y+rand(-10,10);
+  if(gridRectAvailable(g,tx,ty,bw,bh))building(tx,ty,bw,bh);
+ }
+ // Fill spare district plots before accepting a sparse world.
+ for(let i=0;i<500&&w.buildings.length<5;i++){
+  const bw=rand(5,9),bh=rand(5,9),tx=rand(3,cols-bw-4),ty=rand(3,rows-bh-4);
   if(gridRectAvailable(g,tx,ty,bw,bh))building(tx,ty,bw,bh);
  }
  // Guaranteed mission target without falsifying navigable space.

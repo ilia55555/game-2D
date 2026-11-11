@@ -74,13 +74,13 @@ Changes to `Ilia` are not needed. The `tactical-zombie` branch is the only inten
 - **No autonomous soldier movement:** start in HOLD, no default follow, cover search or officer escort. Soldiers move only for explicitly issued player tasks. They do not physically push stationary units out of the way.
 - **Fire discipline:** SF and DF start with free fire OFF. They shoot normally only after an explicit Fire, Attack or Clear command. Without it, an uncontrolled soldier fires solely at an unobstructed zombie within 64 world units as emergency self-defense and never chases it.
 - **Solid hitboxes:** soldiers use a 26×26 AABB; standard zombies 24×24, large zombies 30×30. Movement is swept in increments and blocked by walls, world edges, and ALL living actors. Hitbox debug overlay: **B**.
-- **Controls:** Q tactical smoke; E grenade. Lean/peeking is removed, and X/Z no longer trigger equipment by default. C toggles crouch (hold: prone).
+- **Controls:** Q/E held lean; Z grenade; X tactical smoke; R reload; F held formation wheel; V night vision/torch; C crouch (hold: prone). Key rebinding persists across reloads in `delta-bindings-tactical-v4`.
 
 Keep these behaviors in their dedicated AI / PHYSICS / INPUT files, not bundled back into HTML.
 
 ## World generation (2026-11)
 
-Levels are seeded asymmetric traversable masks on a 32-unit occupancy grid. Buildings, trees, shelves, and rocks mark exact blocked tiles. Different stages vary map dimensions, silhouette, road turns, cul-de-sacs, indoor structures, and entry/extraction points. Actor positions remain continuous. Press **N** to inspect blocked tiles. The generator and renderer are separate files; never embed gameplay in HTML.
+Levels are seeded asymmetric traversable masks on a 32-unit occupancy grid. Buildings, trees, shelves, and rocks mark exact blocked tiles. Different stages vary map dimensions, silhouette, road turns, cul-de-sacs, indoor structures, and entry/extraction points. Actor positions remain continuous. Press **N** to inspect blocked tiles. The generator and renderer are separate files; never embed gameplay in HTML. The grid is invisible: a cached continuous terrain renderer adds soft ground edges, a joined street network, ground wear, concrete details, irregular rocks and foliage. Each accepted map has at least three reachable mission buildings; buildings stay clear of the spawn area.
 
 ## Navigation physics
 
@@ -88,7 +88,7 @@ A floating-point actor travels independently of 32-unit tile centers. The planne
 
 ## Friendly-fire discipline
 
-No shot is spawned if it would cross an allied body. Moving allies also intercept bullets rather than taking damage. Only a squad with an explicit fire/attack/clear order may take a short **bounded lateral firing-lane step**; idle or self-defending soldiers stay where ordered. Fire-lane AI, ray tests, and shot enforcement remain in separate JS/COMBAT/FRIENDLY-FIRE files.
+No shot is spawned if it would cross an allied body. Moving allies also intercept bullets rather than taking damage. Only explicit attack/clear/search travel tasks permit a bounded lateral firing-lane step. HOLD, DEFEND and COVER never abandon their positions to find a shot. A new order cancels previous lane movement; free-fire permission is independent of movement and supports individual selection. Fire-lane AI, ray tests, and shot enforcement remain in separate JS/COMBAT/FRIENDLY-FIRE files.
 
 ## Strategy map & free command cursor
 
@@ -97,3 +97,17 @@ No shot is spawned if it would cross an allied body. Moving allies also intercep
 ## Playability validation
 
 Before accepting a newly seeded irregular world, `JS/MAP/GENERATOR/map-validator.js` tests actual collision-cleared routes from spawn to extraction and **every mission building entry** using the same A* planner as soldiers. An unreachable topology is reseeded instead of trapping the squad. Run `node tests/map-navigation.cjs` to regression-test seeded worlds.
+
+
+## Tactical overhaul
+
+See [TACTICAL-UPDATE.md](TACTICAL-UPDATE.md) for current controls, changes, validation and art scope. Run:
+
+```sh
+node tests/smoke.cjs
+node tests/ai-hitbox.cjs
+node tests/map-navigation.cjs
+node tests/tactical-regression.cjs
+```
+
+The effective projectile ranges are MP5 150 m, M4 300 m, M249 400 m and DMR 600 m at 8 world units/metre. Projectiles continue beyond the aim point and field of view until a swept collision, range expiry or the world boundary. Tracer visibility remains restricted by the squad's sight; seeing a tracer fade into darkness does not mean the physical bullet vanished. These are gameplay values, not a complete real-world ballistics simulation.

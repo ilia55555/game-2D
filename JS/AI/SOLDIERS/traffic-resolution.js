@@ -14,6 +14,7 @@ function desiredVelocity(u,dt){
     dx=Number(keys.has(bindings.right))-Number(keys.has(bindings.left));
     dy=Number(keys.has(bindings.down))-Number(keys.has(bindings.up));
     u.a=Math.atan2(mouse.y-u.y,mouse.x-u.x);
+    u.lean=Number(keys.has(bindings.leanRight))-Number(keys.has(bindings.leanLeft));
   }else{
     if(!canFollowPath(u)||t<(u.waitUntil||0))return{x:0,y:0};
     while(u.path?.length&&distance(u,u.path[0])<7)u.path.shift();
@@ -48,7 +49,7 @@ function simulateMovement(dt){
         u.blockedTime=0;
         const next=pathTo(u,u.routeGoal,true);
         if(next.length)u.path=next;
-        else{u.path=[];u.routeGoal=null;u.task='hold';}
+        else{u.orderBlocked=true;} // Keep the player's destination; retry when traffic clears.
         u.waitUntil=t+.2;
       }
     }else u.blockedTime=0;

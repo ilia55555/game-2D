@@ -9,28 +9,23 @@ function planSquads(){
     const task=u.task||'hold';
     if(task==='hold')continue;
     if(task==='follow'){
-      // Follow is opt-in; no follow state is created by starting a mission.
-      const anchorUnit=units[controlledId]||units[leaderId];
-      if(!anchorUnit||!alive(anchorUnit))continue;
-      const side=u.group==='alpha'?-85:u.group==='bravo'?85:45;
-      const row=Math.floor((u.slot||0)/2),column=(u.slot||0)%2;
-      const desired=safeGoal({x:anchor.x+side+(column-.5)*40,y:anchor.y+row*44});
-      if(!desired)continue;
-      const movedAnchor=!u.followAnchor||distance(anchor,u.followAnchor)>32;
-      const tooFar=distance(u,desired)>65;
-      if((movedAnchor||tooFar)&&distance(u,desired)>38&&(!u.routeGoal||distance(u.routeGoal,desired)>30)){
-        setRoute(u,desired,true);
-        u.followAnchor={x:anchor.x,y:anchor.y};
+      const group=squads[u.group];
+      if(!group)continue;
+      if(!group.followAnchor||distance(anchor,group.followAnchor)>60||group.followRevision!==formationRevision){
+        const followers=units.filter(v=>alive(v)&&v.group===u.group&&v.task==='follow'&&!v.isOfficer);
+        assignFormation(followers,anchor,'follow',anchor.a);
+        group.followAnchor={...anchor};group.followRevision=formationRevision;
       }
       continue;
     }
     if(task==='cover'){
       if(!u.cover){assignReservedCover([u]);continue;}
-      // Cover is a static order: reach the hide spot and stay there.
-      u.stance='crouch';u.coverPeeking=false;
-      if(distance(u,u.cover.hide)>12&&!u.path?.length&&(!u.routeGoal||distance(u.routeGoal,u.cover.hide)>8)){
-        setRoute(u,u.cover.hide,true);
-      }
+      const authorised=u.firePermission??squads[u.group]?.fire;
+      const target=zombies.find(z=>!z.dead&&teamSees(z)&&distance(z,u)<visionRange(u)&&clearSight(u.cover.peek,z));
+      const peek=Boolean(authorised&&target&&((t+u.i*.43)%3.6)<1.7);
+      const goal=peek?u.cover.peek:u.cover.hide;
+      u.coverPeeking=peek;u.stance=peek?'stand':'crouch';
+      if(distance(u,goal)>8&&(!u.path?.length||!u.routeGoal||distance(u.routeGoal,goal)>8))setRoute(u,goal,true);
       continue;
     }
     if(task==='clear'||task==='search'){

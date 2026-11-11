@@ -4,7 +4,7 @@
  */
 const generatorBeforeValidation=generateStage;
 function stageRoutesValid(candidate){
- if(!candidate.gridValid||!candidate.buildings.length)return false;
+ if(!candidate.gridValid||candidate.buildings.length<3)return false;
  const savedWorld=world,savedNav=nav;
  try{
   world=candidate;nav=null;

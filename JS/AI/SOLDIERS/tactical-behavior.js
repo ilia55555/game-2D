@@ -6,7 +6,7 @@ function canAutofireAt(u,z){
   if(!alive(u)||z.dead)return false;
   const d=distance(u,z);
   const squad=squads[u.group];
-  const orderedFire=Boolean(squad?.fire)||u.task==='attack'||u.task==='clear';
+  const orderedFire=Boolean(u.firePermission??squad?.fire)||u.task==='attack'||u.task==='clear';
   const radius=orderedFire?(WEAPONS[u.weapon||'carbine']?.range||380):SELF_DEFENCE_RADIUS;
   return d<=radius&&clearSight(u,z)&&(orderedFire?seesFromUnit(u,z)||teamSees(z):true);
 }
