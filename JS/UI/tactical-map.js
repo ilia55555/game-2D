@@ -47,7 +47,7 @@ commandMapCanvas.addEventListener('pointerdown',e=>{
  e.preventDefault();if(!tacticalMapOpen)return;
  const rect=commandMapCanvas.getBoundingClientRect(),tr=tacticalMapTransform;if(!tr)return;
  const x=((e.clientX-rect.left)*tr.d-tr.offsetX)/tr.scaleMap,y=((e.clientY-rect.top)*tr.d-tr.offsetY)/tr.scaleMap;
- const point=routeSafeGoal({x,y},22);
+ const point=routeSafeGoal({x,y},50);
  if(!point){document.querySelector('#tacticalMapHint').textContent='نقطه مسدود یا خارج از نقشه است.';return}
  tacticalMapSelection=point;lastMouseWorld={...point};
  document.querySelector('#tacticalMapHint').textContent='مقصد انتخاب شد: '+Math.round(point.x)+' / '+Math.round(point.y);
@@ -62,7 +62,7 @@ document.querySelector('#tacticalMapIssue').addEventListener('click',()=>{
  const i=Number(document.querySelector('#tacticalMapOrder').value);
  if(![0,4,8,9,10].includes(i)&&!tacticalMapSelection){document.querySelector('#tacticalMapHint').textContent='ابتدا یک مقصد انتخاب کن.';return}
  if(tacticalMapSelection)lastMouseWorld={...tacticalMapSelection};
- if(i===11)moveSquads(tacticalMapSelection);else issueCommand(i);
+ if(i===11)moveSquads(tacticalMapSelection);else issueCommand(i,tacticalMapSelection||lastMouseWorld);
  toggleTacticalMap(false);
 });
 document.querySelector('#tacticalMapClose').onclick=()=>toggleTacticalMap(false);

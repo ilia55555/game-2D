@@ -44,11 +44,12 @@ pathTo=function(actor,goal,avoidAgents=false){
  return curveRoute(polygon,avoid).slice(1);
 };
 setRoute=function(actor,point,force=false){
- const goal=routeSafeGoal(point,22);if(!goal)return false;
+ const goal=routeSafeGoal(point,50);if(!goal)return false;
  if(!force&&actor.routeGoal&&distance(actor.routeGoal,goal)<8&&(actor.path?.length||distance(actor,goal)<8))return true;
+ if(distance(actor,goal)<8){actor.path=[];actor.routeGoal={...goal};actor.tx=goal.x;actor.ty=goal.y;return true}
  const path=pathTo(actor,goal);
  if(!path.length)return false;
  actor.path=path;actor.tx=goal.x;actor.ty=goal.y;
- actor.routeGoal={...goal};actor.routeAt=t;actor.blockedTime=0;actor.attackGoal=null;
+ actor.routeGoal={...path[path.length-1]};actor.routeAt=t;actor.blockedTime=0;actor.attackGoal=null;
  return true;
 };
