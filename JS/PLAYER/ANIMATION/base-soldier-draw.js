@@ -2,6 +2,7 @@
 /** JS/PLAYER/ANIMATION/base-soldier-draw.js — modularized game mechanic; loaded in manifest order. */
 
 function soldier(u){
+if(u.role==='commander'&&commanderArtReady()){drawCommander(u);return;}
 if(tacticalAtlas.complete&&tacticalAtlas.naturalWidth){
  c.save();c.translate(u.x,u.y);ellipse(1,7,23,18,'#07101366');c.rotate(u.a);c.translate(0,(u.lean||0)*8);
  if(u.stance==='crouch')c.scale(.88,.9);else if(u.stance==='prone')c.scale(1.15,.75);
