@@ -5,9 +5,9 @@ function soldier(u){
 if(u.role==='commander'&&commanderArtReady()){drawCommander(u);return;}
 if(tacticalAtlas.complete&&tacticalAtlas.naturalWidth){
  c.save();c.translate(u.x,u.y);ellipse(1,7,23,18,'#07101366');c.rotate(u.a);c.translate(0,(u.lean||0)*8);
- if(u.stance==='crouch')c.scale(.88,.9);else if(u.stance==='prone')c.scale(1.15,.75);
+
  const cell=u.role==='commander'?0:u.role==='deputy'?1:u.group==='alpha'?2:3;
- drawTacticalActor(cell,84,84,u.phase,u.moving);
+ drawTroopPose(u);
  if(u.flash>0){c.globalCompositeOperation='lighter';ellipse(38,5,18,5,'#ffb43588');line(35,5,55,5,'#fff3bf',3);line(38,-1,48,11,'#ffc65b',2)}
  c.restore();return;
 }

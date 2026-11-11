@@ -118,3 +118,12 @@ The effective projectile ranges are MP5 150 m, M4 300 m, M249 400 m and DMR 600 
 Collision footprints now rotate with the actors. Soldiers include the full weapon; infected reserve only their body core so their reaching arms can reach a soldier at contact. B shows green soldier / red infected footprints without revealing hidden enemies. Navigation clearance, doorway width, spawn spacing, formation spacing and cover allocation account for the larger footprints. Rotation is blocked if it would put the footprint inside a solid object or another character. Melee checks footprint contact, and projectile sweeps include the body-to-muzzle segment, preventing close enemies from becoming immune behind the muzzle. Greed chase speed is 86 world units/s; the brute is 65.
 
 Run `node tests/footprint-contact.cjs` for contact, rotating collision, melee and near-muzzle regression coverage.
+
+
+### Deployment clearance and individual character files
+
+Maps now start from 2240×2080 world units, with a larger clear deployment apron. Soldiers deploy behind the commander, with wider formation gaps. Regression coverage checks 120 units of unobstructed movement in all four directions for squad sizes 5–12.
+
+The sprite renderer trims transparent margins once, fits the opaque soldier image to its physical rectangle, and uses the same dimensions for collision, crouch/prone and leaning. Weapon-light dots and the controlled-officer ground circle are removed; beam illumination remains.
+
+Separate PNG files can replace each character automatically under `ASSETS/CHARACTERS/INDIVIDUAL/`; see its README for filenames. Missing images use the existing sheet.

@@ -13,6 +13,18 @@ for(const m of html.matchAll(/<script src="\.\.\/([^"]+)" defer><\/script>/g)){
 }
 const run=s=>vm.runInContext(s,sandbox);
 assert.equal(run('state'),'playing');assert(run('world.buildings.length>=3'));
+for(let count=5;count<=12;count++){
+ run(`squadCount=${count};stageSeed=1234;resetStage(true)`);
+ assert(run('units.every(alive)'),'deployment keeps all soldiers alive');
+ for(const [dx,dy] of [[120,0],[-120,0],[0,-120],[0,120]]){
+  const before=run('({x:units[0].x,y:units[0].y})');
+  const moved=run(`moveWithHitbox(units[0],${dx},${dy})`);
+  assert(moved>119,'allies must not cage the commander at deployment');
+  run(`units[0].x=${before.x};units[0].y=${before.y}`);
+ }
+}
+
+run('squadCount=7;stageSeed=1234;resetStage(true)');
 assert.equal(run('bindings.leanLeft'),'KeyQ');assert.equal(run('bindings.leanRight'),'KeyE');assert.equal(run('bindings.grenade'),'KeyZ');assert.equal(run('bindings.special'),'KeyX');
 run("commandGroup='alpha';issueCommand(1)");assert(run("units.filter(u=>u.group==='alpha').every(u=>u.task==='follow')"));assert(run("units.filter(u=>u.group==='bravo').every(u=>u.task==='hold')"));
 run('issueCommand(1)');assert(run("units.filter(u=>u.group==='alpha').every(u=>u.task==='hold'&&!u.path.length)"));

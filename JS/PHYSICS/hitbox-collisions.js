@@ -4,9 +4,9 @@ const HITBOX_SOLDIER=Object.freeze({hx:39,hy:28});
 const HITBOX_WALKER=Object.freeze({hx:23,hy:26});
 const HITBOX_BRUTE=Object.freeze({hx:32,hy:34});
 let showHitboxes=false;
-function actorHitbox(actor){return actor.hitbox||(actor.i!==undefined?HITBOX_SOLDIER:actor.special?HITBOX_BRUTE:HITBOX_WALKER)}
+function actorHitbox(actor){if(actor.i!==undefined&&typeof troopSpriteSize==='function'){const size=troopSpriteSize(actor);return{hx:size.width/2,hy:size.height/2}}return actor.hitbox||(actor.i!==undefined?HITBOX_SOLDIER:actor.special?HITBOX_BRUTE:HITBOX_WALKER)}
 function intersectsBoxes(ax,ay,ab,bx,by,bb){return Math.abs(ax-bx)<ab.hx+bb.hx-.001&&Math.abs(ay-by)<ab.hy+bb.hy-.001}
-function actorFootprint(actor,x=actor.x,y=actor.y){const h=actorHitbox(actor),a=actor.a||0;return{x,y,hx:h.hx,hy:h.hy,a}}
+function actorFootprint(actor,x=actor.x,y=actor.y){const h=actorHitbox(actor),a=actor.a||0;const lean=actor.i!==undefined?(actor.lean||0)*8:0;return{x:x-Math.sin(a)*lean,y:y+Math.cos(a)*lean,hx:h.hx,hy:h.hy,a}}
 function footprintBounds(box){const co=Math.abs(Math.cos(box.a)),si=Math.abs(Math.sin(box.a));return{hx:co*box.hx+si*box.hy,hy:si*box.hx+co*box.hy}}
 function footprintsOverlap(a,b,padding=0){
  const dx=b.x-a.x,dy=b.y-a.y;
@@ -18,7 +18,7 @@ function footprintsOverlap(a,b,padding=0){
  }
  return true;
 }
-function pointInActor(actor,point,padding=0){const h=actorHitbox(actor),a=actor.a||0,dx=point.x-actor.x,dy=point.y-actor.y;return Math.abs(dx*Math.cos(a)+dy*Math.sin(a))<=h.hx+padding&&Math.abs(-dx*Math.sin(a)+dy*Math.cos(a))<=h.hy+padding}
+function pointInActor(actor,point,padding=0){const h=actorHitbox(actor),a=actor.a||0,frame=actorFootprint(actor),dx=point.x-frame.x,dy=point.y-frame.y;return Math.abs(dx*Math.cos(a)+dy*Math.sin(a))<=h.hx+padding&&Math.abs(-dx*Math.sin(a)+dy*Math.cos(a))<=h.hy+padding}
 function actorAlive(actor){return actor.i!==undefined?actor.hp>0&&!actor.extracted:!actor.dead&&actor.hp>0}
 function isInsideSolid(x,y,b){
  if(x-b.hx<40||x+b.hx>world.width-40||y-b.hy<40||y+b.hy>world.height-40)return true;

@@ -3,7 +3,7 @@ const fs=require('node:fs'),vm=require('node:vm'),assert=require('node:assert/st
 const root=path.resolve(__dirname,'..'),calls=[];
 const ctx=new Proxy({drawImage(...args){calls.push(args)}},{get:(o,k)=>o[k]||(()=>{})});
 const box={Image:class{complete=true;naturalWidth=1774;naturalHeight=887},URL,document:{baseURI:'http://localhost/HTML/index.html'},c:ctx,ellipse(){},line(){},Math};vm.createContext(box);
-for(const file of ['commander-renderer.js','tactical-atlas.js'])vm.runInContext(fs.readFileSync(path.join(root,'JS/PLAYER/APPEARANCE',file),'utf8'),box);
+for(const file of ['sprite-bounds.js','commander-renderer.js','tactical-atlas.js'])vm.runInContext(fs.readFileSync(path.join(root,'JS/PLAYER/APPEARANCE',file),'utf8'),box);
 let source=null;
 for(let i=0;i<64;i++){
  box.actor={x:100,y:100,a:i*Math.PI/32,phase:i,moving:i%2===0,stance:'stand',lean:0,flash:0};calls.length=0;

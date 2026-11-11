@@ -4,14 +4,13 @@
  */
 function generateStage(seed,index){
  const rng=seeded(seed),rand=(a,b)=>Math.floor(a+rng()*(b-a+1)),size=MAP_TILE;
- const cols=rand(50,94),rows=rand(45,86),width=cols*size,height=rows*size;
+ const cols=rand(70,110),rows=rand(65,100),width=cols*size,height=rows*size;
  const kind=['city','industrial','hypermarket'][Math.floor(rng()*3)];
  const weather=['day','dusk','night','dawn'][(index-1)%4],g=makeMapGrid(cols,rows);
  const w={seed,index,width,height,kind,grid:g,weather,ambient:weather==='day'?.81:weather==='dusk'?.34:weather==='dawn'?.46:.035,
  nvgAvailable:weather==='night'&&(index%8===3||rng()>.48),buildings:[],trees:[],rocks:[],lamps:[],bushes:[],walls:[],roads:[]};
  const hubs=[],count=kind==='hypermarket'?rand(3,5):rand(5,9);
- const firstSide=rand(0,3),spawnHub={x:firstSide===0?7:firstSide===1?cols-8:rand(10,cols-11),
- y:firstSide===2?7:firstSide===3?rows-8:rand(10,rows-11)};
+ const spawnHub={x:Math.floor(cols/2),y:rows-25};
  hubs.push(spawnHub);
  for(let i=1;i<count;i++){
   let p=null;for(let attempt=0;attempt<50;attempt++){
@@ -22,7 +21,7 @@ function generateStage(seed,index){
  }
  for(const [i,p] of hubs.entries()){
   const large=kind==='hypermarket'&&i===1;
-  paintEllipse(g,p.x,p.y,large?Math.min(22,cols/3):rand(10,16),large?Math.min(20,rows/3):rand(9,15));
+  paintEllipse(g,p.x,p.y,i===0?26:large?Math.min(22,cols/3):rand(10,16),i===0?26:large?Math.min(20,rows/3):rand(9,15));
  }
  function bendRoad(a,b,half=2){
   // Two elbows make street directions vary; a few become very indirect.
@@ -58,7 +57,7 @@ function generateStage(seed,index){
  };
  function building(tx,ty,bw,bh){
   const nearX=Math.max(tx*size,Math.min((tx+bw)*size,w.spawn.x)),nearY=Math.max(ty*size,Math.min((ty+bh)*size,w.spawn.y));
-  if(Math.hypot(nearX-w.spawn.x,nearY-w.spawn.y)<220)return;
+  if(tx*size<w.spawn.x+550&&(tx+bw)*size>w.spawn.x-550&&ty*size<w.spawn.y+700&&(ty+bh)*size>w.spawn.y-200)return;
   const id='b'+w.buildings.length,doorSide=rand(0,3),gap=Math.min(5,(doorSide%2?bh:bw)-2);
   const b={id,x:(tx+1)*size,y:(ty+1)*size,w:(bw-2)*size,h:(bh-2)*size,
   outer:{x:tx*size,y:ty*size,w:bw*size,h:bh*size},doorSide,cleared:false,visited:false};
@@ -109,12 +108,14 @@ function generateStage(seed,index){
  for(let i=0;i<rand(20,60);i++){
   const p=hubs[rand(0,hubs.length-1)],tx=p.x+rand(-14,14),ty=p.y+rand(-13,13);
   if(!gridRectAvailable(g,tx,ty,1,1))continue;
+  if(Math.abs((tx+.5)*size-w.spawn.x)<550&&(ty+.5)*size>w.spawn.y-200&&(ty+.5)*size<w.spawn.y+700)continue;
   wall(tx,ty,1,1,{tree:true,cover:false});
   w.trees.push({x:(tx+.5)*size,y:(ty+.5)*size,r:rand(22,42),shade:rng()});
  }
  for(let i=0;i<rand(8,25);i++){
   const p=hubs[rand(0,hubs.length-1)],tx=p.x+rand(-12,12),ty=p.y+rand(-11,11),bw=rand(1,3),bh=rand(1,2);
   if(!gridRectAvailable(g,tx,ty,bw,bh))continue;
+  if(Math.abs((tx+.5)*size-w.spawn.x)<550&&(ty+.5)*size>w.spawn.y-200&&(ty+.5)*size<w.spawn.y+700)continue;
   const rock={x:tx*size,y:ty*size,w:bw*size,h:bh*size,cover:true,capacity:2,rock:true};
   wall(tx,ty,bw,bh,{rock:true});w.rocks.push(rock);
  }
