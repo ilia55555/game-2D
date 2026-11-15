@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0a0c0d">
+<title>ماده سیاه: هفت گناه — بازی تاکتیکال زامبی</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div id="hud" hidden>
+  <div id="squads"></div>
+  <div id="topR">
+    <canvas id="mini" width="225" height="165"></canvas>
+    <div id="zone"></div>
+    <div id="obj"></div>
+  </div>
+  <div id="banner"></div>
+  <div id="log"></div>
+  <div id="prompt" hidden></div>
+  <div id="status">
+    <div class="barw"><span>سلامت</span><div class="bar"><i id="hpF"></i></div><b id="hpT"></b></div>
+    <div class="barw"><span>نفس</span><div class="bar st"><i id="stF"></i></div></div>
+    <div id="weapon"></div>
+  </div>
+  <div id="cmdbar"><div id="scopes"></div><div id="cmds"></div></div>
+  <div id="stickL" class="stick" hidden><i></i></div>
+  <div id="stickR" class="stick" hidden><i></i></div>
+  <div id="tbtns">
+    <button data-a="use">اقدام</button><button data-a="reload">خشاب</button><button data-a="swap">سلاح</button>
+    <button data-a="frag">نارنجک</button><button data-a="knife">چاقو</button><button data-a="med">درمان</button>
+    <button data-a="lure">طعمه</button><button data-a="map">نقشه</button><button data-a="pause">توقف</button>
+  </div>
+</div>
+
+<div id="menu" class="screen">
+  <div class="card wide">
+    <h1>ماده سیاه <span>هفت گناه</span></h1>
+    <p class="story">ماده‌ای سیاه و ناشناخته جسم انسان‌ها را تسخیر می‌کند و هر کس را بر اساس اخلاقیاتش به شکل یکی از هفت گناه کبیره درمی‌آورد. تو فرمانده‌ای: با دو جوخهٔ «نیروهای ویژه» و «دلتا فورس» در منطقهٔ سبز پیاده شو، نمونه‌ها را جمع کن، هستهٔ ماده سیاه را در منطقهٔ مشکی منفجر کن و از منطقهٔ آبی خارج شو.</p>
+    <div id="setup"></div>
+    <div class="btns"><button id="bStart" class="primary big">شروع ماموریت</button><button id="bReset">تنظیمات پیش‌فرض</button></div>
+    <details><summary>زامبی‌های هفت گناه</summary><div id="sins"></div></details>
+    <details><summary>راهنمای کنترل و فرمان‌دهی</summary><div id="helpBox"></div></details>
+  </div>
+</div>
+<div id="modal" class="screen" hidden></div>
+
+<script src="js/core.js"></script>
+<script src="js/map.js"></script>
+<script src="js/combat.js"></script>
+<script src="js/zombies.js"></script>
+<script src="js/render.js"></script>
+<script src="js/game.js"></script>
+<script src="js/ui.js"></script>
+</body>
+</html>
