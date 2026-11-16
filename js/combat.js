@@ -125,14 +125,14 @@
   /* ---------- آسیب به سرباز ---------- */
   G.damageSoldier = function (s, dmg, src, raw) {
     if (s.dead || s.downed || G.over) return;
-    s.hp -= raw ? dmg : dmg * G.diff.dmg; s.hurtT = .25;
+    s.hp -= (raw ? dmg : dmg * G.diff.dmg) * (s.isCmd ? (G.cmdDmg || 1) : (G.squadDmg || 1)); s.hurtT = .25;
     if (s.isCmd) { G.fx.hurt = Math.min(1, (G.fx.hurt || 0) + .35); G.audio.play('hit'); }
     G.fx.burst(s.x, s.y - 8, '#c21d1d', 4, 60, .35, 2.2);
     if (s.hp <= 0) {
       s.hp = 0;
       if (s.isCmd) { s.downed = true; G.endMission(false, 'فرمانده از پا درآمد.'); return; }
-      s.downed = true; s.bleed = 45; s.target = null; s.task = null;
-      G.msg(`${s.name} زمین خورد! برای احیا کنارش برو و E را نگه دار.`, '#ff6b6b'); G.audio.play('alarm');
+      s.downed = true; s.bleed = G.noRevive ? 3 : 45; s.target = null; s.task = null;
+      G.msg(`${s.name} زمین خورد!`, '#ff6b6b'); G.audio.play('alarm');
     }
   };
 
@@ -244,7 +244,7 @@
           for (const z of G.zombies) { if (z.dead) continue; const d = Math.hypot(z.x - pt.x, z.y - pt.y) - (z.form === 'sloth' || z.form === 'lust' ? 30 : 0); if (d < bd) { bd = d; ent = z; } }
           sq.order = { type: id, x: ent ? ent.x : pt.x, y: ent ? ent.y : pt.y, ent, t: 0, prev: (prev.type === 'destroy' || prev.type === 'firesup') ? prev.prev : prev, shots: 0 };
           ms.forEach(u => { u.supShots = 0; });
-          label = id === 'destroy' ? (ent ? `نابودی هدف: ${G.ZT[ent.form].name}` : 'نابودی هدف') : 'پشتیبانی آتش'; break;
+          label = id === 'destroy' ? 'نابودی هدف' : 'پشتیبانی آتش'; break;
         }
         case 'patrol': sq.order = { type: 'patrol', a: { x: cxm, y: cym }, b: { x: pt.x, y: pt.y }, leg: 1, wait: 0, x: pt.x, y: pt.y }; assignPosts(sq, pt.x, pt.y, h, 'column'); label = 'گشت‌زنی'; break;
         case 'cover': {
@@ -258,7 +258,7 @@
         }
       }
       sq.label = label;
-      if (pt && G.CMDS[sq.key].concat(G.CMDS.all).some(c => c.id === id && c.pt)) G.markers.push({ x: pt.x, y: pt.y, t: 1.2, c: sq.color });
+      if (pt && G.PTCMD[id]) G.markers.push({ x: pt.x, y: pt.y, t: 1.2, c: sq.color });
       G.msg(`${sq.short}: ${label} — ${ACK[(Math.random() * ACK.length) | 0]}`, sq.color);
     }
     G.audio.play('radio');
@@ -388,11 +388,17 @@
     }
     u.task = null; return false;
   }
+  G.killSoldier = function (s) {
+    if (s.dead) return;
+    G.fx.burst(s.x, s.y - 8, '#0b0b10', 26, 170, .7, 4); G.fx.ring(s.x, s.y, 54, '#1a0f2a');
+    s.hp = 0; s.downed = true; s.bleed = 0; s.target = null; s.task = null;
+  };
   G.revive = function (w, by) {
     w.downed = false; w.hp = Math.round(w.maxHp * .45); w.bleed = 0;
     G.msg(`${w.name} احیا شد${by && !by.isCmd ? ' (توسط ' + by.name + ')' : ''}.`, '#7dffb0'); G.stats.revives++;
   };
   function medicCheck(u) {
+    if (G.noRevive) return;
     let best = null, bd = 520;
     for (const s of G.soldiers) { if (s === u || s.dead || !s.downed || s.isCmd) continue; const d = dist(u, s); if (d < bd && !G.soldiers.some(o => o !== u && o.task && o.task.type === 'revive' && o.task.who === s)) { bd = d; best = s; } }
     if (best) { u.task = { type: 'revive', who: best, t: 0 }; G.msg(`${u.name}: دارم میام سراغ ${best.name}!`, '#7dffb0'); }

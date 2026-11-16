@@ -103,16 +103,30 @@ G.ZONES = [
 ];
 G.FORMS = [['wedge', 'مثلثی'], ['line', 'خطی'], ['column', 'ستونی'], ['circle', 'دفاعی']];
 
-/* ---------- فرمان‌ها ---------- */
-(function () {
-  const follow = { id: 'follow', t: 'دنبال من' }, hold = { id: 'hold', t: 'ایست' }, move = { id: 'move', t: 'برو به نقطه', pt: 1 };
-  G.CMDS = {
-    all: [follow, hold, move, { id: 'form', t: 'آرایش' }, { id: 'regroup', t: 'تجمع فوری' }, { id: 'fire', t: 'آتش‌بس/آزاد' }],
-    alpha: [follow, hold, move, { id: 'assault', t: 'حمله', pt: 1 }, { id: 'clear', t: 'پاکسازی', pt: 1 }, { id: 'sd', t: 'جستجو و نابودی', pt: 1 }, { id: 'destroy', t: 'نابودی هدف', pt: 1 }],
-    delta: [follow, hold, move, { id: 'defend', t: 'دفاع', pt: 1 }, { id: 'patrol', t: 'گشت‌زنی', pt: 1 }, { id: 'cover', t: 'کاور' }, { id: 'distract', t: 'حواس‌پرتی', pt: 1 }, { id: 'firesup', t: 'پشتیبانی آتش', pt: 1 }],
-  };
-  G.SCOPES = [['all', 'کل تیم', 'Z', '#f2e2a0'], ['alpha', 'نیروهای ویژه', 'X', '#ff8a3c'], ['delta', 'دلتا فورس', 'C', '#4db8ff']];
-})();
+/* ---------- چرخ فرمان ---------- */
+// زاویه‌ها به درجه (۰ = راست، ۹۰ = پایین). راست: نیروهای ویژه | چپ: دلتا | بالا و پایین: هر دو تیم
+G.WHEEL = [
+  { scope: 'alpha', from: -50, to: 50, title: 'نیروهای ویژه', color: '#ff8a3c', items: [
+    { id: 'assault', t: 'حمله', pt: 1 }, { id: 'clear', t: 'پاکسازی', pt: 1 }, { id: 'sd', t: 'جستجو و نابودی', pt: 1 }, { id: 'destroy', t: 'نابودی هدف', pt: 1 }] },
+  { scope: 'all', from: 50, to: 130, title: 'هر دو تیم', color: '#f2e2a0', items: [
+    { id: 'fire', t: 'آتش‌بس' }, { id: 'hold', t: 'ایست' }, { id: 'form', t: 'آرایش' }] },
+  { scope: 'delta', from: 130, to: 230, title: 'دلتا فورس', color: '#4db8ff', items: [
+    { id: 'firesup', t: 'پشتیبانی آتش', pt: 1 }, { id: 'distract', t: 'حواس‌پرتی', pt: 1 }, { id: 'cover', t: 'کاور' }, { id: 'patrol', t: 'گشت‌زنی', pt: 1 }, { id: 'defend', t: 'دفاع', pt: 1 }] },
+  { scope: 'all', from: 230, to: 310, title: 'هر دو تیم', color: '#f2e2a0', items: [
+    { id: 'regroup', t: 'تجمع' }, { id: 'follow', t: 'دنبال من' }, { id: 'move', t: 'برو به نقطه', pt: 1 }] },
+];
+G.PTCMD = { move: 1, assault: 1, clear: 1, sd: 1, destroy: 1, defend: 1, patrol: 1, distract: 1, firesup: 1 };
+
+/* ---------- عملیات‌ها ---------- */
+G.MISSIONS = [
+  { id: 'crash', n: 1, name: 'سقوط', loc: 'منطقهٔ قرنطینه', time: '۰۵:۴۰', map: 'crash', logic: 'crash', samples: 1, popK: .6,
+    yellowX: 'gluttony', redX: ['gluttony', 'envy', 'pride'], zones: ['ایست بازرسی', 'حلقهٔ بیرونی', 'منطقهٔ بمباران‌شده', 'محل سقوط'], labels: { lz: 'ورود', core: 'محل سقوط' } },
+  { id: 'l2', n: 2, locked: 1 }, { id: 'l3', n: 3, locked: 1 }, { id: 'l4', n: 4, locked: 1 }, { id: 'l5', n: 5, locked: 1 },
+  // مرحلهٔ کنار گذاشته‌شده (فقط با ?dev در آدرس دیده می‌شود)
+  { id: 'zones', n: 0, name: 'میدان آزمایشی', loc: 'مناطق پنج‌گانه', time: '—', map: 'zones', logic: 'zones', samples: 2, hidden: 1, labels: { lz: 'پیاده‌سازی', ex: 'خروج', core: 'هسته' } },
+];
+G.loadProg = function () { try { return JSON.parse(localStorage.getItem('blackveil_prog') || '{}') || {}; } catch (e) { return {}; } };
+G.saveProg = function (p) { try { localStorage.setItem('blackveil_prog', JSON.stringify(p)); } catch (e) { /* ignore */ } };
 
 /* ---------- تنظیمات ---------- */
 G.defaultSettings = function () {

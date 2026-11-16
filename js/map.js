@@ -6,23 +6,28 @@
   const SOLID = [0, 1, 0, 0, 1, 1, 1, 1];
   G.SOLID = SOLID;
 
-  G.genMap = function (seed) {
-    for (let a = 0; a < 20; a++) { const m = build(seed + a * 7919); if (m) return m; }
+  const CFG = {
+    zones: { W: 190, H: 140, cx: 95, cy: 70, rx: 88, ry: 64, LZ: { x: 16, y: 122 }, EX: { x: 174, y: 16 }, lzR: 17, nb: 130, cars: 260 },
+    crash: { W: 140, H: 104, cx: 80, cy: 46, rx: 62, ry: 42, LZ: { x: 14, y: 90 }, EX: null, lzR: 12, nb: 80, cars: 150, vx: [24, 50, 80, 108, 128], hy: [14, 46, 90], crash: 1 },
+  };
+  G.genMap = function (seed, kind) {
+    const cfg = CFG[kind] || CFG.zones;
+    for (let a = 0; a < 40; a++) { const m = build(seed + a * 7919, cfg); if (m) return m; }
     throw new Error('map generation failed');
   };
 
-  function build(seed) {
-    const R = G.rng(seed), W = 190, H = 140, N = W * H;
+  function build(seed, cfg) {
+    const R = G.rng(seed), W = cfg.W, H = cfg.H, N = W * H;
     const m = {
       seed, w: W, h: H, pw: W * T, ph: H * T,
       block: new Uint8Array(N), dyn: new Uint8Array(N), ground: new Uint8Array(N), zone: new Uint8Array(N),
       vr: new Uint8Array(N), sub: new Uint8Array(N), keep: new Uint8Array(N), reach: new Uint8Array(N),
-      flow: new Uint16Array(N), danger: new Uint8Array(N), buildings: [], gates: [], cars: [], sites: {},
+      flow: new Uint16Array(N), danger: new Uint8Array(N), buildings: [], gates: [], cars: [], craters: [], sites: {},
     };
     const I = (x, y) => y * W + x;
-    const cx = 95, cy = 70;
-    const ell = (x, y) => Math.hypot((x - cx) / 88, (y - cy) / 64);
-    const LZ = { x: 16, y: 122 }, EX = { x: 174, y: 16 };
+    const cx = cfg.cx, cy = cfg.cy;
+    const ell = (x, y) => Math.hypot((x - cx) / cfg.rx, (y - cy) / cfg.ry);
+    const LZ = cfg.LZ, EX = cfg.EX || cfg.LZ;
     m.cx = cx; m.cy = cy; m.coreTiles = [[cx - 1, cy - 1], [cx, cy - 1], [cx - 1, cy], [cx, cy]];
     const RED = .70, BLK = .36;
 
@@ -30,14 +35,14 @@
       const d = ell(x, y), i = I(x, y);
       let z = d < BLK ? 3 : d < RED ? 2 : 1;
       const wob = 1.5 * Math.sin(x * .55) + 1.5 * Math.cos(y * .45);
-      if (Math.hypot(x - LZ.x, y - LZ.y) < 17 + wob) z = 0;
-      if (Math.hypot(x - EX.x, y - EX.y) < 16 + wob) z = 4;
+      if (Math.hypot(x - LZ.x, y - LZ.y) < cfg.lzR + wob) z = 0;
+      if (cfg.EX && Math.hypot(x - EX.x, y - EX.y) < 16 + wob) z = 4;
       m.zone[i] = z; m.vr[i] = R.int(0, 255);
       if (x < 2 || y < 2 || x >= W - 2 || y >= H - 2) m.block[i] = 5;
     }
 
     // جاده‌ها
-    const vx = [26 + R.int(-2, 2), 58, cx, 132, 164 + R.int(-2, 2)], hy = [18 + R.int(-2, 1), cy, 122 + R.int(-1, 2)];
+    const vx = cfg.vx || [26 + R.int(-2, 2), 58, cx, 132, 164 + R.int(-2, 2)], hy = cfg.hy || [18 + R.int(-2, 1), cy, 122 + R.int(-1, 2)];
     m.roadsV = vx; m.roadsH = hy;
     vx.forEach(x => { for (let y = 2; y < H - 2; y++) for (let o = -1; o <= 1; o++) { const i = I(x + o, y); m.ground[i] = 1; if (!o) { m.keep[i] = 1; m.sub[i] = 1; } } });
     hy.forEach(y => { for (let x = 2; x < W - 2; x++) for (let o = -1; o <= 1; o++) { const i = I(x, y + o); m.ground[i] = 1; if (!o) { m.keep[i] = 1; if (!m.sub[i]) m.sub[i] = 2; else m.sub[i] = 0; } } });
@@ -65,7 +70,7 @@
 
     // ساختمان‌ها
     const bmask = new Uint8Array(N);
-    for (let a = 0; a < 6000 && m.buildings.length < 130; a++) {
+    for (let a = 0; a < 6000 && m.buildings.length < cfg.nb; a++) {
       const w = R.int(6, 13), h = R.int(5, 10), x = R.int(4, W - w - 4), y = R.int(4, H - h - 4);
       let ok = true;
       for (let yy = y - 2; yy < y + h + 2 && ok; yy++) for (let xx = x - 2; xx < x + w + 2; xx++) { const i = I(xx, yy); if (m.block[i] || m.ground[i] === 1 || m.ground[i] === 5 || m.keep[i] || bmask[i]) { ok = false; break; } }
@@ -110,8 +115,23 @@
       m.buildings.push({ x, y, w, h, zone: zc });
     }
 
+    // گودال‌های بمباران و ردّ سقوط
+    if (cfg.crash) {
+      for (let a = 0; a < 600 && m.craters.length < 18; a++) {
+        const x = R.int(8, W - 9), y = R.int(8, H - 9), r = R.int(2, 4), z = m.zone[I(x, y)];
+        if (z < 1 || z > 2 || m.craters.some(k => Math.hypot(k.x - x, k.y - y) < 10)) continue;
+        m.craters.push({ x, y, r });
+        for (let yy = y - r; yy <= y + r; yy++) for (let xx = x - r; xx <= x + r; xx++) {
+          const i = I(xx, yy); if (Math.hypot(xx - x, yy - y) > r + .5 || m.block[i] !== 1) continue;
+          if (R.chance(.5)) m.block[i] = 0; else { m.block[i] = 2; m.sub[i] = 4; }
+        }
+      }
+      for (let k = 2; k < 8; k++) m.craters.push({ x: cx + k * 2.6, y: cy - k * 1.7, r: 1.6 - k * .12 });
+      for (let yy = cy + 1; yy <= cy + 2; yy++) for (let xx = cx + 2; xx <= cx + 4; xx++) { m.block[I(xx, yy)] = 2; m.sub[I(xx, yy)] = 1; }
+    }
+
     // خودروها روی لبهٔ جاده
-    for (let a = 0; a < 260; a++) {
+    for (let a = 0; a < cfg.cars; a++) {
       const vert = R.chance(.5); const lane = R.chance(.5) ? 1 : -1; let x, y, w, h;
       if (vert) { x = R.pick(vx) + lane; y = R.int(4, H - 7); w = 1; h = 2; } else { y = R.pick(hy) + lane; x = R.int(4, W - 7); w = 2; h = 1; }
       let ok = true;
@@ -155,10 +175,11 @@
     const inBuilding = (zone, minLZ, maxLZ) => { const bs = R.shuffle(m.buildings.filter(b => b.zone === zone && Math.hypot(b.x - LZ.x, b.y - LZ.y) >= (minLZ || 0) && Math.hypot(b.x - LZ.x, b.y - LZ.y) <= (maxLZ || 999) && !b.used)); for (const b of bs) { const p = interior(b); if (p) { b.used = true; return p; } } return openSpot(zone, minLZ); };
     const S = m.sites;
     S.lz = { x: px(LZ.x), y: px(LZ.y) }; S.ex = { x: px(EX.x), y: px(EX.y) }; S.core = { x: cx * T, y: cy * T };
-    S.samples = [inBuilding(1, 38, 80), inBuilding(2, 0, 95)].filter(Boolean).map((p, i) => ({ x: p.x, y: p.y, taken: false, zone: i + 1 }));
-    S.crates = [{ x: px(LZ.x + 3), y: px(LZ.y - 2), uses: 99 }, { x: px(EX.x - 3), y: px(EX.y + 2), uses: 99 }];
+    S.samples = (cfg.crash ? [inBuilding(2, 0, 999)] : [inBuilding(1, 38, 80), inBuilding(2, 0, 95)]).filter(Boolean).map((p, i) => ({ x: p.x, y: p.y, taken: false, zone: i + 1 }));
+    S.crates = [{ x: px(LZ.x + 3), y: px(LZ.y - 2), uses: 99 }]; if (cfg.EX) S.crates.push({ x: px(EX.x - 3), y: px(EX.y + 2), uses: 99 });
+    S.wreck = { x: (cx + 3.5) * T, y: (cy + 2.2) * T };
     [1, 1, 1, 2, 2, 3].forEach(z => { const p = inBuilding(z, 30); if (p) S.crates.push({ x: p.x, y: p.y, uses: 2 }); });
-    if (S.samples.length < 2) return null;
+    if (S.samples.length < (cfg.crash ? 1 : 2)) return null;
     m.LZ = LZ; m.EX = EX;
     return m;
   }

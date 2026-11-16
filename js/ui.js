@@ -1,10 +1,12 @@
 'use strict';
-/* رابط کاربری: منو و تنظیمات، HUD، نوار فرمان، ورودی صفحه‌کلید/ماوس/لمسی */
+/* رابط کاربری: منوها، HUD، چرخ فرمان، ورودی صفحه‌کلید/ماوس/لمسی */
 (function () {
   const $ = id => document.getElementById(id), fa = G.fa;
   const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
-  let scope = 'all', hudT = 0, bannerT = 0, mapOpen = false;
-  const ui = G.ui = Object.assign(G.ui || {}, { targeting: null });
+  let hudT = 0, bannerT = 0, mapOpen = false, screen = 'title', selM = 'crash', curM = 'crash';
+  const ui = G.ui = Object.assign(G.ui || {}, { wheel: { open: false, k: 0, vx: 0, vy: 0, sel: null, tgt: { x: 0, y: 0 } } });
+  const W = ui.wheel;
+  G.dev = /[?&]dev\b/.test(location.search);
 
   /* ---------- پیام‌های بی‌سیم ---------- */
   G.msg = function (text, color) {
@@ -14,55 +16,110 @@
     setTimeout(() => { d.classList.add('fade'); setTimeout(() => d.remove(), 900); }, 6500);
   };
   ui.banner = function (title, color, sub) { const b = $('banner'); b.innerHTML = `<b style="color:${color}">${title}</b><span>${sub || ''}</span>`; b.classList.add('show'); bannerT = 3.2; };
-
-  /* ---------- منوی اصلی ---------- */
-  function wOpts(pool, sel) { return G.POOL[pool].map(id => { const w = G.WEAPONS[id]; return `<option value="${id}"${id === sel ? ' selected' : ''}>${w.name} — ${w.cls}</option>`; }).join(''); }
-  function buildMenu() {
-    const st = G.settings, box = $('setup');
-    let h = `<div class="row"><label>سختی</label><div class="seg" id="diff">${G.DIFFS.map((d, i) => `<button data-v="${i}" class="${st.diff === i ? 'on' : ''}">${d.name}</button>`).join('')}</div>
-      <label class="chk"><input type="checkbox" id="snd" ${st.sound ? 'checked' : ''}> صدا</label></div>`;
-    h += `<div class="team" style="--tc:#ffe27a"><h3>فرمانده <small>(خودت کنترلش می‌کنی)</small></h3><div class="mem"><span class="role">سلاح اصلی</span><select data-t="cmd" data-k="p">${wOpts('cmd', st.cmd.p)}</select><span class="role">سلاح دوم</span><select data-t="cmd" data-k="s">${wOpts('sec', st.cmd.s)}</select><span class="knife">+ چاقو</span></div></div>`;
-    for (const key of ['alpha', 'delta']) {
-      const TM = G.TEAMS[key], n = st[key + 'N'];
-      h += `<div class="team" style="--tc:${TM.color}"><h3>${TM.name} <small>${key === 'alpha' ? 'حمله، پاکسازی، جستجو و نابودی' : 'پشتیبانی: دفاع، گشت، کاور، حواس‌پرتی'}</small>
-        <span class="cnt">تعداد: <button data-n="${key}" data-d="-1">−</button><b>${fa(n)}</b><button data-n="${key}" data-d="1">+</button></span></h3>`;
-      for (let i = 0; i < n; i++) { const r = TM.roles[i]; h += `<div class="mem"><span class="role">${r.name} · ${r.role}</span><select data-t="${key}" data-i="${i}" data-k="p">${wOpts(key, st[key][i].p)}</select><select data-t="${key}" data-i="${i}" data-k="s">${wOpts('sec', st[key][i].s)}</select><span class="knife">+ چاقو</span></div>`; }
-      h += '</div>';
-    }
-    box.innerHTML = h;
-    box.querySelectorAll('#diff button').forEach(b => b.onclick = () => { st.diff = +b.dataset.v; G.saveSettings(); buildMenu(); });
-    $('snd').onchange = e => { st.sound = e.target.checked ? 1 : 0; G.saveSettings(); };
-    box.querySelectorAll('button[data-n]').forEach(b => b.onclick = () => { const k = b.dataset.n + 'N'; st[k] = G.clamp(st[k] + (+b.dataset.d), 1, 6); G.saveSettings(); buildMenu(); });
-    box.querySelectorAll('select').forEach(s => s.onchange = () => { const t = s.dataset.t; if (t === 'cmd') st.cmd[s.dataset.k] = s.value; else st[t][+s.dataset.i][s.dataset.k] = s.value; G.saveSettings(); });
-  }
-  function buildBestiary() {
-    $('sins').innerHTML = G.SINS.map(k => { const z = G.ZT[k]; return `<div class="sin"><i style="background:${z.color}"></i><b>${z.name}</b><span>${z.desc}</span></div>`; }).join('');
-  }
+  const tick = () => G.audio.play('ui');
   function show(id, on) { $(id).hidden = !on; }
-  ui.toMenu = function () { G.state = 'menu'; show('menu', true); show('hud', false); show('modal', false); buildMenu(); };
-  function start() { G.audio.init(); show('menu', false); show('modal', false); show('hud', true); try { G.startMission(); } catch (e) { console.error(e); alert('خطا در ساخت نقشه: ' + e.message); ui.toMenu(); } }
-  ui.onStart = function () { scope = 'all'; ui.targeting = null; mapOpen = false; $('log').innerHTML = ''; buildCmdBar(); buildSquads(); hud(); G.resize(); };
 
-  /* ---------- نوار فرمان ---------- */
-  function buildCmdBar() {
-    const sc = $('scopes'), cm = $('cmds'); sc.innerHTML = ''; cm.innerHTML = '';
-    G.SCOPES.forEach(s => { const b = el('button', 'scope' + (s[0] === scope ? ' on' : ''), `<kbd>${s[2]}</kbd>${s[1]}`); b.style.setProperty('--tc', s[3]); b.onclick = () => setScope(s[0]); sc.appendChild(b); });
-    const color = G.SCOPES.find(s => s[0] === scope)[3];
-    G.CMDS[scope].forEach((c, i) => {
-      let t = c.t; if (c.id === 'form') t = 'آرایش: ' + G.FORMS.find(f => f[0] === G.squads.alpha.form)[1]; if (c.id === 'fire') t = G.squads.alpha.holdFire ? 'آتش آزاد' : 'آتش‌بس';
-      const b = el('button', 'cmd' + (ui.targeting && ui.targeting.id === c.id ? ' on' : ''), `<kbd>${fa(i + 1)}</kbd>${t}${c.pt ? '<em>⌖</em>' : ''}`); b.style.setProperty('--tc', color);
-      b.onclick = e => { e.stopPropagation(); issue(c, true); }; cm.appendChild(b);
-    });
+  /* ================= منوها ================= */
+  function wOpts(pool, sel) { return G.POOL[pool].map(id => { const w = G.WEAPONS[id]; return `<option value="${id}"${id === sel ? ' selected' : ''}>${w.name} — ${w.cls}</option>`; }).join(''); }
+  const KEYS = [['W A S D', 'حرکت'], ['Shift', 'دویدن'], ['ماوس', 'نشانه‌گیری'], ['کلیک چپ', 'شلیک'], ['R', 'خشاب'], ['Q / چرخ ماوس', 'تعویض سلاح'], ['G', 'نارنجک'], ['T', 'طعمه'], ['F', 'چاقو'], ['H', 'درمان'], ['E', 'اقدام'], ['Tab (نگه‌دار)', 'چرخ فرمان'], ['کلیک راست', 'حرکت تیم‌ها'], ['M', 'نقشه'], ['Esc', 'توقف']];
+  const keysHtml = () => `<div class="keys">${KEYS.map(k => `<div><kbd>${k[0]}</kbd><span>${k[1]}</span></div>`).join('')}</div>`;
+  const SCREENS = {
+    title() { return { crumb: '', body: `<div class="title"><h1>BLACK VEIL</h1><div class="sub">TACTICAL COMMAND</div><div class="press">برای شروع کلیک کن یا کلیدی را فشار بده</div></div>`, foot: '' }; },
+    main() {
+      const items = [['campaign', 'کارزار', 'CAMPAIGN'], ['loadout', 'جوخه و سلاح', 'LOADOUT'], ['options', 'تنظیمات', 'OPTIONS']];
+      return { crumb: 'منوی اصلی', body: `<nav class="mlist">${items.map((it, i) => `<button data-go="${it[0]}" class="${i === 0 ? 'on' : ''}"><b>${it[1]}</b><small>${it[2]}</small></button>`).join('')}</nav>`, foot: '<span><kbd>↑↓</kbd>انتخاب</span><span><kbd>Enter</kbd>تأیید</span>' };
+    },
+    campaign() {
+      const st = G.settings, prog = G.loadProg(), ms = G.MISSIONS.filter(m => !m.hidden || G.dev);
+      const cur = ms.find(m => m.id === selM && !m.locked) || ms[0]; selM = cur.id;
+      const cards = ms.map(m => m.locked
+        ? `<div class="mcard locked"><div class="art"><i class="lock"></i></div><div class="mi"><small>عملیات ${fa(String(m.n).padStart(2, '0'))}</small><b>قفل</b></div></div>`
+        : `<button class="mcard${m.id === selM ? ' on' : ''}" data-m="${m.id}"><div class="art a-${m.id}">${prog[m.id] ? '<em>✔</em>' : ''}</div><div class="mi"><small>عملیات ${fa(String(m.n).padStart(2, '0'))}</small><b>${m.name}</b><span>${m.loc} · ${m.time}</span></div></button>`).join('');
+      return {
+        crumb: 'کارزار', body: `<div class="camp"><div class="mrow">${cards}</div>
+          <div class="cbar"><div class="diff"><label>سختی</label><div class="seg" id="diff">${G.DIFFS.map((d, i) => `<button data-v="${i}" class="${st.diff === i ? 'on' : ''}">${d.name}</button>`).join('')}</div></div>
+          <button id="bStart" class="primary big">شروع عملیات</button></div></div>`, foot: '<span><kbd>Esc</kbd>بازگشت</span><span><kbd>Enter</kbd>شروع</span>',
+      };
+    },
+    loadout() {
+      const st = G.settings;
+      let h = `<div class="team" style="--tc:#e8c15a"><h3>فرمانده</h3><div class="mem"><span class="role">سلاح اصلی</span><select data-t="cmd" data-k="p">${wOpts('cmd', st.cmd.p)}</select><span class="role">سلاح دوم</span><select data-t="cmd" data-k="s">${wOpts('sec', st.cmd.s)}</select></div></div>`;
+      for (const key of ['alpha', 'delta']) {
+        const TM = G.TEAMS[key], n = st[key + 'N'];
+        h += `<div class="team" style="--tc:${TM.color}"><h3>${TM.name}<span class="cnt"><button data-n="${key}" data-d="-1">−</button><b>${fa(n)}</b><button data-n="${key}" data-d="1">+</button></span></h3>`;
+        for (let i = 0; i < n; i++) { const r = TM.roles[i]; h += `<div class="mem"><span class="role">${r.name} · ${r.role}</span><select data-t="${key}" data-i="${i}" data-k="p">${wOpts(key, st[key][i].p)}</select><select data-t="${key}" data-i="${i}" data-k="s">${wOpts('sec', st[key][i].s)}</select></div>`; }
+        h += '</div>';
+      }
+      return { crumb: 'جوخه و سلاح', body: `<div class="panel">${h}<div class="btns"><button id="bReset">پیش‌فرض</button></div></div>`, foot: '<span><kbd>Esc</kbd>بازگشت</span>' };
+    },
+    options() {
+      const st = G.settings;
+      return { crumb: 'تنظیمات', body: `<div class="panel"><div class="row"><label>صدا</label><div class="seg" id="snd"><button data-v="1" class="${st.sound ? 'on' : ''}">روشن</button><button data-v="0" class="${st.sound ? '' : 'on'}">خاموش</button></div></div><h3 class="ph">کنترل‌ها</h3>${keysHtml()}</div>`, foot: '<span><kbd>Esc</kbd>بازگشت</span>' };
+    },
+  };
+  function go(name, silent) {
+    screen = name; const s = SCREENS[name](), body = $('mBody'), st = G.settings;
+    $('menu').className = 'screen s-' + name; $('mCrumb').innerHTML = s.crumb ? `<span>${s.crumb}</span>` : '';
+    body.innerHTML = s.body; $('mFoot').innerHTML = (name !== 'title' && name !== 'main' ? '<button id="bBack" class="back">بازگشت</button>' : '') + s.foot;
+    if (!silent) tick();
+    const bb = $('bBack'); if (bb) bb.onclick = back;
+    body.querySelectorAll('[data-go]').forEach(b => { b.onclick = () => go(b.dataset.go); b.onmouseenter = () => { body.querySelectorAll('[data-go]').forEach(x => x.classList.toggle('on', x === b)); }; });
+    body.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { selM = b.dataset.m; go('campaign'); });
+    body.querySelectorAll('#diff button').forEach(b => b.onclick = () => { st.diff = +b.dataset.v; G.saveSettings(); go(name); });
+    body.querySelectorAll('#snd button').forEach(b => b.onclick = () => { st.sound = +b.dataset.v; G.saveSettings(); go(name); });
+    body.querySelectorAll('button[data-n]').forEach(b => b.onclick = () => { const k = b.dataset.n + 'N'; st[k] = G.clamp(st[k] + (+b.dataset.d), 1, 6); G.saveSettings(); go(name); });
+    body.querySelectorAll('select').forEach(x => x.onchange = () => { const t = x.dataset.t; if (t === 'cmd') st.cmd[x.dataset.k] = x.value; else st[t][+x.dataset.i][x.dataset.k] = x.value; G.saveSettings(); });
+    const bs = $('bStart'); if (bs) bs.onclick = () => start(selM);
+    const br = $('bReset'); if (br) br.onclick = () => { const snd = st.sound, df = st.diff; G.settings = G.defaultSettings(); G.settings.sound = snd; G.settings.diff = df; G.saveSettings(); go(name); };
+    if (name === 'title') body.querySelector('.title').onclick = () => { G.audio.init(); go('main'); };
   }
-  function setScope(s) { scope = s; ui.targeting = null; buildCmdBar(); G.audio.play('ui'); }
-  function issue(c, viaClick) {
-    if (G.state !== 'play') return;
-    if (c.pt && (viaClick || G.touch)) { ui.targeting = (ui.targeting && ui.targeting.id === c.id) ? null : { scope, id: c.id, color: G.SCOPES.find(s => s[0] === scope)[3] }; buildCmdBar(); if (ui.targeting) G.msg('نقطهٔ هدف را روی زمین انتخاب کن.', '#ccc'); return; }
-    G.command(scope, c.id, c.pt ? { x: G.input.world.x, y: G.input.world.y - 9 } : null); ui.targeting = null; buildCmdBar();
+  function back() { if (screen === 'title') return; go(screen === 'main' ? 'title' : 'main'); }
+  function menuKey(e) {
+    const k = e.code;
+    if (screen === 'title') { G.audio.init(); go('main'); return; }
+    if (k === 'Escape' || k === 'Backspace') { back(); return; }
+    if (screen === 'main') {
+      const bs = Array.from($('mBody').querySelectorAll('[data-go]')), i = bs.findIndex(b => b.classList.contains('on'));
+      if (k === 'ArrowDown' || k === 'ArrowUp' || k === 'KeyS' || k === 'KeyW') { const n = (i + (k === 'ArrowDown' || k === 'KeyS' ? 1 : bs.length - 1)) % bs.length; bs.forEach((b, j) => b.classList.toggle('on', j === n)); tick(); }
+      else if (k === 'Enter' || k === 'Space') bs[Math.max(0, i)].click();
+    } else if (screen === 'campaign' && k === 'Enter') start(selM);
   }
-  function confirmTarget(w) { const t = ui.targeting; ui.targeting = null; G.command(t.scope, t.id, w); buildCmdBar(); }
+  ui.toMenu = function (scr) { G.state = 'menu'; W.open = false; show('menu', true); show('hud', false); show('modal', false); go(scr || 'main', true); };
+  function start(id) {
+    G.audio.init(); curM = id || curM; const f = $('fade'); f.classList.add('on');
+    setTimeout(() => {
+      show('menu', false); show('modal', false); show('hud', true);
+      try { G.startMission(curM); } catch (e) { console.error(e); ui.toMenu('campaign'); }
+      setTimeout(() => f.classList.remove('on'), 350);
+    }, 420);
+  }
+  ui.onStart = function () {
+    W.open = false; W.k = 0; mapOpen = false; $('log').innerHTML = ''; buildSquads(); hud(); G.resize();
+    const m = G.mdef, it = $('intro');
+    it.innerHTML = `<b>«${m.name}»</b><span>عملیات ${fa(String(m.n).padStart(2, '0'))}</span><span>${m.loc} — ${m.time}</span>`;
+    it.classList.remove('run'); void it.offsetWidth; it.classList.add('run');
+  };
 
-  /* ---------- پنل جوخه‌ها و HUD ---------- */
+  /* ================= چرخ فرمان ================= */
+  const itemText = c => c.id === 'form' ? 'آرایش: ' + G.FORMS.find(f => f[0] === G.squads.alpha.form)[1] : c.id === 'fire' ? (G.squads.alpha.holdFire ? 'آتش آزاد' : 'آتش‌بس') : c.t;
+  ui.wheelText = itemText;
+  function wheelPick() {
+    const d = Math.hypot(W.vx, W.vy); if (d < 30) { W.sel = null; return; }
+    let a = Math.atan2(W.vy, W.vx) * 180 / Math.PI; if (a < -50) a += 360;
+    for (const g of G.WHEEL) if (a >= g.from && a < g.to) { const i = Math.min(g.items.length - 1, Math.floor((a - g.from) / (g.to - g.from) * g.items.length)), c = g.items[i]; if (!W.sel || W.sel.c !== c) G.audio.play('beep'); W.sel = { g, i, c }; return; }
+  }
+  function wheelOpen(ox, oy) {
+    if (G.state !== 'play' || W.open || G.cmd.downed) return;
+    W.open = true; W.vx = W.vy = 0; W.sel = null; W.ox = ox; W.oy = oy; W.tgt = { x: G.input.world.x, y: G.input.world.y - 9 }; G.input.fire = false; G.audio.play('radio');
+  }
+  function wheelMove(dx, dy) { W.vx += dx; W.vy += dy; const d = Math.hypot(W.vx, W.vy); if (d > 120) { W.vx *= 120 / d; W.vy *= 120 / d; } wheelPick(); }
+  function wheelClose(scope) {
+    if (!W.open) return; W.open = false; const s = W.sel; if (!s) return;
+    const sc = s.g.scope === 'all' ? (scope || 'all') : s.g.scope;
+    G.command(sc, s.c.id, s.c.pt ? W.tgt : null);
+  }
+
+  /* ================= پنل جوخه‌ها و HUD ================= */
   function buildSquads() {
     const box = $('squads'); box.innerHTML = '';
     for (const key of ['alpha', 'delta']) {
@@ -74,21 +131,21 @@
   function hud() {
     const u = G.cmd, M = G.mission; if (!u) return;
     $('hpF').style.width = (u.hp / u.maxHp * 100) + '%'; $('hpT').textContent = fa(Math.ceil(u.hp)); $('stF').style.width = (u.stamina * 100) + '%';
-    const ws = $('weapon'); let h = '';
-    u.weapons.forEach((w, i) => { const d = w.def; h += `<div class="ws${i === u.cur ? ' on' : ''}"><b>${d.name}</b><small>${d.cls}</small><span>${d.melee ? '∞' : (w.rel > 0 ? 'خشاب‌گذاری…' : fa(w.mag) + ' / ' + (w.res < 0 ? '∞' : fa(w.res)))}</span></div>`; });
+    let h = '';
+    u.weapons.forEach((w, i) => { const d = w.def; h += `<div class="ws${i === u.cur ? ' on' : ''}"><b>${d.name}</b><small>${d.cls}</small><span>${d.melee ? '∞' : (w.rel > 0 ? '⟳' : fa(w.mag) + ' / ' + (w.res < 0 ? '∞' : fa(w.res)))}</span></div>`; });
     h += `<div class="inv"><span>نارنجک <b>${fa(u.grenades)}</b></span><span>طعمه <b>${fa(u.lures)}</b></span><span>درمان <b>${fa(u.medkits)}</b></span></div>`;
-    ws.innerHTML = h;
+    $('weapon').innerHTML = h;
     for (const key of ['alpha', 'delta']) {
       const sq = G.squads[key]; $('ord_' + key).textContent = sq.label + (sq.holdFire ? ' · آتش‌بس' : '');
       for (const m of sq.members) {
         const r = $('m_' + m.id); if (!r) continue;
         r.className = 'm' + (m.dead ? ' dead' : m.downed ? ' down' : '');
-        const w = m.weapons[m.cur]; r.children[1].textContent = m.dead ? 'کشته شد' : m.downed ? `زمین‌خورده ${fa(Math.ceil(m.bleed))}ث` : w.def.name + (w.rel > 0 ? ' ⟳' : '');
+        const w = m.weapons[m.cur]; r.children[1].textContent = m.dead ? 'کشته شد' : m.downed ? `زمین‌خورده ${fa(Math.ceil(m.bleed))}` : w.def.name + (w.rel > 0 ? ' ⟳' : '');
         const f = r.children[2].firstChild; f.style.width = (m.dead ? 0 : m.hp / m.maxHp * 100) + '%'; f.style.background = m.hp > m.maxHp * .5 ? '#67e08a' : m.hp > m.maxHp * .25 ? '#ffd23c' : '#ff5a5a';
       }
     }
-    const z = G.ZONES[G.zoneNow]; $('zone').innerHTML = `<i style="background:${z.color}"></i>${z.name}`;
-    $('obj').innerHTML = G.objectives().map(o => `<div class="${o.done ? 'done' : ''}">${o.done ? '✔' : '◻'} ${o.t}</div>`).join('') + `<div class="k">کشته‌ها: ${fa(G.stats.kills)} · امتیاز: ${fa(G.stats.score)}</div>`;
+    const zn = Math.max(0, G.zoneNow), z = G.ZONES[zn]; $('zone').innerHTML = `<i style="background:${z.color}"></i>${G.zoneName(zn)}`;
+    $('obj').innerHTML = G.objectives().map(o => `<div class="${o.done ? 'done' : ''}">${o.done ? '✔' : '◻'} ${o.t}</div>`).join('');
     const p = $('prompt'); p.textContent = M.prompt; p.hidden = !M.prompt;
     G.drawMinimap($('mini'), false);
     if (mapOpen) G.drawMinimap($('bigmap'), true);
@@ -98,65 +155,71 @@
     if (bannerT > 0) { bannerT -= dt; if (bannerT <= 0) $('banner').classList.remove('show'); }
   };
 
-  /* ---------- پنجره‌ها ---------- */
-  function modal(html) { const m = $('modal'); m.innerHTML = `<div class="card">${html}</div>`; show('modal', true); return m; }
+  /* ================= پنجره‌ها ================= */
+  function modal(html, cls) { const m = $('modal'); m.innerHTML = `<div class="card ${cls || ''}">${html}</div>`; show('modal', true); return m; }
   function closeModal() { show('modal', false); mapOpen = false; if (G.state === 'pause') G.state = 'play'; }
-  const HELP = `<div class="help"><b>کنترل فرمانده:</b> حرکت WASD · نشانه‌گیری ماوس · شلیک کلیک چپ · دویدن Shift · خشاب R · تعویض سلاح Q یا چرخ ماوس · نارنجک G · طعمهٔ صوتی T · چاقو F · درمان H · اقدام/احیا E · نقشه M · توقف Esc<br>
-  <b>فرمان‌دهی:</b> انتخاب مخاطب با Z (کل تیم)، X (نیروهای ویژه)، C (دلتا فورس) · سپس کلیدهای ۱ تا ۸ برای فرمان. فرمان‌های نقطه‌ای (⌖) روی محل نشانه‌گر اجرا می‌شوند · کلیک راست: حرکت سریع گروه انتخاب‌شده به نقطه.<br>
-  <b>لمسی:</b> چپ صفحه حرکت، راست صفحه نشانه‌گیری و شلیک؛ فرمان را لمس کن و سپس نقطه را روی زمین بزن.</div>`;
-  ui.pause = function () { if (G.state !== 'play') return; G.state = 'pause'; const m = modal(`<h2>توقف</h2>${HELP}<div class="btns"><button id="bRes" class="primary">ادامه</button><button id="bRst">شروع دوباره</button><button id="bMenu">منوی اصلی</button></div>`); m.querySelector('#bRes').onclick = closeModal; m.querySelector('#bRst').onclick = start; m.querySelector('#bMenu').onclick = ui.toMenu; };
+  ui.pause = function () {
+    if (G.state !== 'play') return; G.state = 'pause'; W.open = false;
+    const m = modal(`<h2>توقف</h2><nav class="mlist small"><button id="bRes" class="on"><b>ادامه</b></button><button id="bRst"><b>شروع دوباره</b></button><button id="bMenu"><b>خروج به منو</b></button></nav>${keysHtml()}`, 'pause');
+    m.querySelector('#bRes').onclick = closeModal; m.querySelector('#bRst').onclick = () => start(curM); m.querySelector('#bMenu').onclick = () => ui.toMenu('main');
+  };
   ui.toggleMap = function () {
-    if (mapOpen) { closeModal(); return; } if (G.state !== 'play') return; G.state = 'pause'; mapOpen = true;
-    const m = modal(`<h2>نقشهٔ عملیات</h2><canvas id="bigmap" width="900" height="660"></canvas><div class="legend">${G.ZONES.map((z, i) => `<span><i style="background:${z.color}"></i>${z.short}${i >= 1 && i <= 3 ? ': ' + G.zoneTypes[i].map(t => G.ZT[t].name).join('، ') : ''}</span>`).join('')}<span><i style="background:#e8f0ff"></i>دروازهٔ بسته با تنبلی</span><span><i style="background:#ffe27a"></i>تدارکات</span></div><div class="btns"><button id="bRes" class="primary">بستن (M)</button></div>`);
-    m.querySelector('#bRes').onclick = closeModal; G.drawMinimap($('bigmap'), true);
+    if (mapOpen) { closeModal(); return; } if (G.state !== 'play') return; G.state = 'pause'; mapOpen = true; W.open = false;
+    const m = modal(`<h2>نقشه</h2><canvas id="bigmap" width="900" height="660"></canvas><div class="btns"><button id="bRes" class="primary">بستن</button></div>`);
+    const bm = $('bigmap'); bm.height = Math.round(900 * G.map.h / G.map.w);
+    m.querySelector('#bRes').onclick = closeModal; G.drawMinimap(bm, true);
   };
   ui.openArmory = function () {
     G.state = 'pause'; const u = G.cmd;
-    const m = modal(`<h2>جعبهٔ تدارکات</h2><p>مهمات، نارنجک و تجهیزات نیروهای نزدیک تکمیل شد. می‌توانی سلاح فرمانده را عوض کنی:</p><div class="mem"><span class="role">سلاح اصلی</span><select id="aP">${wOpts('cmd', u.weapons[0].id)}</select></div><div class="mem"><span class="role">سلاح دوم</span><select id="aS">${wOpts('sec', u.weapons[1].id)}</select></div><div class="btns"><button id="bRes" class="primary">ادامه</button></div>`);
+    const m = modal(`<h2>تدارکات</h2><div class="mem"><span class="role">سلاح اصلی</span><select id="aP">${wOpts('cmd', u.weapons[0].id)}</select></div><div class="mem"><span class="role">سلاح دوم</span><select id="aS">${wOpts('sec', u.weapons[1].id)}</select></div><div class="btns"><button id="bRes" class="primary">ادامه</button></div>`);
     m.querySelector('#aP').onchange = e => G.setCmdWeapon(0, e.target.value); m.querySelector('#aS').onchange = e => G.setCmdWeapon(1, e.target.value); m.querySelector('#bRes').onclick = closeModal;
   };
   ui.showEnd = function () {
-    const r = G.result, s = G.stats, M = G.mission, team = G.soldiers.filter(x => !x.isCmd), surv = team.filter(x => !x.dead).length;
-    const score = s.score + (r.win ? 1500 : 0) + surv * 200 + M.samples * 150;
-    const rank = !r.win ? '—' : (M.coreDead && M.samples >= 2 && surv === team.length) ? 'S' : (M.coreDead && surv >= team.length * .6) ? 'A' : M.coreDead ? 'B' : 'C';
-    const mm = Math.floor(G.time / 60), ss = Math.floor(G.time % 60);
-    const m = modal(`<h2 style="color:${r.win ? '#7dffb0' : '#ff6b6b'}">${r.win ? 'خروج موفق' : 'ماموریت شکست خورد'}</h2><p>${r.reason}</p>
-      <div class="stats"><div><b>${rank}</b><span>رتبه</span></div><div><b>${fa(score)}</b><span>امتیاز</span></div><div><b>${fa(s.kills)}</b><span>زامبی کشته‌شده</span></div><div><b>${fa(surv)}/${fa(team.length)}</b><span>نیروی زنده</span></div><div><b>${fa(mm)}:${fa(String(ss).padStart(2, '0'))}</b><span>زمان</span></div><div><b>${fa(M.samples)}/۲</b><span>نمونه</span></div></div>
-      <div class="kills">${G.SINS.concat(['twin']).map(k => `<span><i style="background:${G.ZT[k].color}"></i>${G.ZT[k].name}: ${fa(s.byType[k] || 0)}</span>`).join('')}</div>
-      <div class="btns"><button id="bRst" class="primary">ماموریت دوباره</button><button id="bMenu">منوی اصلی</button></div>`);
-    m.querySelector('#bRst').onclick = start; m.querySelector('#bMenu').onclick = ui.toMenu;
+    const r = G.result, s = G.stats, e = G.logic.end && G.logic.end();
+    const mm = Math.floor(G.time / 60), ss = Math.floor(G.time % 60), time = `${fa(mm)}:${fa(String(ss).padStart(2, '0'))}`;
+    let h;
+    if (!e) h = `<h2 class="big" style="color:#ff6b6b">فرمانده از پا درآمد</h2><div class="btns"><button id="bRst" class="primary">تلاش دوباره</button><button id="bMenu">خروج به منو</button></div>`;
+    else h = `<small class="eh">عملیات ${fa(String(G.mdef.n).padStart(2, '0'))} — «${G.mdef.name}»</small><h2 class="big" style="color:${e.color}">${e.title}</h2>
+      <div class="stats">${e.stats.concat([[fa(s.kills), 'کشته'], [time, 'زمان']]).map(x => `<div><b>${x[0]}</b><span>${x[1]}</span></div>`).join('')}</div>
+      ${e.roll ? `<div class="roll">${e.roll.map(x => `<div><i>✝</i><b>${x.name}</b><span>${x.team} · ${x.role}</span></div>`).join('')}</div>` : ''}
+      <div class="btns"><button id="bMenu" class="primary">ادامه</button><button id="bRst">دوباره</button></div>`;
+    const m = modal(h, 'end');
+    m.querySelector('#bRst').onclick = () => start(curM); m.querySelector('#bMenu').onclick = () => ui.toMenu(e ? 'campaign' : 'main');
   };
 
-  /* ---------- ورودی ---------- */
+  /* ================= ورودی ================= */
   function bindInput() {
     const I = G.input, cv = $('cv');
     window.addEventListener('keydown', e => {
       if (e.target && (e.target.tagName === 'SELECT' || e.target.tagName === 'INPUT')) return;
-      const k = e.code; if (G.state === 'menu') return;
+      const k = e.code;
       if (['Space', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Tab'].indexOf(k) >= 0) e.preventDefault();
-      if (k === 'Escape') { if (ui.targeting) { ui.targeting = null; buildCmdBar(); } else if (G.state === 'pause') closeModal(); else ui.pause(); return; }
-      if (k === 'KeyM' || k === 'Tab') { if (!e.repeat) ui.toggleMap(); return; }
-      if (k === 'KeyP') { if (G.state === 'pause') closeModal(); else ui.pause(); return; }
+      if (G.state === 'menu') { if (!e.repeat) menuKey(e); return; }
+      if (G.state === 'end') return;
+      if (k === 'Escape' || k === 'KeyP') { if (W.open) { W.open = false; W.sel = null; } else if (G.state === 'pause') closeModal(); else ui.pause(); return; }
+      if (k === 'KeyM') { if (!e.repeat) ui.toggleMap(); return; }
       if (G.state !== 'play') return;
       I.keys[k] = true; if (e.repeat) return;
-      if (k === 'KeyE') { I.eHeld = true; I.ePressed = true; }
+      if (k === 'Tab') wheelOpen(I.mx, I.my);
+      else if (k === 'KeyE') { I.eHeld = true; I.ePressed = true; }
       else if (k === 'KeyR') G.cmdAct('reload'); else if (k === 'KeyQ') G.cmdAct('swap'); else if (k === 'KeyG') G.cmdAct('frag'); else if (k === 'KeyT') G.cmdAct('lure');
       else if (k === 'KeyF' || k === 'KeyV') G.cmdAct('knife'); else if (k === 'KeyH') G.cmdAct('med');
-      else if (k === 'KeyZ') setScope('all'); else if (k === 'KeyX') setScope('alpha'); else if (k === 'KeyC') setScope('delta');
-      else if (/^(Digit|Numpad)[1-8]$/.test(k)) { const c = G.CMDS[scope][+k.slice(-1) - 1]; if (c) issue(c, false); }
     });
-    window.addEventListener('keyup', e => { I.keys[e.code] = false; if (e.code === 'KeyE') I.eHeld = false; });
-    window.addEventListener('blur', () => { I.keys = {}; I.fire = false; I.eHeld = false; });
-    cv.addEventListener('mousemove', e => { I.mx = e.clientX; I.my = e.clientY; });
+    window.addEventListener('keyup', e => { I.keys[e.code] = false; if (e.code === 'KeyE') I.eHeld = false; if (e.code === 'Tab') wheelClose(); });
+    window.addEventListener('blur', () => { I.keys = {}; I.fire = false; I.eHeld = false; W.open = false; });
+    window.addEventListener('mousemove', e => {
+      if (W.open) { const dx = e.movementX != null ? e.movementX : e.clientX - I.mx, dy = e.movementY != null ? e.movementY : e.clientY - I.my; wheelMove(dx, dy); }
+      I.mx = e.clientX; I.my = e.clientY;
+    });
     cv.addEventListener('mousedown', e => {
       G.audio.init(); I.mx = e.clientX; I.my = e.clientY; if (G.state !== 'play') return;
-      const w = G.screenToWorld(e.clientX, e.clientY);
-      if (e.button === 0) { if (ui.targeting) confirmTarget(w); else { I.fire = true; I.firePressed = true; } }
-      else if (e.button === 2) { if (ui.targeting) { ui.targeting = null; buildCmdBar(); } else G.command(scope, 'move', w); }
+      if (W.open) { if (W.sel) wheelClose(e.button === 0 ? 'delta' : e.button === 2 ? 'alpha' : 'all'); return; }
+      if (e.button === 0) { I.fire = true; I.firePressed = true; }
+      else if (e.button === 2) G.command('all', 'move', G.screenToWorld(e.clientX, e.clientY));
     });
     window.addEventListener('mouseup', e => { if (e.button === 0) I.fire = false; });
     cv.addEventListener('contextmenu', e => e.preventDefault());
-    cv.addEventListener('wheel', e => { if (G.state === 'play') G.cmdAct(e.deltaY > 0 ? 'swap' : 'swapBack'); e.preventDefault(); }, { passive: false });
+    cv.addEventListener('wheel', e => { if (G.state === 'play' && !W.open) G.cmdAct(e.deltaY > 0 ? 'swap' : 'swapBack'); e.preventDefault(); }, { passive: false });
 
     // لمسی
     let L = null, Rr = null; const SR = 52;
@@ -167,7 +230,6 @@
       if (!G.touch) { G.touch = true; document.body.classList.add('touch'); G.resize(); }
       if (G.state !== 'play') return;
       for (const t of e.changedTouches) {
-        if (ui.targeting) { confirmTarget(G.screenToWorld(t.clientX, t.clientY)); continue; }
         if (t.clientX < window.innerWidth / 2) { if (!L) { L = { id: t.identifier, ox: t.clientX, oy: t.clientY, dx: 0, dy: 0 }; stick('stickL', L); } }
         else if (!Rr) { Rr = { id: t.identifier, ox: t.clientX, oy: t.clientY, dx: 0, dy: 0 }; stick('stickR', Rr); }
       }
@@ -183,6 +245,12 @@
     cv.addEventListener('touchend', end); cv.addEventListener('touchcancel', end);
     document.querySelectorAll('#tbtns button').forEach(b => {
       const a = b.dataset.a;
+      if (a === 'wheel') { // نگه‌دار و بکش، رها کن
+        b.addEventListener('touchstart', e => { e.preventDefault(); const t = e.changedTouches[0]; wheelOpen(t.clientX, t.clientY); }, { passive: false });
+        b.addEventListener('touchmove', e => { e.preventDefault(); const t = e.changedTouches[0]; if (!W.open) return; W.vx = (t.clientX - W.ox) * 1.4; W.vy = (t.clientY - W.oy) * 1.4; wheelMove(0, 0); }, { passive: false });
+        b.addEventListener('touchend', e => { e.preventDefault(); wheelClose(); });
+        return;
+      }
       b.addEventListener('touchstart', e => { e.preventDefault(); if (a === 'use') { I.eHeld = true; I.ePressed = true; } else if (a === 'map') ui.toggleMap(); else if (a === 'pause') ui.pause(); else G.cmdAct(a); }, { passive: false });
       b.addEventListener('touchend', e => { e.preventDefault(); if (a === 'use') I.eHeld = false; });
       b.addEventListener('click', () => { if (G.touch) return; if (a === 'map') ui.toggleMap(); else if (a === 'pause') ui.pause(); else if (a !== 'use') G.cmdAct(a); });
@@ -190,9 +258,7 @@
   }
 
   ui.init = function () {
-    buildMenu(); buildBestiary(); bindInput();
-    $('bStart').onclick = start; $('helpBox').innerHTML = HELP;
-    $('bReset').onclick = () => { G.settings = G.defaultSettings(); G.saveSettings(); buildMenu(); };
+    bindInput(); go('title', true);
     if ('ontouchstart' in window && navigator.maxTouchPoints > 0 && !matchMedia('(pointer:fine)').matches) { G.touch = true; document.body.classList.add('touch'); }
   };
   window.addEventListener('DOMContentLoaded', () => G.boot());

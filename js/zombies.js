@@ -16,10 +16,10 @@
 
   /* ---------- چینش زامبی‌ها بر اساس منطقه ---------- */
   G.populate = function (R) {
-    const m = G.map, W = m.w, D = G.diff.count, zs = G.zombies;
+    const m = G.map, W = m.w, md = G.mdef || {}, D = G.diff.count * (md.popK || 1), zs = G.zombies;
     const others = ['gluttony', 'sloth', 'lust', 'envy', 'pride'];
-    const yellowX = R.pick(others);
-    const redX = R.shuffle(others.slice()).slice(0, 3);
+    const yellowX = md.yellowX || R.pick(others);
+    const redX = md.redX || R.shuffle(others.slice()).slice(0, 3);
     G.zoneTypes = [['wrath', 'greed'], ['wrath', 'greed', yellowX], ['wrath', 'greed'].concat(redX), G.SINS.slice(), ['greed']];
     const spot = (zone, minLZ, pred) => {
       for (let k = 0; k < 600; k++) {
@@ -88,7 +88,7 @@
     if (z.armor > 0) {
       const ap = o.expl ? 1.5 : (o.ap || .4), ad = d * ap; z.armor -= ad;
       G.fx.burst(z.x, z.y - 14, '#ffe9a8', 2, 110, .2, 1.6); G.audio.play('armor', Math.hypot(z.x - G.cmd.x, z.y - G.cmd.y));
-      if (z.armor <= 0) { d = (-z.armor) / ap; z.armor = 0; G.fx.burst(z.x, z.y - 12, '#d9b64a', 14, 150, .5, 3); G.fx.ring(z.x, z.y, 40, '#ffe9a8'); if (o.src && o.src.isCmd) G.msg('زره غرور شکست!', '#b57bff'); }
+      if (z.armor <= 0) { d = (-z.armor) / ap; z.armor = 0; G.fx.burst(z.x, z.y - 12, '#d9b64a', 14, 150, .5, 3); G.fx.ring(z.x, z.y, 40, '#ffe9a8'); }
       else d *= .04;
     }
     z.hp -= d; z.hurt = .12; z.alert = Math.max(z.alert, 10);
@@ -110,10 +110,9 @@
     }
     if (z.type === 'sloth' || z.form === 'sloth') {
       const i = G.tileAt(z.x, z.y); if (i >= 0) G.map.dyn[i] = 0; G.flowT = 0; G.markDanger();
-      if (z.gate && !G.zombies.some(q => !q.dead && q.gate === z.gate)) { z.gate.sloth = false; G.msg('مسیر باز شد! تنبلی نابود شد.', '#8fa3c4'); G.minimapDirty = true; }
+      if (z.gate && !G.zombies.some(q => !q.dead && q.gate === z.gate)) { z.gate.sloth = false; G.msg('مسیر باز شد.', '#8fa3c4'); G.minimapDirty = true; }
     }
     if (z.parent) z.parent.kids--;
-    if (z.type === 'lust') G.msg('یک شهوت ریشه‌کن شد.', '#ff4fa3');
   }
 
   /* ---------- حس‌ها ---------- */
