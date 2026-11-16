@@ -198,6 +198,14 @@ G.audio = (function () {
     radio: v => { tone(1200, 1000, .05, .08 * v, 'square'); noise(.07, 3000, 2, .07 * v, 'bandpass'); },
     alarm: v => { tone(700, 500, .25, .2 * v, 'square'); },
     beep: v => { tone(1500, 1500, .07, .12 * v, 'sine'); },
+    ping: v => { tone(2600 + Math.random() * 1400, 1500, .07, .13 * v, 'triangle'); noise(.03, 6000, 3, .1 * v, 'highpass'); },
+    clang: v => { tone(520, 180, .22, .3 * v, 'square'); noise(.12, 2500, 2, .25 * v, 'bandpass'); },
+    thud: v => { tone(150, 70, .07, .22 * v, 'sine'); noise(.04, 700, 1, .12 * v); },
+    chip: v => { noise(.05, 3200, 1.5, .16 * v, 'bandpass'); tone(300, 120, .04, .08 * v, 'triangle'); },
+    pop: v => { tone(420, 160, .06, .16 * v, 'sine'); noise(.03, 1800, 1, .08 * v); },
+    crack: v => { noise(.16, 1500, 1.2, .4 * v, 'bandpass'); tone(210, 70, .14, .25 * v, 'sawtooth'); },
+    crumble: v => { noise(.5, 500, .7, .5 * v); tone(80, 35, .35, .3 * v, 'sine'); },
+    glass: v => { noise(.22, 6500, 2, .3 * v, 'highpass'); tone(3200, 1800, .12, .1 * v, 'triangle'); },
     armor: v => { tone(2200, 1400, .06, .14 * v, 'triangle'); },
   };
   // dist: فاصله تا فرمانده برای کم‌کردن صدا

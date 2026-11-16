@@ -111,7 +111,7 @@
     u.stamina = G.clamp(u.stamina + (sprint ? -dt / 6 : dt / 7), 0, 1); u.sprinting = sprint;
     if (wheel) { /* هنگام باز بودن چرخ فرمان نشانه‌گیری ثابت می‌ماند */ }
     else if (I.aimStick) { u.ang = Math.atan2(I.aimStick.y, I.aimStick.x); const mg = Math.hypot(I.aimStick.x, I.aimStick.y); I.world.x = u.x + Math.cos(u.ang) * (70 + mg * 230); I.world.y = u.y + Math.sin(u.ang) * (70 + mg * 230); }
-    else if (!G.touch) { const w = G.screenToWorld(I.mx, I.my); I.world.x = w.x; I.world.y = w.y + 9; u.ang = Math.atan2(I.world.y - u.y, I.world.x - u.x); }
+    else if (!G.touch) { const w = G.screenToWorld(I.mx, I.my); I.world.x = w.x; I.world.y = w.y; u.ang = Math.atan2(I.world.y - u.y, I.world.x - u.x); }
     else if (u.moving) { u.ang = G.turn(u.ang, u.mvAng, 8 * dt); I.world.x = u.x + Math.cos(u.ang) * 150; I.world.y = u.y + Math.sin(u.ang) * 150; }
     if (u.fired > 0) u.fired -= dt;
     const w = G.wOf(u);
@@ -148,7 +148,7 @@
     G.flowT -= dt;
     if (G.flowT <= 0) { G.flowT = .35; G.computeFlow(G.soldiers.filter(s => !s.dead && !s.downed)); }
     updateCmd(dt); interact(dt);
-    G.updateSoldiers(dt); G.updateZombies(dt); G.updateProjs(dt); updateDrops(dt);
+    G.updateSoldiers(dt); G.updateZombies(dt); G.updateProjs(dt); G.updateObjs(dt); updateDrops(dt);
     for (let i = G.props.length - 1; i >= 0; i--) { const p = G.props[i]; if (p.kind === 'heli2') { G.Heli.update(p, dt); if (p.gone) G.props.splice(i, 1); } }
     const zn = G.zoneAt(G.cmd.x, G.cmd.y);
     if (zn !== G.zoneNow) { const first = G.zoneNow < 0; G.zoneNow = zn; if (!first) G.ui.banner(G.zoneName(zn), G.ZONES[zn].color, ''); }

@@ -111,7 +111,7 @@
   }
   function wheelOpen(ox, oy) {
     if (G.state !== 'play' || W.open || G.cmd.downed || G.cmd.boarded) return;
-    W.open = true; W.wheel = 'main'; W.vx = W.vy = 0; W.sel = null; W.ox = ox; W.oy = oy; W.tgt = { x: G.input.world.x, y: G.input.world.y - 9 }; G.input.fire = false; G.audio.play('radio');
+    W.open = true; W.wheel = 'main'; W.vx = W.vy = 0; W.sel = null; W.ox = ox; W.oy = oy; W.tgt = { x: G.input.world.x, y: G.input.world.y }; G.input.fire = false; G.audio.play('radio');
   }
   function wheelMove(dx, dy) { W.vx += dx; W.vy += dy; const d = Math.hypot(W.vx, W.vy); if (d > 120) { W.vx *= 120 / d; W.vy *= 120 / d; } wheelPick(); }
   function wheelClose() {

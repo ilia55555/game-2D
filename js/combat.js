@@ -76,16 +76,23 @@
       const px = rx - dx * t, py = ry - dy * t, rr = z.r + 3; if (px * px + py * py > rr * rr) continue;
       hits.push({ z, t });
     }
+    for (const h of G.objRay(x, y, dx, dy, Math.min(wall, d.range))) hits.push({ o: h.o, t: h.t, t2: h.t2 });
     hits.sort((a, b) => a.t - b.t);
-    let end = wall, dmg = d.dmg, n = d.pierce || 1;
+    let end = wall, dmg = d.dmg, n = d.pierce || 1, stopped = false;
     for (const h of hits) {
       if (h.t > end) break;
+      if (h.o) { // برخورد با اشیا: اثر و نفوذ بسته به جنس (از روی سنگرِ چسبیده به تیرانداز شلیک می‌شود)
+        if (h.o.dead || (h.t < 38 && !h.o.tall)) continue;
+        const ex = h.t2 < wall ? h.t2 : null, pass = G.hitObj(h.o, x + dx * h.t, y + dy * h.t, dx, dy, dmg, d, ex != null ? x + dx * ex : null, ex != null ? y + dy * ex : null);
+        if (pass <= 0) { end = h.t; stopped = true; break; }
+        dmg *= pass; continue;
+      }
       const fall = h.t > d.range * .7 ? .75 : 1;
       G.damageZombie(h.z, dmg * fall, { ap: d.ap, ang, knock: d.knock || 0, src: u });
       n--; dmg *= .7;
-      if (n <= 0 || h.z.form === 'sloth' || h.z.armor > 0) { end = h.t; break; }
+      if (n <= 0 || h.z.form === 'sloth' || h.z.armor > 0) { end = h.t; stopped = true; break; }
     }
-    if (end >= wall - .5 && wall < d.range) { G.fx.burst(x + dx * wall, y + dy * wall, '#d8c9a3', 3, 70, .25, 2); G.damageTile(G.tileAt(x + dx * (wall + 2), y + dy * (wall + 2)), dmg, false); }
+    if (!stopped && wall < d.range) G.hitWall(G.tileAt(x + dx * (wall + 2), y + dy * (wall + 2)), x + dx * wall, y + dy * wall, dx, dy, dmg);
     G.fx.bullet(x + dx * 18, y + dy * 18, ang, Math.max(0, end - 18));
   };
   function melee(u, ang) {
@@ -110,6 +117,7 @@
   /* ---------- انفجار ---------- */
   G.explode = function (x, y, radius, dmg, owner, opts) {
     opts = opts || {};
+    G._ex = { x, y, id: (G._exId = (G._exId || 0) + 1) }; G.shockObjs(x, y, radius * 2);
     G.fx.boom(x, y, radius); G.audio.play('boom', Math.hypot(x - G.cmd.x, y - G.cmd.y)); G.noise(x, y, 900);
     const sh = G.clamp(1 - Math.hypot(x - G.cmd.x, y - G.cmd.y) / 700, 0, 1); G.fx.shake(10 * sh);
     for (const z of G.zombies) {
@@ -118,6 +126,7 @@
       G.damageZombie(z, dmg * (1 - .6 * Math.min(1, d / radius)), { expl: 1, ang: Math.atan2(z.y - y, z.x - x), knock: 120, src: owner && owner.kind === 's' ? owner : null });
     }
     if (!opts.noTiles) { const m = G.map, r = radius * .8, tx0 = Math.floor((x - r) / T), tx1 = Math.floor((x + r) / T), ty0 = Math.floor((y - r) / T), ty1 = Math.floor((y + r) / T); for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) { if (tx < 0 || ty < 0 || tx >= m.w || ty >= m.h) continue; const dd = Math.hypot(tx * T + T / 2 - x, ty * T + T / 2 - y); if (dd < r) G.damageTile(ty * m.w + tx, dmg * (1 - .5 * dd / r), true); } }
+    G._ex = null;
     if (!opts.noFF) for (const s of G.soldiers) {
       if (s.dead) continue; const d = Math.hypot(s.x - x, s.y - y); if (d > radius) continue;
       if (d > 30 && !G.losClear(x, y, s.x, s.y, true)) continue;
@@ -147,7 +156,8 @@
       if (p.type === 'rocket') {
         const step = p.sp * dt, dx = Math.cos(p.ang), dy = Math.sin(p.ang);
         const wd = G.rayCast(p.x, p.y, dx, dy, step + 4, true); let hit = wd <= step + 2;
-        const mv = Math.min(step, wd);
+        const mv = Math.min(step, wd); p.trav = (p.trav || 0) + mv;
+        if (!hit && p.trav > 60) for (const h of G.objRay(p.x, p.y, dx, dy, mv)) if (h.o.mat !== 'glass') { hit = true; break; }
         for (const z of G.zActive) { if (z.dead) continue; const rx = z.x - p.x, ry = z.y - p.y, t = rx * dx + ry * dy; if (t < -z.r || t > mv + z.r) continue; const qx = rx - dx * t, qy = ry - dy * t; if (qx * qx + qy * qy < (z.r + 4) * (z.r + 4)) { hit = true; break; } }
         p.x += dx * mv; p.y += dy * mv; p.left -= mv;
         if (Math.random() < .9) G.fx.smoke(p.x - dx * 8, p.y - dy * 8);
@@ -333,8 +343,9 @@
       cands.push({ z, sc });
     }
     cands.sort((a, b) => a.sc - b.sc);
-    u.target = null;
-    for (let i = 0; i < cands.length && i < 5; i++) { const z = cands[i].z; if (G.losClear(u.x, u.y, z.x, z.y)) { u.target = z; break; } }
+    u.target = null; let fb = null;
+    for (let i = 0; i < cands.length && i < 5; i++) { const z = cands[i].z; if (!G.losClear(u.x, u.y, z.x, z.y)) continue; if (!G.objBlocks(u.x, u.y, z.x, z.y)) { u.target = z; fb = null; break; } if (!fb) fb = z; }
+    if (fb) u.target = fb; // اگر همه پشت مانع‌اند، مانع را می‌کوبد
   }
   function findHunt(u, cx, cy, R, selfR) {
     let best = null, bs = 1e9;

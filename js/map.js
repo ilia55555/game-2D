@@ -181,7 +181,62 @@
     [1, 1, 1, 2, 2, 3].forEach(z => { const p = inBuilding(z, 30); if (p) S.crates.push({ x: p.x, y: p.y, uses: 2 }); });
     if (S.samples.length < (cfg.crash ? 1 : 2)) return null;
     m.LZ = LZ; m.EX = EX;
+    placeObjects(m, seed);
     return m;
+  }
+
+  /* ---------- اشیای محیط: هر خانهٔ مانع یک شیء واقعی (درخت، بشکه، جعبه، سنگر...) می‌شود ---------- */
+  function placeObjects(m, seed) {
+    const R = G.rng(seed ^ 0x2f6e2b1), W = m.w, H = m.h, N = W * H, I = (x, y) => y * W + x;
+    m.objs = []; m.obj = new Array(N).fill(null); m.remains = []; m.marks = new Map();
+    const cxy = i => ({ x: (i % W) * T + T / 2, y: ((i / W) | 0) * T + T / 2 });
+    const add = (type, tiles, o) => {
+      let x = 0, y = 0; for (const i of tiles) { const p = cxy(i); x += p.x; y += p.y; }
+      const ob = Object.assign({ type, tiles, x: x / tiles.length, y: y / tiles.length, rot: 0, seed: R.int(1, 99999), zone: m.zone[tiles[0]] }, o || {});
+      for (const i of tiles) m.obj[i] = ob; m.objs.push(ob); return ob;
+    };
+    // تخته‌سنگ‌ها و بشکه‌های پراکنده روی زمین باز (فقط جایی که هر هشت همسایه آزاد است تا مسیری بسته نشود)
+    const free8 = (x, y) => { for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const i = I(x + dx, y + dy); if (m.block[i] || m.keep[i] || m.dyn[i]) return false; } return true; };
+    // کنار دیوار: فقط دیوار در همسایگی باشد و دست‌کم پنج همسایه آزاد بماند (اشیا به هم نمی‌چسبند تا راهی بسته نشود)
+    const byWall = (x, y) => { let fr = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; const j = I(x + dx, y + dy), b = m.block[j]; if (!b && !m.dyn[j]) fr++; else if (b !== 1) return false; } return fr >= 5; };
+    const core = m.sites.core, far = (x, y) => Math.hypot(x * T - core.x, y * T - core.y) > 9 * T && Math.hypot(x - m.LZ.x, y - m.LZ.y) > 6;
+    for (let y = 4; y < H - 4; y++) for (let x = 4; x < W - 4; x++) {
+      const i = I(x, y), g = m.ground[i]; if (m.block[i] || !far(x, y)) continue;
+      if (g === 0 && m.zone[i] <= 2 && R.chance(.006) && free8(x, y)) { m.block[i] = 2; m.sub[i] = 5; }
+      else if (g === 2 && R.chance(.09) && !m.keep[i] && byWall(x, y) || g === 1 && m.zone[i] >= 1 && R.chance(.004) && free8(x, y)) { m.block[i] = 2; m.sub[i] = 6; }
+    }
+    const used = new Uint8Array(N);
+    for (const c of m.cars) { const ts = []; for (let yy = c.y; yy < c.y + c.h; yy++) for (let xx = c.x; xx < c.x + c.w; xx++) { ts.push(I(xx, yy)); used[I(xx, yy)] = 1; } add('car', ts, { car: c, vert: c.h > c.w }); }
+    const BC = ['red', 'red', 'rust', 'olive', 'blue', 'blue'];
+    for (let y = 2; y < H - 2; y++) for (let x = 2; x < W - 2; x++) {
+      const i = I(x, y), b = m.block[i]; if (used[i]) continue;
+      const jit = () => R.range(-2.5, 2.5);
+      if (b === 3) {
+        const z = m.zone[i], o = add(z >= 2 && z !== 4 ? 'dead' : R.chance(.42) ? 'pine' : 'tree', [i], { rot: R.range(0, 6.28), size: R.range(.62, .86) });
+        o.x += jit(); o.y += jit();
+      } else if (b === 2) {
+        const s = m.sub[i];
+        if (s === 1) add('junk', [i]);
+        else if (s === 3) add('window', [i], { horiz: m.block[I(x - 1, y)] === 1 || m.block[I(x + 1, y)] === 1 || m.block[I(x - 1, y)] === 2 || m.block[I(x + 1, y)] === 2 });
+        else if (s === 4) add('rubble', [i], { rot: R.range(0, 6.28) });
+        else if (s === 5) add('rock', [i], { rot: R.range(0, 6.28) });
+        else if (s === 6) { const k = R(), o = k < .55 ? add('barrel', [i], { color: R.pick(BC), rot: R.range(0, 6.28) }) : k < .8 ? add('crate', [i], { rot: R.range(-.4, .4) }) : add('tires', [i]); if (o.type !== 'crate') { o.x += jit(); o.y += jit(); } }
+        else if (s === 0) {
+          const k = R(), g = m.ground[i];
+          const o = k < .42 ? add('crate', [i], { rot: R.range(-.25, .25) }) : k < .8 ? add('barrel', [i], { color: R.pick(BC), rot: R.range(0, 6.28) }) : g === 3 ? add('crate', [i], { rot: R.range(-.25, .25) }) : add('tires', [i]);
+          if (o.type !== 'crate') { o.x += jit(); o.y += jit(); }
+        } else if (s === 2) {
+          // ردیف سنگر: طول ردیف را پیدا کن
+          const hor = m.block[I(x + 1, y)] === 2 && m.sub[I(x + 1, y)] === 2 && !used[I(x + 1, y)];
+          const run = [i]; used[i] = 1;
+          for (let k = 1; k < 4; k++) { const j = hor ? I(x + k, y) : I(x, y + k); if (m.block[j] === 2 && m.sub[j] === 2 && !used[j]) { run.push(j); used[j] = 1; } else break; }
+          if (run.length === 3 && R.chance(.5)) add('barrier', run, { rot: hor ? 0 : Math.PI / 2, hor });
+          else if (run.length === 1) add(m.ground[i] === 0 ? 'rock' : 'tires', [i], { rot: R.range(0, 6.28) });
+          else { let prev = null; run.forEach(j => { const o = add('sandbag', [j], { rot: hor ? 0 : Math.PI / 2, hor }); if (prev) prev.next = o; prev = o; }); }
+        }
+      }
+    }
+    G.initObjs && G.initObjs(m);
   }
 
   /* ---------- پرس‌وجوهای شبکه ---------- */
@@ -244,28 +299,28 @@
   };
 
   /* ---------- موانع تخریب‌پذیر ---------- */
-  G.destructible = i => { const b = G.map.block[i]; return b === 1 || b === 2 || b === 3; };
-  G.tileMax = i => { const m = G.map, b = m.block[i]; return b === 1 ? 480 : b === 3 ? 140 : m.sub[i] === 1 ? 360 : 150; };
-  G.damageTile = function (i, dmg, expl) {
+  // دیوار ساختمان، همهٔ اشیا، دیوار قرنطینه و بلورها (دو مورد آخر فقط با انفجار)
+  G.destructible = i => { const b = G.map.block[i]; return b === 1 || b === 2 || b === 3 || b === 4 || b === 6; };
+  G.tileMax = i => { const m = G.map, b = m.block[i], o = m.obj[i]; return o ? o.max : b === 1 ? 480 : b === 4 ? 1500 : b === 6 ? 260 : 150; };
+  G.tileHp = i => { const m = G.map, o = m.obj[i]; return o ? o.max - o.hp : (m.thp ? m.thp[i] : 0); };
+  G.damageTile = function (i, dmg, expl, ang) {
     const m = G.map; if (i == null || i < 0 || !G.destructible(i)) return false;
+    const o = m.obj[i]; if (o) { G.damageObj(o, dmg, expl, ang); return true; }
     if (!m.thp) m.thp = new Float32Array(m.w * m.h);
-    const b = m.block[i], k = expl ? 1 : b === 1 ? .2 : m.sub[i] === 1 ? .25 : 1;
+    const b = m.block[i], k = expl ? 1 : b === 1 ? .2 : 0;
     m.thp[i] += dmg * k;
     if (m.thp[i] >= G.tileMax(i)) G.destroyTile(i);
     return true;
   };
+  G.clearTile = function (j) { const m = G.map; m.block[j] = 0; m.sub[j] = 0; m.reach[j] = 1; m.obj[j] = null; if (m.thp) m.thp[j] = 0; m.marks.delete(j); G.minimapDirty = true; G.flowT = 0; };
   G.destroyTile = function (i) {
-    const m = G.map, W = m.w, x = i % W, y = (i / W) | 0, b = m.block[i];
-    const clear = j => { m.block[j] = 0; m.sub[j] = 0; m.reach[j] = 1; if (m.thp) m.thp[j] = 0; };
-    if (b === 2 && m.sub[i] === 1) {
-      const k = m.cars.findIndex(c => x >= c.x && x < c.x + c.w && y >= c.y && y < c.y + c.h);
-      if (k >= 0) { const c = m.cars[k]; for (let yy = c.y; yy < c.y + c.h; yy++) for (let xx = c.x; xx < c.x + c.w; xx++) clear(yy * W + xx); m.cars.splice(k, 1); G.fx.boom((c.x + c.w / 2) * T, (c.y + c.h / 2) * T, 50); }
-      else clear(i);
-    } else clear(i);
+    const m = G.map, W = m.w, x = i % W, y = (i / W) | 0, b = m.block[i], o = m.obj[i];
+    if (o) { G.killObj(o); return; }
+    G.clearTile(i);
     const px = x * T + T / 2, py = y * T + T / 2;
-    G.fx.burst(px, py - 8, b === 3 ? '#4a3623' : '#8b857b', 12, 140, .6, 3.5); G.fx.burst(px, py - 8, '#3b3a38', 8, 90, .8, 5);
-    G.fx.decal(px, py, 'scorch', '#000', 14);
-    G.minimapDirty = true; G.flowT = 0;
+    if (b === 6) { G.fx.debris(px, py, 'crystal', 8); G.fx.burst(px, py, '#a05cff', 10, 150, .5, 2.5); }
+    else { G.fx.debris(px, py, 'concrete', 9); G.fx.puff(px, py, '#a39c8e', 6); G.fx.remain('rubble', px, py, (x * 7 + y * 13) % 6, 1); }
+    G.audio.play('crumble', Math.hypot(px - G.cmd.x, py - G.cmd.y));
   };
 
   // خانه‌های خطرناک کنار تنبلی‌ها (برای دوری مسیرها از شلاق آن‌ها)

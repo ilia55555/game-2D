@@ -384,6 +384,14 @@ G.audio = (function () {
     radio: v => { tone(1200, 1000, .05, .08 * v, 'square'); noise(.07, 3000, 2, .07 * v, 'bandpass'); },
     alarm: v => { tone(700, 500, .25, .2 * v, 'square'); },
     beep: v => { tone(1500, 1500, .07, .12 * v, 'sine'); },
+    ping: v => { tone(2600 + Math.random() * 1400, 1500, .07, .13 * v, 'triangle'); noise(.03, 6000, 3, .1 * v, 'highpass'); },
+    clang: v => { tone(520, 180, .22, .3 * v, 'square'); noise(.12, 2500, 2, .25 * v, 'bandpass'); },
+    thud: v => { tone(150, 70, .07, .22 * v, 'sine'); noise(.04, 700, 1, .12 * v); },
+    chip: v => { noise(.05, 3200, 1.5, .16 * v, 'bandpass'); tone(300, 120, .04, .08 * v, 'triangle'); },
+    pop: v => { tone(420, 160, .06, .16 * v, 'sine'); noise(.03, 1800, 1, .08 * v); },
+    crack: v => { noise(.16, 1500, 1.2, .4 * v, 'bandpass'); tone(210, 70, .14, .25 * v, 'sawtooth'); },
+    crumble: v => { noise(.5, 500, .7, .5 * v); tone(80, 35, .35, .3 * v, 'sine'); },
+    glass: v => { noise(.22, 6500, 2, .3 * v, 'highpass'); tone(3200, 1800, .12, .1 * v, 'triangle'); },
     armor: v => { tone(2200, 1400, .06, .14 * v, 'triangle'); },
   };
   // dist: فاصله تا فرمانده برای کم‌کردن صدا
@@ -580,7 +588,62 @@ G.audio = (function () {
     [1, 1, 1, 2, 2, 3].forEach(z => { const p = inBuilding(z, 30); if (p) S.crates.push({ x: p.x, y: p.y, uses: 2 }); });
     if (S.samples.length < (cfg.crash ? 1 : 2)) return null;
     m.LZ = LZ; m.EX = EX;
+    placeObjects(m, seed);
     return m;
+  }
+
+  /* ---------- اشیای محیط: هر خانهٔ مانع یک شیء واقعی (درخت، بشکه، جعبه، سنگر...) می‌شود ---------- */
+  function placeObjects(m, seed) {
+    const R = G.rng(seed ^ 0x2f6e2b1), W = m.w, H = m.h, N = W * H, I = (x, y) => y * W + x;
+    m.objs = []; m.obj = new Array(N).fill(null); m.remains = []; m.marks = new Map();
+    const cxy = i => ({ x: (i % W) * T + T / 2, y: ((i / W) | 0) * T + T / 2 });
+    const add = (type, tiles, o) => {
+      let x = 0, y = 0; for (const i of tiles) { const p = cxy(i); x += p.x; y += p.y; }
+      const ob = Object.assign({ type, tiles, x: x / tiles.length, y: y / tiles.length, rot: 0, seed: R.int(1, 99999), zone: m.zone[tiles[0]] }, o || {});
+      for (const i of tiles) m.obj[i] = ob; m.objs.push(ob); return ob;
+    };
+    // تخته‌سنگ‌ها و بشکه‌های پراکنده روی زمین باز (فقط جایی که هر هشت همسایه آزاد است تا مسیری بسته نشود)
+    const free8 = (x, y) => { for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { const i = I(x + dx, y + dy); if (m.block[i] || m.keep[i] || m.dyn[i]) return false; } return true; };
+    // کنار دیوار: فقط دیوار در همسایگی باشد و دست‌کم پنج همسایه آزاد بماند (اشیا به هم نمی‌چسبند تا راهی بسته نشود)
+    const byWall = (x, y) => { let fr = 0; for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) { if (!dx && !dy) continue; const j = I(x + dx, y + dy), b = m.block[j]; if (!b && !m.dyn[j]) fr++; else if (b !== 1) return false; } return fr >= 5; };
+    const core = m.sites.core, far = (x, y) => Math.hypot(x * T - core.x, y * T - core.y) > 9 * T && Math.hypot(x - m.LZ.x, y - m.LZ.y) > 6;
+    for (let y = 4; y < H - 4; y++) for (let x = 4; x < W - 4; x++) {
+      const i = I(x, y), g = m.ground[i]; if (m.block[i] || !far(x, y)) continue;
+      if (g === 0 && m.zone[i] <= 2 && R.chance(.006) && free8(x, y)) { m.block[i] = 2; m.sub[i] = 5; }
+      else if (g === 2 && R.chance(.09) && !m.keep[i] && byWall(x, y) || g === 1 && m.zone[i] >= 1 && R.chance(.004) && free8(x, y)) { m.block[i] = 2; m.sub[i] = 6; }
+    }
+    const used = new Uint8Array(N);
+    for (const c of m.cars) { const ts = []; for (let yy = c.y; yy < c.y + c.h; yy++) for (let xx = c.x; xx < c.x + c.w; xx++) { ts.push(I(xx, yy)); used[I(xx, yy)] = 1; } add('car', ts, { car: c, vert: c.h > c.w }); }
+    const BC = ['red', 'red', 'rust', 'olive', 'blue', 'blue'];
+    for (let y = 2; y < H - 2; y++) for (let x = 2; x < W - 2; x++) {
+      const i = I(x, y), b = m.block[i]; if (used[i]) continue;
+      const jit = () => R.range(-2.5, 2.5);
+      if (b === 3) {
+        const z = m.zone[i], o = add(z >= 2 && z !== 4 ? 'dead' : R.chance(.42) ? 'pine' : 'tree', [i], { rot: R.range(0, 6.28), size: R.range(.62, .86) });
+        o.x += jit(); o.y += jit();
+      } else if (b === 2) {
+        const s = m.sub[i];
+        if (s === 1) add('junk', [i]);
+        else if (s === 3) add('window', [i], { horiz: m.block[I(x - 1, y)] === 1 || m.block[I(x + 1, y)] === 1 || m.block[I(x - 1, y)] === 2 || m.block[I(x + 1, y)] === 2 });
+        else if (s === 4) add('rubble', [i], { rot: R.range(0, 6.28) });
+        else if (s === 5) add('rock', [i], { rot: R.range(0, 6.28) });
+        else if (s === 6) { const k = R(), o = k < .55 ? add('barrel', [i], { color: R.pick(BC), rot: R.range(0, 6.28) }) : k < .8 ? add('crate', [i], { rot: R.range(-.4, .4) }) : add('tires', [i]); if (o.type !== 'crate') { o.x += jit(); o.y += jit(); } }
+        else if (s === 0) {
+          const k = R(), g = m.ground[i];
+          const o = k < .42 ? add('crate', [i], { rot: R.range(-.25, .25) }) : k < .8 ? add('barrel', [i], { color: R.pick(BC), rot: R.range(0, 6.28) }) : g === 3 ? add('crate', [i], { rot: R.range(-.25, .25) }) : add('tires', [i]);
+          if (o.type !== 'crate') { o.x += jit(); o.y += jit(); }
+        } else if (s === 2) {
+          // ردیف سنگر: طول ردیف را پیدا کن
+          const hor = m.block[I(x + 1, y)] === 2 && m.sub[I(x + 1, y)] === 2 && !used[I(x + 1, y)];
+          const run = [i]; used[i] = 1;
+          for (let k = 1; k < 4; k++) { const j = hor ? I(x + k, y) : I(x, y + k); if (m.block[j] === 2 && m.sub[j] === 2 && !used[j]) { run.push(j); used[j] = 1; } else break; }
+          if (run.length === 3 && R.chance(.5)) add('barrier', run, { rot: hor ? 0 : Math.PI / 2, hor });
+          else if (run.length === 1) add(m.ground[i] === 0 ? 'rock' : 'tires', [i], { rot: R.range(0, 6.28) });
+          else { let prev = null; run.forEach(j => { const o = add('sandbag', [j], { rot: hor ? 0 : Math.PI / 2, hor }); if (prev) prev.next = o; prev = o; }); }
+        }
+      }
+    }
+    G.initObjs && G.initObjs(m);
   }
 
   /* ---------- پرس‌وجوهای شبکه ---------- */
@@ -643,28 +706,28 @@ G.audio = (function () {
   };
 
   /* ---------- موانع تخریب‌پذیر ---------- */
-  G.destructible = i => { const b = G.map.block[i]; return b === 1 || b === 2 || b === 3; };
-  G.tileMax = i => { const m = G.map, b = m.block[i]; return b === 1 ? 480 : b === 3 ? 140 : m.sub[i] === 1 ? 360 : 150; };
-  G.damageTile = function (i, dmg, expl) {
+  // دیوار ساختمان، همهٔ اشیا، دیوار قرنطینه و بلورها (دو مورد آخر فقط با انفجار)
+  G.destructible = i => { const b = G.map.block[i]; return b === 1 || b === 2 || b === 3 || b === 4 || b === 6; };
+  G.tileMax = i => { const m = G.map, b = m.block[i], o = m.obj[i]; return o ? o.max : b === 1 ? 480 : b === 4 ? 1500 : b === 6 ? 260 : 150; };
+  G.tileHp = i => { const m = G.map, o = m.obj[i]; return o ? o.max - o.hp : (m.thp ? m.thp[i] : 0); };
+  G.damageTile = function (i, dmg, expl, ang) {
     const m = G.map; if (i == null || i < 0 || !G.destructible(i)) return false;
+    const o = m.obj[i]; if (o) { G.damageObj(o, dmg, expl, ang); return true; }
     if (!m.thp) m.thp = new Float32Array(m.w * m.h);
-    const b = m.block[i], k = expl ? 1 : b === 1 ? .2 : m.sub[i] === 1 ? .25 : 1;
+    const b = m.block[i], k = expl ? 1 : b === 1 ? .2 : 0;
     m.thp[i] += dmg * k;
     if (m.thp[i] >= G.tileMax(i)) G.destroyTile(i);
     return true;
   };
+  G.clearTile = function (j) { const m = G.map; m.block[j] = 0; m.sub[j] = 0; m.reach[j] = 1; m.obj[j] = null; if (m.thp) m.thp[j] = 0; m.marks.delete(j); G.minimapDirty = true; G.flowT = 0; };
   G.destroyTile = function (i) {
-    const m = G.map, W = m.w, x = i % W, y = (i / W) | 0, b = m.block[i];
-    const clear = j => { m.block[j] = 0; m.sub[j] = 0; m.reach[j] = 1; if (m.thp) m.thp[j] = 0; };
-    if (b === 2 && m.sub[i] === 1) {
-      const k = m.cars.findIndex(c => x >= c.x && x < c.x + c.w && y >= c.y && y < c.y + c.h);
-      if (k >= 0) { const c = m.cars[k]; for (let yy = c.y; yy < c.y + c.h; yy++) for (let xx = c.x; xx < c.x + c.w; xx++) clear(yy * W + xx); m.cars.splice(k, 1); G.fx.boom((c.x + c.w / 2) * T, (c.y + c.h / 2) * T, 50); }
-      else clear(i);
-    } else clear(i);
+    const m = G.map, W = m.w, x = i % W, y = (i / W) | 0, b = m.block[i], o = m.obj[i];
+    if (o) { G.killObj(o); return; }
+    G.clearTile(i);
     const px = x * T + T / 2, py = y * T + T / 2;
-    G.fx.burst(px, py - 8, b === 3 ? '#4a3623' : '#8b857b', 12, 140, .6, 3.5); G.fx.burst(px, py - 8, '#3b3a38', 8, 90, .8, 5);
-    G.fx.decal(px, py, 'scorch', '#000', 14);
-    G.minimapDirty = true; G.flowT = 0;
+    if (b === 6) { G.fx.debris(px, py, 'crystal', 8); G.fx.burst(px, py, '#a05cff', 10, 150, .5, 2.5); }
+    else { G.fx.debris(px, py, 'concrete', 9); G.fx.puff(px, py, '#a39c8e', 6); G.fx.remain('rubble', px, py, (x * 7 + y * 13) % 6, 1); }
+    G.audio.play('crumble', Math.hypot(px - G.cmd.x, py - G.cmd.y));
   };
 
   // خانه‌های خطرناک کنار تنبلی‌ها (برای دوری مسیرها از شلاق آن‌ها)
@@ -738,6 +801,486 @@ G.audio = (function () {
     fo.x = (tx + bx) * T + T / 2; fo.y = (ty + by) * T + T / 2; return fo;
   };
   G.flowAt = (x, y) => { const i = G.tileAt(x, y); return i < 0 ? 65535 : G.map.flow[i]; };
+})();
+</script>
+<script>
+'use strict';
+/* اشیای محیط: نمای بالا با عمق سه‌بعدی (پرسپکتیو)، جنس‌ها، ردّ گلوله، لرزش و تخریب */
+(function () {
+  const T = G.T, TAU = Math.PI * 2;
+  const CFG = G.PROPS_CFG = {
+    persp: 0.0024,        // شدت سه‌بعدی: هرچه بیشتر، اشیای بلند بیشتر به بیرون کج می‌شوند
+    light: [0.6, 0.8],    // جهت افتادن سایه (نور از بالا-چپ)
+    shadowLength: 0.55,   // طول سایه به ازای هر واحد ارتفاع
+    shadowOpacity: 0.3,
+    wind: 1,              // تکان خوردن درخت‌ها (۰ = خاموش)
+  };
+  const ll = Math.hypot(CFG.light[0], CFG.light[1]), L = [CFG.light[0] / ll, CFG.light[1] / ll];
+  let camX = 0, camY = 0, PS = 1, c = null;
+  const P3 = G.P3 = {
+    L, cx: 0, cy: 0, persp: CFG.persp,
+    setCam(x, y) { camX = P3.cx = x; camY = P3.cy = y; },
+    zoom: h => 1 + h * CFG.persp,
+  };
+
+  const rot = (x, y, a) => [x * Math.cos(a) - y * Math.sin(a), x * Math.sin(a) + y * Math.cos(a)];
+  const rgb = (col, f) => `rgb(${col.map(v => Math.round(Math.min(255, v * f))).join(',')})`;
+  const hex = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+  function rng(seed) { return () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }; }
+
+  // نقطهٔ جهان در ارتفاع h -> نقطهٔ بوم. لرزش ضربه و افتادن درخت هم همین‌جا اعمال می‌شود.
+  function pt(o, x, y, h) {
+    if (o) {
+      if (o.fall) { const th = o.fall.e * Math.PI / 2, sn = Math.sin(th); x += o.fall.dx * h * sn; y += o.fall.dy * h * sn; h *= Math.cos(th); }
+      else if (o.wob > .02) { const k = o.wob * Math.sin(G.time * 42) * h / o.h; x += Math.cos(o.wa) * k; y += Math.sin(o.wa) * k; }
+    }
+    const s = PS = 1 + h * CFG.persp;
+    return [camX + (x - camX) * s, camY + (y - camY) * s];
+  }
+  P3.pt = (x, y, h) => pt(null, x, y, h);
+  P3.scale = () => PS;
+
+  /* ---------- رویهٔ بالای اشیا (برگردان طرح‌های SVG) ---------- */
+  const circ = (x, y, r) => { c.beginPath(); c.arc(x, y, r, 0, TAU); };
+  const BARREL = {
+    red:   { side: '#8a2c22', hi: '#c9584a', top: '#a5382b', dark: '#531710', mark: true },
+    blue:  { side: '#27506f', hi: '#5d8fb3', top: '#33678e', dark: '#152c3e' },
+    olive: { side: '#4a5330', hi: '#7d8756', top: '#5d683c', dark: '#262b16' },
+    rust:  { side: '#6e4a2c', hi: '#a37a4c', top: '#84593a', dark: '#3a2513' },
+  };
+  function barrelTop(b) {
+    c.fillStyle = b.top; c.strokeStyle = b.dark; c.lineWidth = 2; circ(0, 0, 15); c.fill(); c.stroke();
+    c.globalAlpha *= .7; c.lineWidth = 1; circ(0, 0, 10.5); c.stroke(); c.globalAlpha /= .7;
+    c.fillStyle = b.dark; circ(6.5, -5, 2.2); c.fill();
+    c.strokeStyle = 'rgba(255,255,255,.4)'; c.lineWidth = 1.8; c.lineCap = 'round'; c.beginPath(); c.arc(0, 0, 11.5, 3.6, 4.45); c.stroke();
+    if (b.mark) { c.fillStyle = '#e8c23a'; c.strokeStyle = '#1d1d1d'; c.lineWidth = .8; c.lineJoin = 'round'; c.beginPath(); c.moveTo(-5.5, 7); c.lineTo(3.5, 7); c.lineTo(-1, -1); c.closePath(); c.fill(); c.stroke(); }
+  }
+  function crateTop() {
+    c.fillStyle = '#b5834a'; c.fillRect(-23, -23, 46, 46);
+    c.strokeStyle = '#8a5f30'; c.lineWidth = 1; c.beginPath(); for (const x of [-11.5, 0, 11.5]) { c.moveTo(x, -23); c.lineTo(x, 23); } c.stroke();
+    c.strokeStyle = '#9a6b38'; c.lineWidth = 6; c.lineCap = 'butt'; c.beginPath(); c.moveTo(-19, -19); c.lineTo(19, 19); c.stroke(); c.strokeRect(-20, -20, 40, 40);
+    c.strokeStyle = '#5e3f1c'; c.lineWidth = 1.5; c.strokeRect(-23, -23, 46, 46);
+  }
+  function tiresTop() {
+    c.fillStyle = '#262626'; c.strokeStyle = '#0a0a0a'; c.lineWidth = 1.5; circ(0, 0, 18); c.fill(); c.stroke();
+    c.strokeStyle = '#3b3b3b'; c.lineWidth = 1.2; circ(0, 0, 13.5); c.stroke();
+    c.fillStyle = '#080808'; c.strokeStyle = '#111'; c.lineWidth = 1; circ(0, 0, 9.5); c.fill(); c.stroke();
+  }
+  const bagTop = tint => () => {
+    c.fillStyle = tint; c.strokeStyle = '#6f6140'; c.lineWidth = 1; c.beginPath(); c.roundRect(-16, -9, 32, 18, 6.5); c.fill(); c.stroke();
+    c.strokeStyle = '#8d7d53'; c.setLineDash([3, 2]); c.beginPath(); c.moveTo(-10, 0); c.lineTo(10, 0); c.stroke(); c.setLineDash([]);
+  };
+  const polyTop = (pts, fill, stroke) => () => { c.fillStyle = fill; c.strokeStyle = stroke; c.lineWidth = 1; c.lineJoin = 'round'; c.beginPath(); pts.forEach((q, i) => i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1])); c.closePath(); c.fill(); c.stroke(); };
+  const rectTop = (w, h, fill, stroke, extra) => () => { c.fillStyle = fill; c.fillRect(-w / 2, -h / 2, w, h); if (extra) extra(); c.strokeStyle = stroke; c.lineWidth = 1; c.strokeRect(-w / 2, -h / 2, w, h); };
+
+  /* ---------- سازندهٔ قطعه‌ها: استوانه، منشور، لایهٔ شاخ‌وبرگ، شاخه ---------- */
+  const rect = (w, h) => [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]];
+  function cyl(o, r, h0, h1, col, ribs, top, k) { return { t: 0, x: o.x, y: o.y, r, h0, h1, side: col.side, hi: col.hi, ribs: ribs || [], rib: col.dark || '#000', top, k: k || 1 }; }
+  function box(o, lp, ox, oy, h0, h1, side, top, k) {
+    const a = o.rot || 0, off = rot(ox, oy, a), cx = o.x + off[0], cy = o.y + off[1];
+    const pts = lp.map(q => { const r = rot(q[0], q[1], a); return [cx + r[0], cy + r[1]]; }), n = pts.length;
+    const faces = pts.map((A, i) => {
+      const B = pts[(i + 1) % n], ex = B[0] - A[0], ey = B[1] - A[1], el = Math.hypot(ex, ey) || 1, nx = ey / el, ny = -ex / el;
+      const f = 0.62 - 0.33 * (nx * L[0] + ny * L[1]);            // دیوارهٔ رو به نور روشن‌تر
+      return { A, B, nx, ny, fill: rgb(side, f), stroke: rgb(side, f * .7) };
+    });
+    return { t: 1, pts, faces, h0, h1, top, cx, cy, k: k || 1 };
+  }
+  function leafBlob(o, R, h, fill, hi, r) {
+    const path = new Path2D(); path.arc(0, 0, R * .62, 0, TAU);
+    for (let i = 0; i < 7; i++) { const a = i / 7 * 6.283 + r(), d = R * .5, rr = R * (.36 + .14 * r()); path.moveTo(Math.cos(a) * d + rr, Math.sin(a) * d); path.arc(Math.cos(a) * d, Math.sin(a) * d, rr, 0, TAU); }
+    return { t: 2, x: o.x, y: o.y, h, r: R * .9, path, fill, hi: [-R * .25, -R * .3, R * .36, hi] };
+  }
+  function pineBlob(o, R, h, fill, tw) {
+    const path = new Path2D();
+    for (let i = 0; i < 18; i++) { const a = i / 18 * 6.283 + tw, d = i % 2 ? R * .6 : R; i ? path.lineTo(Math.cos(a) * d, Math.sin(a) * d) : path.moveTo(Math.cos(a) * d, Math.sin(a) * d); }
+    path.closePath();
+    return { t: 2, x: o.x, y: o.y, h, r: R * .8, path, fill, stroke: '#14261b' };
+  }
+
+  const LEAF = [ // رنگ شاخ‌وبرگ بر اساس منطقه: سبز، زرد (پاییزی)، -، -، آبی
+    [['#2f4a22', '#3d5e2b'], ['#3a5c29', '#4b7234'], ['#48702f', '#5d8a3d'], ['#5a843a', '#79a650']],
+    [['#5a5320', '#6f6727'], ['#6e6525', '#857a2e'], ['#857a2b', '#9e9238'], ['#9c8f33', '#b8ab48']],
+    null, null,
+    [['#254a3c', '#2f5e4b'], ['#2e5c4a', '#3b7260'], ['#3a705a', '#4b8a70'], ['#4a846b', '#62a688']],
+  ];
+  const PINE = [['#1f3a2a', '#27472f', '#305637', '#3b6842', '#4a7d50'], ['#3a4424', '#46512a', '#546130', '#637238', '#748542'], null, null, ['#1c3a38', '#234742', '#2c564e', '#36685d', '#447d6e']];
+
+  // مشخصات هر نوع: جنس، جان، ضریب آسیب گلوله، شعاع برخورد
+  const SPEC = {
+    barrel: { h: 32, hr: 13 }, crate: { mat: 'wood', hp: 110, bk: 1, h: 27, hb: [15, 15] }, barrier: { mat: 'concrete', hp: 700, bk: .2, h: 30 },
+    sandbag: { mat: 'sand', hp: 240, bk: .6, h: 22 }, tires: { mat: 'rubber', hp: 170, bk: .5, h: 24, hr: 15 }, rock: { mat: 'stone', hp: 900, bk: .08, h: 24, hr: 14 },
+    tree: { mat: 'wood', hp: 240, bk: .5, tall: 1 }, pine: { mat: 'wood', hp: 200, bk: .5, tall: 1 }, dead: { mat: 'wood', hp: 150, bk: .5, tall: 1 },
+    car: { mat: 'metal', hp: 360, bk: .25, h: 21 }, window: { mat: 'glass', hp: 150, bk: 0, h: 24, over: 1 }, rubble: { mat: 'concrete', hp: 150, bk: .3, h: 11, over: 1 },
+    junk: { mat: 'metal', hp: 400, bk: .25, h: 20, hb: [16, 16] },
+  };
+
+  function build(o) {
+    const ps = o.parts = [], r = rng(o.seed || 7); o.shadow = null;
+    switch (o.type) {
+      case 'barrel': { const b = BARREL[o.color] || BARREL.red; ps.push(cyl(o, 13, 0, 32, b, [10.5, 21], () => barrelTop(b), .87)); break; }
+      case 'crate': ps.push(box(o, rect(30, 30), 0, 0, 0, 27, [150, 104, 56], crateTop, .655)); break;
+      case 'tires': ps.push(cyl(o, 15, 0, 24, { side: '#191919', hi: '#444', dark: '#000' }, [8, 16], tiresTop, .84)); break;
+      case 'barrier': {
+        const stripes = () => { c.strokeStyle = 'rgba(217,165,32,.85)'; c.lineWidth = 4.5; c.beginPath(); for (const x of [-36, -26, 20, 30]) { c.moveTo(x, -5.5); c.lineTo(x + 7, 5.5); } c.stroke(); };
+        ps.push(box(o, rect(94, 25), 0, 0, 0, 10, [150, 149, 141], rectTop(94, 25, '#a09f97', '#6e6d66')));
+        ps.push(box(o, rect(90, 11), 0, 0, 10, 30, [172, 171, 162], rectTop(90, 11, '#c2c1b8', '#77766f', stripes)));
+        break;
+      }
+      case 'sandbag': {
+        const pts = [[-16, -5.5], [-12.5, -9], [12.5, -9], [16, -5.5], [16, 5.5], [12.5, 9], [-12.5, 9], [-16, 5.5]], tints = ['#ac9a6c', '#b3a172', '#a99769'];
+        ps.push(box(o, pts, 0, 0, 0, 11, [168, 150, 104], bagTop(tints[o.seed % 3])));
+        if (o.half) break;
+        const nx = o.next; // کیسهٔ ردیف بالا روی درز دو کیسهٔ پایینی می‌نشیند
+        if (nx && !nx.dead && !nx.half) ps.push(box(o, pts, 16, 0, 11, 22, [168, 150, 104], bagTop(o.seed % 2 ? '#bdab7b' : '#b8a676')));
+        break;
+      }
+      case 'rock': {
+        const n = 9, base = [];
+        for (let i = 0; i < n; i++) { const a = i / n * TAU, d = 15.5 * (.72 + .28 * r()); base.push([Math.cos(a) * d, Math.sin(a) * d]); }
+        const lay = (k, h0, h1, fill, d) => { const pts = base.map(q => [q[0] * k + d, q[1] * k + d]); ps.push(box(o, pts, 0, 0, h0, h1, [118, 116, 108], polyTop(pts, fill, '#5f5d56'))); };
+        lay(1, 0, 9, '#8a887f', 0); lay(.76, 9, 17, '#9c9a90', -1); lay(.48, 17, 24, '#b1afa4', -2);
+        break;
+      }
+      case 'tree': {
+        const k = o.size, pal = LEAF[o.zone] || LEAF[0];
+        ps.push(cyl(o, 7 * k, 0, 46 * k, { side: '#4a3422', hi: '#7a5a3c' }));
+        [[48, 42], [41, 60], [31, 78], [19, 94]].forEach((q, i) => ps.push(leafBlob(o, q[0] * k, q[1] * k, pal[i][0], pal[i][1], r)));
+        o.hr = Math.max(5, 7 * k); o.h = 94 * k; o.cr = 44 * k; break;
+      }
+      case 'pine': {
+        const k = o.size, pal = PINE[o.zone] || PINE[0];
+        ps.push(cyl(o, 5 * k, 0, 28 * k, { side: '#3f2c1d', hi: '#6b4d33' }));
+        [[42, 24, 0], [34, 46, .3], [25, 68, .6], [16, 88, .9], [7, 104, 1.2]].forEach((q, i) => ps.push(pineBlob(o, q[0] * k, q[1] * k, pal[i], q[2])));
+        o.hr = Math.max(5, 5 * k + 1); o.h = 104 * k; o.cr = 36 * k; break;
+      }
+      case 'dead': { // درخت خشکیدهٔ مناطق بمباران‌شده
+        const k = o.size, H = 58 * k, col = o.zone === 3 ? '#231a2b' : '#3a2a1c';
+        ps.push(cyl(o, 6 * k, 0, H, { side: col, hi: o.zone === 3 ? '#3d2f4a' : '#5a4530' }));
+        for (let i = 0; i < 5; i++) { const a = i / 5 * TAU + r() * 1.2, len = (16 + r() * 16) * k, h0 = H * (.5 + r() * .45); ps.push({ t: 3, x0: o.x, y0: o.y, h0, x1: o.x + Math.cos(a) * len, y1: o.y + Math.sin(a) * len, h1: h0 + 14 * k, w: 2.4 * k, col }); }
+        o.hr = Math.max(5, 6 * k); o.h = H + 14 * k; o.cr = 0; break;
+      }
+      case 'car': {
+        const k = o.car, v = o.vert, col = k.burnt ? [42, 39, 37] : hex(k.c), W = 56, D = 24;
+        o.rot = v ? Math.PI / 2 : 0; o.hb = v ? [D / 2, W / 2] : [W / 2, D / 2];
+        const body = () => {
+          c.fillStyle = rgb(col, 1); c.strokeStyle = rgb(col, .55); c.lineWidth = 1; c.beginPath(); c.roundRect(-W / 2, -D / 2, W, D, 5); c.fill(); c.stroke();
+          c.fillStyle = 'rgba(0,0,0,.18)'; c.fillRect(-W / 2 + 3, -D / 2 + 2, 2, D - 4); c.fillRect(W / 2 - 5, -D / 2 + 2, 2, D - 4);
+          c.fillStyle = k.burnt ? '#141414' : 'rgba(150,200,230,.6)'; c.fillRect(-17, -D / 2 + 3, 5, D - 6); c.fillRect(12, -D / 2 + 3, 5, D - 6);
+        };
+        const roof = () => { c.fillStyle = rgb(col, 1.12); c.strokeStyle = rgb(col, .6); c.lineWidth = 1; c.beginPath(); c.roundRect(-12, -D / 2 + 2.5, 24, D - 5, 3); c.fill(); c.stroke(); };
+        ps.push(box(o, rect(W, D), 0, 0, 2, 13, col, body)); ps.push(box(o, rect(24, D - 5), 0, 0, 13, 21, col.map(x => x * .8), roof));
+        break;
+      }
+      case 'window': {
+        const z = o.zone, wt = hex(['#a59c8b', '#a59c8b', '#8a7568', '#4b4356', '#9aa3ad'][z]);
+        o.rot = o.horiz ? 0 : Math.PI / 2;
+        ps.push(box(o, rect(32, 32), 0, 0, 0, 9, wt, rectTop(32, 32, rgb(wt, 1), rgb(wt, .7))));
+        if (!o.broken) ps.push({ t: 4, o, a: rot(-16, 0, o.rot), b: rot(16, 0, o.rot), h0: 9, h1: 24 });
+        break;
+      }
+      case 'rubble': {
+        for (let i = 0; i < 4; i++) { const w = 8 + r() * 7, pts = rect(w, 6 + r() * 6); ps.push(box(o, pts, (r() - .5) * 16, (r() - .5) * 16, 0, 5 + r() * 6, i & 1 ? [120, 114, 104] : [100, 95, 87], polyTop(pts, i & 1 ? '#8b857b' : '#77726a', '#4d4943'))); }
+        break;
+      }
+    }
+  }
+
+  G.initObjs = function (m) {
+    for (const o of m.objs) {
+      const S = SPEC[o.type]; o.mat = S.mat; o.h = S.h; o.hr = S.hr; o.hb = S.hb; o.bk = S.bk; o.max = S.hp; o.tall = !!S.tall; o.over = !!S.over; o.wob = 0; o.wa = 0; o.alpha = 1;
+      if (o.type === 'barrel') { o.fuel = o.color === 'red'; o.mat = o.color === 'blue' ? 'plastic' : 'metal'; o.max = o.fuel ? 70 : o.mat === 'plastic' ? 80 : 160; o.bk = o.mat === 'plastic' ? 1 : .5; }
+      if (o.type === 'barrier') o.hb = o.hor ? [47, 12.5] : [12.5, 47];
+      if (o.type === 'sandbag') o.hb = o.hor ? [16, 9] : [9, 16];
+      o.hp = o.max; build(o);
+    }
+    for (const o of m.objs) if (o.type === 'sandbag') build(o); // پیوندهای ردیف بالا پس از ساخت همه
+    m.objs.sort((a, b) => a.h - b.h);
+    G.objAct = []; G.fallers = [];
+  };
+
+  /* ---------- سایه‌ها (یک مسیر یکپارچه برای هر شیء تا روی هم تیره‌تر نشوند) ---------- */
+  function hull(P) {
+    P.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+    const cr = (o, a, b) => (a[0] - o[0]) * (b[1] - o[1]) - (a[1] - o[1]) * (b[0] - o[0]), lo = [], up = [];
+    for (const p of P) { while (lo.length >= 2 && cr(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop(); lo.push(p); }
+    for (let i = P.length - 1; i >= 0; i--) { const p = P[i]; while (up.length >= 2 && cr(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop(); up.push(p); }
+    lo.pop(); up.pop(); return lo.concat(up);
+  }
+  function ring(x, y, r, out) { for (let i = 0; i < 10; i++) out.push([x + Math.cos(i * .6283) * r, y + Math.sin(i * .6283) * r]); }
+  function shadowOf(o) {
+    const sh = new Path2D(), SL = CFG.shadowLength;
+    const poly = P => { const hl = hull(P); hl.forEach((q, i) => i ? sh.lineTo(q[0], q[1]) : sh.moveTo(q[0], q[1])); sh.closePath(); };
+    for (const p of o.parts) {
+      const P = [];
+      if (p.t === 0) { ring(p.x, p.y, p.r, P); ring(p.x + L[0] * p.h1 * SL, p.y + L[1] * p.h1 * SL, p.r, P); }
+      else if (p.t === 1) { const d = p.h1 * SL; for (const q of p.pts) { P.push([q[0], q[1]]); P.push([q[0] + L[0] * d, q[1] + L[1] * d]); } }
+      else if (p.t === 2) ring(p.x + L[0] * p.h * SL, p.y + L[1] * p.h * SL, p.r, P);
+      else continue;
+      poly(P);
+    }
+    return sh;
+  }
+
+  /* ---------- رسم ---------- */
+  function drawPart(o, p) {
+    if (p.t === 0) {
+      const b = pt(o, p.x, p.y, p.h0), s0 = PS, t = pt(o, p.x, p.y, p.h1), s1 = PS, w = p.r * (s0 + s1);
+      const dx = t[0] - b[0], dy = t[1] - b[1], len = Math.hypot(dx, dy);
+      c.lineCap = 'round';
+      if (len > .3) { c.strokeStyle = p.side; c.lineWidth = w; c.beginPath(); c.moveTo(b[0], b[1]); c.lineTo(t[0], t[1]); c.stroke(); }
+      if (len > 1.5) {
+        const px = -dy / len, py = dx / len, sg = (px * -L[0] + py * -L[1]) > 0 ? 1 : -1, q = w * .2 * sg;   // عمود بر جهت کج شدن
+        c.globalAlpha = .75 * o.alpha; c.strokeStyle = p.hi; c.lineWidth = w * .22; c.beginPath(); c.moveTo(b[0] + px * q, b[1] + py * q); c.lineTo(t[0] + px * q, t[1] + py * q); c.stroke();
+        if (p.ribs.length) { // حلقه‌های دور بدنه: فقط نیمهٔ رو به دوربین
+          c.globalAlpha = .65 * o.alpha; c.strokeStyle = p.rib; c.lineWidth = 2.2; c.lineCap = 'butt'; const a0 = Math.atan2(py, px);
+          for (const hh of p.ribs) { const cc = pt(o, p.x, p.y, hh); c.beginPath(); c.arc(cc[0], cc[1], p.r * PS, a0, a0 + Math.PI); c.stroke(); }
+        }
+        c.globalAlpha = o.alpha;
+      }
+      if (p.top) { c.save(); c.translate(t[0], t[1]); c.rotate(o.rot || 0); c.scale(s1 * p.k, s1 * p.k); p.top(); c.restore(); }
+    } else if (p.t === 1) {
+      c.lineWidth = .6; c.lineJoin = 'round';
+      for (const f of p.faces) {
+        if (f.nx * ((f.A[0] + f.B[0]) / 2 - camX) + f.ny * ((f.A[1] + f.B[1]) / 2 - camY) >= 0) continue;   // پشت به دوربین
+        const a0 = pt(o, f.A[0], f.A[1], p.h0), b0 = pt(o, f.B[0], f.B[1], p.h0), b1 = pt(o, f.B[0], f.B[1], p.h1), a1 = pt(o, f.A[0], f.A[1], p.h1);
+        c.fillStyle = f.fill; c.strokeStyle = f.stroke; c.beginPath(); c.moveTo(a0[0], a0[1]); c.lineTo(b0[0], b0[1]); c.lineTo(b1[0], b1[1]); c.lineTo(a1[0], a1[1]); c.closePath(); c.fill(); c.stroke();
+      }
+      const t = pt(o, p.cx, p.cy, p.h1);
+      c.save(); c.translate(t[0], t[1]); c.rotate(o.rot || 0); c.scale(PS * p.k, PS * p.k); p.top(); c.restore();
+    } else if (p.t === 2) {
+      const k = CFG.wind * p.h, ph = (p.x * .013 + p.y * .007) % 6.28, tm = G.time;                          // بالاتر = تکان بیشتر
+      const t = pt(o, p.x + Math.sin(tm * 1.1 + ph) * k * .035, p.y + Math.cos(tm * .8 + ph) * k * .022, p.h);
+      c.save(); c.translate(t[0], t[1]); c.rotate(o.rot || 0); c.scale(PS, PS);
+      c.globalAlpha = .2 * o.alpha; c.fillStyle = '#000'; c.translate(3, 4); c.fill(p.path); c.translate(-3, -4);
+      c.globalAlpha = o.alpha; c.fillStyle = p.fill; c.fill(p.path);
+      if (p.stroke) { c.strokeStyle = p.stroke; c.lineWidth = .8; c.lineJoin = 'round'; c.stroke(p.path); }
+      if (p.hi) { c.globalAlpha = .45 * o.alpha; c.fillStyle = p.hi[3]; circ(p.hi[0], p.hi[1], p.hi[2]); c.fill(); }
+      c.restore(); c.globalAlpha = o.alpha;
+    } else if (p.t === 3) {
+      const a = pt(o, p.x0, p.y0, p.h0), b = pt(o, p.x1, p.y1, p.h1);
+      c.strokeStyle = p.col; c.lineWidth = p.w * PS; c.lineCap = 'round'; c.beginPath(); c.moveTo(a[0], a[1]); c.lineTo(b[0], b[1]); c.stroke();
+    } else if (p.t === 4) { // شیشهٔ پنجره
+      const A = [o.x + p.a[0], o.y + p.a[1]], B = [o.x + p.b[0], o.y + p.b[1]];
+      const a0 = pt(o, A[0], A[1], p.h0), b0 = pt(o, B[0], B[1], p.h0), b1 = pt(o, B[0], B[1], p.h1), a1 = pt(o, A[0], A[1], p.h1);
+      c.fillStyle = 'rgba(160,210,230,.38)'; c.strokeStyle = 'rgba(215,240,250,.8)'; c.lineWidth = 1.2; c.beginPath(); c.moveTo(a0[0], a0[1]); c.lineTo(b0[0], b0[1]); c.lineTo(b1[0], b1[1]); c.lineTo(a1[0], a1[1]); c.closePath(); c.fill(); c.stroke();
+    }
+  }
+  // ردّ گلوله بسته به جنس
+  function drawMark(mk) {
+    if ((mk.nx || mk.ny) && mk.nx * (camX - mk.x) + mk.ny * (camY - mk.y) <= 0) return; // روی وجهِ پشت به دوربین
+    const p = pt(null, mk.x, mk.y, mk.h), s = PS, x = p[0], y = p[1], k = mk.k;
+    if (k === 'wood') { c.fillStyle = 'rgba(24,13,5,.5)'; circ(x, y, 3.3 * s); c.fill(); c.fillStyle = '#0e0703'; circ(x, y, 1.4 * s); c.fill(); }
+    else if (k === 'metal') { c.fillStyle = 'rgba(236,230,214,.9)'; circ(x, y, 1.9 * s); c.fill(); c.fillStyle = '#26221e'; circ(x, y, .9 * s); c.fill(); }
+    else if (k === 'plastic') { c.fillStyle = 'rgba(255,255,255,.4)'; circ(x, y, 2.5 * s); c.fill(); c.fillStyle = '#080c11'; circ(x, y, 1.6 * s); c.fill(); }
+    else if (k === 'concrete') { c.fillStyle = 'rgba(228,223,208,.75)'; circ(x, y, 3 * s); c.fill(); c.fillStyle = '#2b2824'; circ(x, y, 1.7 * s); c.fill(); c.fillStyle = '#c9963a'; circ(x, y, .85 * s); c.fill(); } // گلولهٔ گیرکرده
+    else if (k === 'stone') { c.fillStyle = 'rgba(215,212,200,.8)'; circ(x, y, 2.4 * s); c.fill(); c.fillStyle = '#4a4842'; circ(x, y, .9 * s); c.fill(); }
+    else if (k === 'sand') { c.fillStyle = '#5d5133'; circ(x, y, 1.7 * s); c.fill(); }
+    else { c.fillStyle = '#000'; circ(x, y, 1.4 * s); c.fill(); }
+  }
+  P3.mark = drawMark;
+
+  let vis = [], visT = -1;
+  function visible(x0, y0, x1, y1) {
+    vis.length = 0; const M = 110;
+    for (const o of G.map.objs) if (o.x > x0 - M && o.x < x1 + M && o.y > y0 - M && o.y < y1 + M) vis.push(o);
+    for (const o of G.fallers) vis.push(o);
+  }
+  G.drawObjShadows = function (ctx, x0, y0, x1, y1) {
+    c = ctx; visible(x0, y0, x1, y1);
+    c.fillStyle = `rgba(0,0,0,${CFG.shadowOpacity})`;
+    for (const o of vis) { if (o.fall || o.type === 'junk') continue; if (!o.shadow) o.shadow = shadowOf(o); c.fill(o.shadow); }
+  };
+  // tall=false: اشیای کوتاه (پیش از دیوارها) | tall=true: درخت‌ها (روی همه‌چیز)
+  G.drawObjs = function (ctx, tall) {
+    c = ctx;
+    for (const o of vis) {
+      if (o.tall !== tall) continue;
+      if (tall && o.cr) { // شاخ‌وبرگ بالای سر نیروها نیمه‌شفاف می‌شود تا دیده شوند
+        let under = false; const R = o.cr * .85;
+        for (const s of G.soldiers) if (!s.dead && Math.abs(s.x - o.x) < R && Math.abs(s.y - o.y) < R) { under = true; break; }
+        if (!under) for (const z of G.zActive) if (!z.dead && Math.abs(z.x - o.x) < R && Math.abs(z.y - o.y) < R) { under = true; break; }
+        o.alpha += ((under ? .4 : 1) - o.alpha) * .15;
+      }
+      if (o.fall) o.alpha = Math.min(1, 2.2 * (1 - o.fall.k));
+      c.globalAlpha = o.alpha;
+      const al = o.alpha;
+      for (const p of o.parts) { o.alpha = p.t === 2 || o.fall ? al : 1; c.globalAlpha = o.alpha; drawPart(o, p); }
+      o.alpha = al; c.globalAlpha = 1;
+      if (o.marks) for (const mk of o.marks) drawMark(mk);
+      if (o.crack) drawCracks(o);
+      if (o.fuse > 0) { const t = pt(o, o.x, o.y, o.h), f = 5 + Math.sin(G.time * 30 + o.x) * 2; c.globalAlpha = .85; c.fillStyle = '#ff7a1e'; circ(t[0], t[1], f); c.fill(); c.fillStyle = '#ffe08a'; circ(t[0], t[1], f * .5); c.fill(); c.globalAlpha = 1; }
+    }
+  };
+  function drawCracks(o) {
+    const r = rng(o.seed), t = pt(o, o.x, o.y, o.h), s = PS, R = o.hb ? Math.min(o.hb[0], o.hb[1]) : o.hr;
+    c.strokeStyle = 'rgba(25,22,20,.7)'; c.lineWidth = 1.1 * s; c.lineCap = 'round'; c.beginPath();
+    for (let i = 0; i < 3; i++) { let x = t[0] + (r() - .5) * (o.hb ? o.hb[0] * 1.4 : R), y = t[1] + (r() - .5) * (o.hb ? o.hb[1] * 1.4 : R), a = r() * TAU; c.moveTo(x, y); for (let k = 0; k < 3; k++) { a += (r() - .5) * 1.6; x += Math.cos(a) * R * .45 * s; y += Math.sin(a) * R * .45 * s; c.lineTo(x, y); } }
+    c.stroke();
+  }
+
+  /* ---------- پرتو گلوله روی اشیا ---------- */
+  let stamp = 0; const out = [];
+  G.objRay = function (x0, y0, dx, dy, maxD) {
+    const m = G.map, W = m.w; out.length = 0; stamp++;
+    let tx = Math.floor(x0 / T), ty = Math.floor(y0 / T);
+    const sx = dx > 0 ? 1 : -1, sy = dy > 0 ? 1 : -1, adx = Math.abs(dx), ady = Math.abs(dy);
+    const tdx = adx > 1e-9 ? T / adx : 1e18, tdy = ady > 1e-9 ? T / ady : 1e18;
+    let tmx = adx > 1e-9 ? (dx > 0 ? (tx + 1) * T - x0 : x0 - tx * T) / adx : 1e18, tmy = ady > 1e-9 ? (dy > 0 ? (ty + 1) * T - y0 : y0 - ty * T) / ady : 1e18, d = 0;
+    for (;;) {
+      if (tx < 0 || ty < 0 || tx >= W || ty >= m.h) break;
+      const o = m.obj[ty * W + tx];
+      if (o && o.stamp !== stamp && !o.dead) {
+        o.stamp = stamp; let t = -1, t2 = -1;
+        if (o.over && !(o.type === 'window' && !o.broken)) { /* گلوله از بالای آن رد می‌شود */ }
+        else if (o.hb) { // جعبهٔ هم‌راستا با محورها
+          const ix = 1 / (dx || 1e-9), iy = 1 / (dy || 1e-9);
+          let a = (o.x - o.hb[0] - x0) * ix, b = (o.x + o.hb[0] - x0) * ix, e = (o.y - o.hb[1] - y0) * iy, f = (o.y + o.hb[1] - y0) * iy;
+          if (a > b) { const q = a; a = b; b = q; } if (e > f) { const q = e; e = f; f = q; }
+          const n = Math.max(a, e), fr = Math.min(b, f); if (n <= fr && fr > 0) { t = Math.max(0, n); t2 = fr; }
+        } else {
+          const rx = o.x - x0, ry = o.y - y0, pj = rx * dx + ry * dy, q = rx * rx + ry * ry - pj * pj, rr = (o.hr || 12) * (o.hr || 12);
+          if (q < rr && pj > 0) { const hs = Math.sqrt(rr - q); t = Math.max(0, pj - hs); t2 = pj + hs; }
+        }
+        if (t >= 0 && t <= maxD) out.push({ o, t, t2 });
+      }
+      if (tmx < tmy) { d = tmx; tmx += tdx; tx += sx; } else { d = tmy; tmy += tdy; ty += sy; }
+      if (d >= maxD) break;
+    }
+    return out;
+  };
+  // آیا شیئی که گلوله را نگه می‌دارد سر راه است؟ (برای انتخاب هدف نیروها)
+  G.objBlocks = function (x0, y0, x1, y1) {
+    const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy); if (d < 1) return false;
+    for (const h of G.objRay(x0, y0, dx / d, dy / d, d)) { if (h.t < 38 && !h.o.tall) continue; if (h.o.mat !== 'plastic' && h.o.mat !== 'glass') return true; }
+    return false;
+  };
+
+  function addMark(list, x, y, h, nx, ny, k, cap) { if (list.length >= cap) list.shift(); list.push({ x, y, h, nx, ny, k }); }
+  function activate(o) { if (!o.act) { o.act = true; G.objAct.push(o); } }
+  function wobble(o, a, amt) { activate(o); o.wob = Math.min(o.tall ? 5 : 2.6, (o.wob || 0) + amt); o.wa = a; }
+  const SND = { metal: 'ping', wood: 'thud', plastic: 'pop', concrete: 'chip', stone: 'chip', sand: 'thud', rubber: 'thud', glass: 'glass' };
+
+  // برخورد گلوله با شیء. خروجی: ضریب ادامهٔ مسیر (۰ = گلوله ایستاد)
+  G.hitObj = function (o, px, py, dx, dy, dmg, d, ex, ey) {
+    const fx = G.fx, back = Math.atan2(-dy, -dx), ang = Math.atan2(dy, dx), mat = o.mat, cd = Math.hypot(px - G.cmd.x, py - G.cmd.y);
+    if (mat === 'glass') { // پنجره: شیشه می‌شکند و گلوله رد می‌شود
+      if (!o.broken) { o.broken = true; build(o); fx.glass(o.x, o.y, ang); G.audio.play('glass', cd); }
+      return 1;
+    }
+    const marks = o.marks || (o.marks = []), hh = o.h * (o.tall ? .12 + Math.random() * .2 : .3 + Math.random() * .55);
+    addMark(marks, px, py, hh, -dx, -dy, mat, 16);
+    if (!o.tall) addMark(marks, px + dx * 4, py + dy * 4, o.h, 0, 0, mat, 16); // سوراخ روی رویهٔ بالا تا از بالا هم دیده شود
+    wobble(o, ang, Math.min(1.2, dmg * .03));
+    G.audio.play(SND[mat], cd);
+    let pass = 0;
+    if (mat === 'metal') { fx.sparks(px, py, back, 5 + (Math.random() * 4 | 0)); }
+    else if (mat === 'wood') {
+      fx.chips(px, py, back, '#8a6236', 3); if (Math.random() < .5) fx.smoke(px, py);
+      if (!o.tall && d && (d.pierce || 1) >= 2) { pass = .55; if (ex != null) { addMark(marks, ex, ey, hh, dx, dy, mat, 16); fx.chips(ex, ey, ang, '#8a6236', 4); } }
+    } else if (mat === 'plastic') { // سوراخ می‌شود و گلوله رد می‌شود؛ مایع از سوراخ بیرون می‌زند
+      pass = .8; fx.chips(px, py, back, '#5d8fb3', 2);
+      if (ex != null) { addMark(marks, ex, ey, hh, dx, dy, mat, 16); addMark(marks, ex - dx * 4, ey - dy * 4, o.h, 0, 0, mat, 16); fx.chips(ex, ey, ang, '#8fc4e8', 4); }
+      o.leak = (o.leak || 0) + 1; if (o.leak <= 4) fx.remain('puddle', (ex != null ? ex : px) + dx * 6 + G.rand(-5, 5), (ey != null ? ey : py) + dy * 6 + G.rand(-5, 5), Math.random() * 6, .5 + o.leak * .15);
+    } else if (mat === 'concrete') { fx.puff(px, py, '#b9b3a4', 2); fx.chips(px, py, back, '#9a958a', 3); }
+    else if (mat === 'stone') { fx.sparks(px, py, back, 2); fx.chips(px, py, back, '#a8a69c', 3); }
+    else if (mat === 'sand') { fx.puff(px, py, '#c2ad78', 2); fx.chips(px, py, back, '#b3a172', 2); }
+    else { fx.chips(px, py, back, '#1c1c1c', 2); }
+    G.damageObj(o, dmg * o.bk, false, ang);
+    return pass;
+  };
+
+  // برخورد گلوله با دیوار: گلوله در بتن گیر می‌کند، گردوخاک و تراشه
+  G.hitWall = function (ti, px, py, dx, dy, dmg) {
+    const m = G.map, b = m.block[ti]; if (!b) return;
+    const fx = G.fx, back = Math.atan2(-dy, -dx);
+    if (b === 6 || b === 7) { fx.sparks(px, py, back, 3, '#c9a0ff'); G.audio.play('ping', Math.hypot(px - G.cmd.x, py - G.cmd.y)); return; }
+    fx.puff(px, py, '#b9b3a4', 2); fx.chips(px, py, back, '#a39c8e', 3); G.audio.play('chip', Math.hypot(px - G.cmd.x, py - G.cmd.y));
+    const H = b === 4 ? 34 : b === 5 ? 26 : 24, tx = (ti % m.w) * T, ty = ((ti / m.w) | 0) * T;
+    const dl = px - tx, dr = tx + T - px, du = py - ty, dd = ty + T - py, mn = Math.min(dl, dr, du, dd);
+    const nx = mn === dl ? -1 : mn === dr ? 1 : 0, ny = nx ? 0 : mn === du ? -1 : 1;
+    let list = m.marks.get(ti); if (!list) { if (m.marks.size > 420) m.marks.delete(m.marks.keys().next().value); m.marks.set(ti, list = []); }
+    addMark(list, px, py, H * (.3 + Math.random() * .6), nx, ny, 'concrete', 6);
+    addMark(list, G.clamp(px + dx * 4, tx + 2, tx + T - 2), G.clamp(py + dy * 4, ty + 2, ty + T - 2), H, 0, 0, 'concrete', 6);
+    G.damageTile(ti, dmg, false);
+  };
+
+  /* ---------- آسیب و تخریب ---------- */
+  G.damageObj = function (o, dmg, expl, ang) {
+    if (o.dead) return;
+    const ex = G._ex;
+    if (expl && ex) { if (o.exId === ex.id) return; o.exId = ex.id; ang = Math.atan2(o.y - ex.y, o.x - ex.x); wobble(o, ang, 2.5); }
+    if (ang == null) ang = Math.random() * TAU;
+    o.hp -= dmg; o.hitA = ang;
+    if (o.type === 'window' && expl && !o.broken) { o.broken = true; build(o); G.fx.glass(o.x, o.y, ang); }
+    if (o.fuel) { // بشکهٔ سوخت: آتش می‌گیرد و بعد منفجر می‌شود (واکنش زنجیره‌ای)
+      const arm = t => { activate(o); o.fuse = o.fuse > 0 ? Math.min(o.fuse, t) : t; };
+      if (o.hp <= 0) { o.hp = 1; arm(expl ? G.rand(.12, .38) : .3); } else if (o.hp < o.max * .55) arm(G.rand(1.1, 1.8));
+      return;
+    }
+    if (o.hp <= 0) { G.killObj(o, ang); return; }
+    if (o.type === 'sandbag' && !o.half && o.hp < o.max * .5) { // کیسهٔ بالایی می‌افتد
+      o.half = true; G.fx.puff(o.x, o.y, '#c2ad78', 4); G.fx.debris(o.x, o.y, 'sack', 1, ang);
+      for (const q of G.map.objs) if (q.type === 'sandbag' && (q === o || q.next === o)) build(q);
+    }
+    if ((o.mat === 'concrete' || o.mat === 'stone') && o.hp < o.max * .5) o.crack = true;
+  };
+  G.killObj = function (o, ang) {
+    if (o.dead) return; o.dead = true;
+    const m = G.map, fx = G.fx, x = o.x, y = o.y; if (ang == null) ang = o.hitA != null ? o.hitA : Math.random() * TAU;
+    const k = m.objs.indexOf(o); if (k >= 0) m.objs.splice(k, 1);
+    for (const i of o.tiles) G.clearTile(i);
+    const cd = Math.hypot(x - G.cmd.x, y - G.cmd.y);
+    switch (o.type) {
+      case 'crate': fx.debris(x, y, 'plank', 9, ang); fx.puff(x, y, '#a58a62', 3); fx.remain('splinters', x, y, o.seed % 6, 1); G.audio.play('crack', cd); break;
+      case 'barrel':
+        if (o.fuel) { fx.debris(x, y, 'metal', 6, ang, '#8a2c22'); fx.remain('barrel', x + Math.cos(ang) * 18, y + Math.sin(ang) * 18, ang, 1, '#3a2019'); G.explode(x, y, 92, 190, null); }
+        else if (o.mat === 'plastic') { fx.debris(x, y, 'plastic', 8, ang); fx.remain('puddle', x, y, o.seed % 6, 1.6); G.audio.play('pop', cd); }
+        else { fx.debris(x, y, 'metal', 4, ang, BARREL[o.color].side); fx.sparks(x, y, ang, 8); fx.remain('barrel', x + Math.cos(ang) * 12, y + Math.sin(ang) * 12, ang, 1, BARREL[o.color].side); G.audio.play('clang', cd); }
+        break;
+      case 'tires': fx.debris(x, y, 'tire', 3, ang); fx.puff(x, y, '#3a3a3a', 3); G.audio.play('thud', cd); break;
+      case 'sandbag': fx.puff(x, y, '#c2ad78', 7); fx.debris(x, y, 'sack', 3, ang); fx.remain('sand', x, y, o.seed % 6, 1); G.audio.play('thud', cd);
+        for (const q of m.objs) if (q.type === 'sandbag' && q.next === o) build(q); break;
+      case 'barrier': for (let i = -1; i <= 1; i++) { const qx = x + (o.hor ? i * T : 0), qy = y + (o.hor ? 0 : i * T); fx.debris(qx, qy, 'concrete', 6, ang); fx.puff(qx, qy, '#a39c8e', 4); fx.remain('rubble', qx, qy, (o.seed + i) % 6, 1); } G.audio.play('crumble', cd); break;
+      case 'rubble': case 'window': fx.debris(x, y, 'concrete', 6, ang); fx.puff(x, y, '#a39c8e', 4); fx.remain('rubble', x, y, o.seed % 6, .8); G.audio.play('crumble', cd); break;
+      case 'rock': fx.debris(x, y, 'stone', 9, ang); fx.puff(x, y, '#9c9a90', 5); fx.remain('gravel', x, y, o.seed % 6, 1); G.audio.play('crumble', cd); break;
+      case 'car': { const q = m.cars.indexOf(o.car); if (q >= 0) m.cars.splice(q, 1); fx.boom(x, y, 50); fx.debris(x, y, 'metal', 9, ang, o.car.burnt ? '#2a2725' : o.car.c); fx.remain('carwreck', x, y, o.rot, 1); G.audio.play('boom', cd); break; }
+      case 'tree': case 'pine': case 'dead': // تنه می‌شکند و درخت در جهت ضربه می‌افتد
+        o.fall = { k: 0, e: 0, dx: Math.cos(ang), dy: Math.sin(ang) }; o.wob = 0; G.fallers.push(o);
+        fx.chips(x, y, ang, '#8a6236', 8); fx.remain('stump', x, y, o.seed % 6, o.hr / 6); G.audio.play('crack', cd);
+        if (o.cr) fx.leaves(x, y, o.cr * .6, o.parts[2].fill, 10);
+        break;
+    }
+  };
+
+  G.updateObjs = function (dt) {
+    const A = G.objAct;
+    for (let i = A.length - 1; i >= 0; i--) {
+      const o = A[i]; let keep = false;
+      if (o.wob > 0) { o.wob *= Math.exp(-5 * dt); if (o.wob < .05) o.wob = 0; else keep = true; }
+      if (o.fuse > 0 && !o.dead) {
+        o.fuse -= dt; keep = true;
+        if (Math.random() < dt * 30) G.fx.flame(o.x + G.rand(-5, 5), o.y + G.rand(-5, 5));
+        if (o.fuse <= 0) G.killObj(o, o.hitA);
+      }
+      if (!keep || o.dead) { o.act = false; A[i] = A[A.length - 1]; A.pop(); }
+    }
+    const F = G.fallers;
+    for (let i = F.length - 1; i >= 0; i--) {
+      const o = F[i], f = o.fall; f.k += dt / .85; f.e = Math.min(1, f.k * f.k * 1.6);
+      if (f.e >= 1 && !f.hit) { // برخورد با زمین
+        f.hit = true; const len = o.h * .8, ex = o.x + f.dx * len, ey = o.y + f.dy * len;
+        G.fx.remain('log', o.x, o.y, Math.atan2(f.dy, f.dx), len / 60, o.parts[0].side);
+        if (o.cr) { G.fx.leaves(ex, ey, o.cr, o.parts[2].fill, 16); G.fx.remain('leaves', o.x + f.dx * len * .75, o.y + f.dy * len * .75, o.seed % 6, o.cr / 40, o.parts[2].fill); }
+        G.fx.puff(ex, ey, '#8a8070', 4); G.audio.play('thud', Math.hypot(ex - G.cmd.x, ey - G.cmd.y)); G.fx.shake(2);
+      }
+      if (f.k >= 1) F.splice(i, 1);
+    }
+  };
+  // موج انفجار اشیای اطراف را می‌لرزاند
+  G.shockObjs = function (x, y, r) {
+    for (const o of G.map.objs) { const d = Math.hypot(o.x - x, o.y - y); if (d < r) wobble(o, Math.atan2(o.y - y, o.x - x), 2.4 * (1 - d / r) + .3); }
+  };
 })();
 </script>
 <script>
@@ -819,16 +1362,23 @@ G.audio = (function () {
       const px = rx - dx * t, py = ry - dy * t, rr = z.r + 3; if (px * px + py * py > rr * rr) continue;
       hits.push({ z, t });
     }
+    for (const h of G.objRay(x, y, dx, dy, Math.min(wall, d.range))) hits.push({ o: h.o, t: h.t, t2: h.t2 });
     hits.sort((a, b) => a.t - b.t);
-    let end = wall, dmg = d.dmg, n = d.pierce || 1;
+    let end = wall, dmg = d.dmg, n = d.pierce || 1, stopped = false;
     for (const h of hits) {
       if (h.t > end) break;
+      if (h.o) { // برخورد با اشیا: اثر و نفوذ بسته به جنس (از روی سنگرِ چسبیده به تیرانداز شلیک می‌شود)
+        if (h.o.dead || (h.t < 38 && !h.o.tall)) continue;
+        const ex = h.t2 < wall ? h.t2 : null, pass = G.hitObj(h.o, x + dx * h.t, y + dy * h.t, dx, dy, dmg, d, ex != null ? x + dx * ex : null, ex != null ? y + dy * ex : null);
+        if (pass <= 0) { end = h.t; stopped = true; break; }
+        dmg *= pass; continue;
+      }
       const fall = h.t > d.range * .7 ? .75 : 1;
       G.damageZombie(h.z, dmg * fall, { ap: d.ap, ang, knock: d.knock || 0, src: u });
       n--; dmg *= .7;
-      if (n <= 0 || h.z.form === 'sloth' || h.z.armor > 0) { end = h.t; break; }
+      if (n <= 0 || h.z.form === 'sloth' || h.z.armor > 0) { end = h.t; stopped = true; break; }
     }
-    if (end >= wall - .5 && wall < d.range) { G.fx.burst(x + dx * wall, y + dy * wall, '#d8c9a3', 3, 70, .25, 2); G.damageTile(G.tileAt(x + dx * (wall + 2), y + dy * (wall + 2)), dmg, false); }
+    if (!stopped && wall < d.range) G.hitWall(G.tileAt(x + dx * (wall + 2), y + dy * (wall + 2)), x + dx * wall, y + dy * wall, dx, dy, dmg);
     G.fx.bullet(x + dx * 18, y + dy * 18, ang, Math.max(0, end - 18));
   };
   function melee(u, ang) {
@@ -853,6 +1403,7 @@ G.audio = (function () {
   /* ---------- انفجار ---------- */
   G.explode = function (x, y, radius, dmg, owner, opts) {
     opts = opts || {};
+    G._ex = { x, y, id: (G._exId = (G._exId || 0) + 1) }; G.shockObjs(x, y, radius * 2);
     G.fx.boom(x, y, radius); G.audio.play('boom', Math.hypot(x - G.cmd.x, y - G.cmd.y)); G.noise(x, y, 900);
     const sh = G.clamp(1 - Math.hypot(x - G.cmd.x, y - G.cmd.y) / 700, 0, 1); G.fx.shake(10 * sh);
     for (const z of G.zombies) {
@@ -861,6 +1412,7 @@ G.audio = (function () {
       G.damageZombie(z, dmg * (1 - .6 * Math.min(1, d / radius)), { expl: 1, ang: Math.atan2(z.y - y, z.x - x), knock: 120, src: owner && owner.kind === 's' ? owner : null });
     }
     if (!opts.noTiles) { const m = G.map, r = radius * .8, tx0 = Math.floor((x - r) / T), tx1 = Math.floor((x + r) / T), ty0 = Math.floor((y - r) / T), ty1 = Math.floor((y + r) / T); for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) { if (tx < 0 || ty < 0 || tx >= m.w || ty >= m.h) continue; const dd = Math.hypot(tx * T + T / 2 - x, ty * T + T / 2 - y); if (dd < r) G.damageTile(ty * m.w + tx, dmg * (1 - .5 * dd / r), true); } }
+    G._ex = null;
     if (!opts.noFF) for (const s of G.soldiers) {
       if (s.dead) continue; const d = Math.hypot(s.x - x, s.y - y); if (d > radius) continue;
       if (d > 30 && !G.losClear(x, y, s.x, s.y, true)) continue;
@@ -890,7 +1442,8 @@ G.audio = (function () {
       if (p.type === 'rocket') {
         const step = p.sp * dt, dx = Math.cos(p.ang), dy = Math.sin(p.ang);
         const wd = G.rayCast(p.x, p.y, dx, dy, step + 4, true); let hit = wd <= step + 2;
-        const mv = Math.min(step, wd);
+        const mv = Math.min(step, wd); p.trav = (p.trav || 0) + mv;
+        if (!hit && p.trav > 60) for (const h of G.objRay(p.x, p.y, dx, dy, mv)) if (h.o.mat !== 'glass') { hit = true; break; }
         for (const z of G.zActive) { if (z.dead) continue; const rx = z.x - p.x, ry = z.y - p.y, t = rx * dx + ry * dy; if (t < -z.r || t > mv + z.r) continue; const qx = rx - dx * t, qy = ry - dy * t; if (qx * qx + qy * qy < (z.r + 4) * (z.r + 4)) { hit = true; break; } }
         p.x += dx * mv; p.y += dy * mv; p.left -= mv;
         if (Math.random() < .9) G.fx.smoke(p.x - dx * 8, p.y - dy * 8);
@@ -1076,8 +1629,9 @@ G.audio = (function () {
       cands.push({ z, sc });
     }
     cands.sort((a, b) => a.sc - b.sc);
-    u.target = null;
-    for (let i = 0; i < cands.length && i < 5; i++) { const z = cands[i].z; if (G.losClear(u.x, u.y, z.x, z.y)) { u.target = z; break; } }
+    u.target = null; let fb = null;
+    for (let i = 0; i < cands.length && i < 5; i++) { const z = cands[i].z; if (!G.losClear(u.x, u.y, z.x, z.y)) continue; if (!G.objBlocks(u.x, u.y, z.x, z.y)) { u.target = z; fb = null; break; } if (!fb) fb = z; }
+    if (fb) u.target = fb; // اگر همه پشت مانع‌اند، مانع را می‌کوبد
   }
   function findHunt(u, cx, cy, R, selfR) {
     let best = null, bs = 1e9;
@@ -1597,11 +2151,13 @@ G.audio = (function () {
   };
 
   /* ---------- افکت‌ها ---------- */
-  const parts = [], tracers = [], rings = [], booms = [], flashes = [], bullets = [], casings = [];
+  const parts = [], tracers = [], rings = [], booms = [], flashes = [], bullets = [], casings = [], debris = [];
+  const srand = seed => { let s = (seed * 9301 + 49297) >>> 0; return () => { s = (s * 1664525 + 1013904223) >>> 0; return s / 4294967296; }; };
+  const chunkAt = (x, y) => chunks.get(Math.floor(y / CPX) * 64 + Math.floor(x / CPX));
   G.fx = {
     hurt: 0,
     black: 0,
-    reset() { this.black = 0; bullets.length = casings.length = parts.length = tracers.length = rings.length = booms.length = flashes.length = 0; chunks.clear(); this.hurt = 0; view.shake = 0; },
+    reset() { this.black = 0; debris.length = bullets.length = casings.length = parts.length = tracers.length = rings.length = booms.length = flashes.length = 0; chunks.clear(); this.hurt = 0; view.shake = 0; },
     tracer() { },
     bullet(x, y, a, len) { if (bullets.length < 400) bullets.push({ x, y, a, left: len, go: 0 }); },
     casing(x, y, a) { if (casings.length > 260) casings.shift(); const ea = a + Math.PI / 2 + .25 + G.rand(-.25, .25), sp = G.rand(55, 95); casings.push({ x, y, vx: Math.cos(ea) * sp, vy: Math.sin(ea) * sp, z: 9, vz: G.rand(110, 160), rot: Math.random() * TAU, vr: G.rand(-24, 24) }); },
@@ -1610,18 +2166,49 @@ G.audio = (function () {
     burst(x, y, color, n, sp, life, size) { if (parts.length > 900) return; for (let i = 0; i < n; i++) { const a = Math.random() * TAU, s = sp * (.3 + Math.random() * .7); parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 20, life: life * (.6 + Math.random() * .6), max: life, color, size: size * (.6 + Math.random() * .8) }); } },
     smoke(x, y) { if (parts.length < 900) parts.push({ x, y, vx: G.rand(-12, 12), vy: G.rand(-28, -8), life: .7, max: .7, color: '#9a9a9a', size: 5, smoke: 1 }); },
     ring(x, y, r, color) { rings.push({ x, y, r, t: .5, max: .5, color }); },
+    // --- افکت برخورد بر اساس جنس ---
+    sparks(x, y, a, n, col) { if (parts.length > 900) return; for (let i = 0; i < n; i++) { const d = a + G.rand(-.9, .9), s = G.rand(120, 380); parts.push({ x, y, vx: Math.cos(d) * s, vy: Math.sin(d) * s, life: G.rand(.12, .32), max: .3, color: col || (Math.random() < .5 ? '#fff3b0' : '#ffb347'), size: 1.4, spark: 1 }); } flashes.push({ x, y, ang: a, t: .04, hit: 1 }); },
+    chips(x, y, a, color, n) { if (parts.length > 900) return; for (let i = 0; i < n; i++) { const d = a + G.rand(-.8, .8), s = G.rand(40, 150); parts.push({ x, y, vx: Math.cos(d) * s, vy: Math.sin(d) * s, life: G.rand(.25, .5), max: .5, color, size: G.rand(1.4, 2.8) }); } },
+    puff(x, y, color, n) { if (parts.length > 900) return; for (let i = 0; i < n; i++) parts.push({ x: x + G.rand(-6, 6), y: y + G.rand(-6, 6), vx: G.rand(-22, 22), vy: G.rand(-22, 22), life: G.rand(.5, .9), max: .9, color, size: G.rand(3, 6), smoke: 1 }); },
+    flame(x, y) { if (parts.length < 900) parts.push({ x, y, vx: G.rand(-14, 14), vy: G.rand(-34, -10), life: .45, max: .45, color: Math.random() < .5 ? '#ff7a1e' : '#ffd24a', size: G.rand(3, 5), smoke: 1, hot: 1 }); },
+    glass(x, y, a) { for (let i = 0; i < 12; i++) { const d = a + G.rand(-1.1, 1.1), s = G.rand(60, 240); parts.push({ x: x + G.rand(-10, 10), y: y + G.rand(-10, 10), vx: Math.cos(d) * s, vy: Math.sin(d) * s, life: G.rand(.3, .6), max: .6, color: Math.random() < .5 ? '#dff4ff' : '#9fd3ea', size: G.rand(1.5, 3) }); } this.remain('glass', x + Math.cos(a) * 14, y + Math.sin(a) * 14, a, 1); },
+    leaves(x, y, r, color, n) { if (parts.length > 900) return; for (let i = 0; i < n; i++) { const d = Math.random() * TAU, q = Math.random() * r; parts.push({ x: x + Math.cos(d) * q, y: y + Math.sin(d) * q, vx: Math.cos(d) * G.rand(20, 80), vy: Math.sin(d) * G.rand(20, 80), life: G.rand(.6, 1.3), max: 1.3, color, size: G.rand(2.5, 4.5), leaf: 1 }); } },
+    // تکه‌های پرتاب‌شونده: می‌پرند، می‌غلتند و روی زمین می‌مانند
+    debris(x, y, kind, n, ang, color) {
+      const D = { plank: ['#b5834a', 12, 3.5], metal: [color || '#666', 7, 5], plastic: ['#33678e', 6, 4], concrete: ['#8b857b', 6, 5], stone: ['#9c9a90', 6, 5], sack: ['#b3a172', 11, 6], tire: ['#1e1e1e', 13, 13], crystal: ['#3a1d5c', 6, 3] }[kind];
+      for (let i = 0; i < n; i++) {
+        if (debris.length > 220) debris.shift();
+        const d = ang != null ? ang + G.rand(-1.3, 1.3) : Math.random() * TAU, sp = G.rand(50, 210), k = G.rand(.6, 1.2);
+        debris.push({ x: x + G.rand(-8, 8), y: y + G.rand(-8, 8), vx: Math.cos(d) * sp, vy: Math.sin(d) * sp, z: G.rand(4, 18), vz: G.rand(90, 260), rot: Math.random() * TAU, vr: G.rand(-14, 14), kind, col: D[0], w: D[1] * k, h: D[2] * (kind === 'tire' ? k : G.rand(.7, 1.2)) });
+      }
+    },
+    // آثار ماندگار روی زمین (کنده، خاک‌ریز، آوار...) که با بازسازی زمین هم می‌مانند
+    remain(type, x, y, r, s, col) {
+      const m = G.map, rm = { t: type, x, y, r: r || 0, s: s || 1, c: col }; if (m.remains.length > 1400) m.remains.shift(); m.remains.push(rm);
+      const R = 70 * rm.s;
+      for (let cy = Math.floor((y - R) / CPX); cy <= Math.floor((y + R) / CPX); cy++) for (let cx = Math.floor((x - R) / CPX); cx <= Math.floor((x + R) / CPX); cx++) { const ch = chunks.get(cy * 64 + cx); if (ch) drawRemain(ch.ctx, rm, x - cx * CPX, y - cy * CPX); }
+    },
     boom(x, y, r) { booms.push({ x, y, r, t: .45, max: .45 }); this.burst(x, y, '#ffb347', 16, 260, .5, 4); this.burst(x, y, '#3b3b3b', 12, 120, .9, 6); for (let i = 0; i < 6; i++) this.smoke(x + G.rand(-20, 20), y + G.rand(-20, 20)); this.decal(x, y, 'scorch', '#000', r * .55); },
     shake(a) { view.shake = Math.max(view.shake, a); },
     decal(x, y, type, color, size) {
       const cx = Math.floor(x / CPX), cy = Math.floor(y / CPX), ch = chunks.get(cy * 64 + cx); if (!ch) return;
       const g = ch.ctx, lx = x - cx * CPX, ly = y - cy * CPX;
       if (type === 'blood') { for (let i = 0; i < 6; i++) { g.globalAlpha = .5; g.fillStyle = i < 4 ? '#08070b' : color; g.beginPath(); g.ellipse(lx + G.rand(-size, size) * .6, ly + G.rand(-size, size) * .4, size * G.rand(.2, .55), size * G.rand(.12, .35), 0, 0, TAU); g.fill(); } }
-      else if (type === 'scorch') { const gr = g.createRadialGradient(lx, ly, 2, lx, ly, size); gr.addColorStop(0, 'rgba(0,0,0,.75)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); g.globalAlpha = 1; g.fillStyle = gr; g.beginPath(); g.arc(lx, ly, size, 0, TAU); g.fill(); }
+      else if (type === 'scorch') { // ردّ سوختگی: لکه‌های ریز و نامنظم (بدون هالهٔ سیاه)
+        for (let i = 0; i < 16; i++) { const a = Math.random() * TAU, d = Math.random() * size * .75, w = G.rand(.08, .22) * size; g.globalAlpha = .13; g.fillStyle = i % 3 ? '#2a211a' : '#4a3d30'; g.beginPath(); g.ellipse(lx + Math.cos(a) * d, ly + Math.sin(a) * d, w, w * G.rand(.5, .9), a, 0, TAU); g.fill(); }
+        g.globalAlpha = .5; g.fillStyle = '#1f1914'; for (let i = 0; i < 14; i++) { const a = Math.random() * TAU, d = Math.random() * size; g.fillRect(lx + Math.cos(a) * d, ly + Math.sin(a) * d, 1.6, 1.6); }
+      }
       else { g.globalAlpha = .35; g.fillStyle = color; g.beginPath(); g.ellipse(lx, ly, size, size * .7, 0, 0, TAU); g.fill(); }
       g.globalAlpha = 1;
     },
     update(dt) {
-      for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life -= dt; if (p.life <= 0) { parts[i] = parts[parts.length - 1]; parts.pop(); continue; } p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= .92; p.vy = p.smoke ? p.vy : p.vy * .92 + 160 * dt; if (p.smoke) p.size += 14 * dt; }
+      for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life -= dt; if (p.life <= 0) { parts[i] = parts[parts.length - 1]; parts.pop(); continue; } p.x += p.vx * dt; p.y += p.vy * dt; const f = p.spark ? .97 : .92; p.vx *= f; p.vy = p.smoke ? p.vy : p.vy * f; if (p.smoke) p.size += (p.hot ? -4 : 14) * dt; }
+      for (let i = debris.length - 1; i >= 0; i--) {
+        const k = debris[i]; k.x += k.vx * dt; k.y += k.vy * dt; k.rot += k.vr * dt;
+        if (G.SOLID[G.map.block[G.tileAt(k.x, k.y)] || 0]) { k.x -= k.vx * dt; k.y -= k.vy * dt; k.vx *= -.4; k.vy *= -.4; }
+        if (k.z > 0 || k.vz > 0) { k.vz -= 700 * dt; k.z += k.vz * dt; if (k.z <= 0) { k.z = 0; if (Math.abs(k.vz) > 70) { k.vz = -k.vz * .35; k.vx *= .5; k.vy *= .5; k.vr *= .5; } else k.vz = 0; } }
+        else { const f = Math.exp(-(k.kind === 'tire' ? 1.6 : 6) * dt); k.vx *= f; k.vy *= f; k.vr *= f; if (Math.hypot(k.vx, k.vy) < 4) { const ch = chunkAt(k.x, k.y); if (ch) drawPiece(ch.ctx, k, k.x - Math.floor(k.x / CPX) * CPX, k.y - Math.floor(k.y / CPX) * CPX, 1); debris.splice(i, 1); } }
+      }
       for (let i = bullets.length - 1; i >= 0; i--) { const b = bullets[i]; b.go += 1700 * dt; if (b.go >= b.left + 40) { bullets[i] = bullets[bullets.length - 1]; bullets.pop(); } }
       for (let i = casings.length - 1; i >= 0; i--) {
         const k = casings[i]; k.x += k.vx * dt; k.y += k.vy * dt; k.rot += k.vr * dt;
@@ -1669,12 +2256,14 @@ G.audio = (function () {
       } else if (gk === 3) { g.strokeStyle = 'rgba(0,0,0,.16)'; g.lineWidth = 1; g.strokeRect(px + .5, py + .5, T, T / 2); }
       else if (gk === 2) { g.strokeStyle = 'rgba(0,0,0,.12)'; g.strokeRect(px + .5, py + .5, T, T); }
     }
-    for (const k of (m.craters || [])) {
+    for (const k of (m.craters || [])) { // زمینِ شخم‌خوردهٔ بمباران: لکهٔ خاکی نامنظم به‌جای هالهٔ سیاه
       const lx = (k.x + .5) * T - cx * CPX, ly = (k.y + .5) * T - cy * CPX, r = k.r * T; if (lx < -r || ly < -r || lx > CPX + r || ly > CPX + r) continue;
-      const gr = g.createRadialGradient(lx, ly, r * .15, lx, ly, r); gr.addColorStop(0, 'rgba(6,5,6,.9)'); gr.addColorStop(.6, 'rgba(18,14,12,.6)'); gr.addColorStop(1, 'rgba(0,0,0,0)');
-      g.fillStyle = gr; g.beginPath(); g.ellipse(lx, ly, r, r * .8, 0, 0, TAU); g.fill();
-      g.strokeStyle = 'rgba(90,80,70,.35)'; g.lineWidth = 2; g.beginPath(); g.ellipse(lx, ly, r * .62, r * .5, 0, 0, TAU); g.stroke();
+      const R = srand(k.x * 131 + k.y * 17 + 5), blob = (rr, col, al) => { g.globalAlpha = al; g.fillStyle = col; g.beginPath(); for (let i = 0; i < 14; i++) { const a = i / 14 * TAU, d = rr * (.72 + .28 * R()); i ? g.lineTo(lx + Math.cos(a) * d, ly + Math.sin(a) * d * .85) : g.moveTo(lx + Math.cos(a) * d, ly + Math.sin(a) * d * .85); } g.closePath(); g.fill(); };
+      blob(r * .95, '#5b4a38', .3); blob(r * .62, '#4a3b2d', .3);
+      g.globalAlpha = .55; for (let i = 0; i < r * .5; i++) { const a = R() * TAU, d = R() * r * .9, w = 1.5 + R() * 3; g.fillStyle = i & 1 ? '#6f6659' : '#3f352b'; g.fillRect(lx + Math.cos(a) * d, ly + Math.sin(a) * d * .85, w, w * .8); }
+      g.globalAlpha = 1;
     }
+    for (const rm of (m.remains || [])) { const lx = rm.x - cx * CPX, ly = rm.y - cy * CPX, R = 70 * rm.s; if (lx > -R && ly > -R && lx < CPX + R && ly < CPX + R) drawRemain(g, rm, lx, ly); }
     return { cn, ctx: g, used: frame };
   }
   function drawGround(x0, y0, x1, y1) {
@@ -1691,35 +2280,111 @@ G.audio = (function () {
   const line = (x0, y0, x1, y1) => { c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.stroke(); };
   function bar(x, y, w, frac, col) { c.fillStyle = 'rgba(0,0,0,.6)'; c.fillRect(x - w / 2 - 1, y - 1, w + 2, 5); c.fillStyle = col; c.fillRect(x - w / 2, y, w * G.clamp(frac, 0, 1), 3); }
 
-  /* ---------- دیوارها ---------- */
-  function drawTile(tx, ty, b, i) {
-    const m = G.map, px = tx * T, py = ty * T, z = m.zone[i];
-    if (b === 1 || b === 4 || b === 5) {
-      const H = b === 4 ? 34 : b === 5 ? 26 : 24;
-      const top = b === 4 ? (z === 3 ? '#565a66' : '#8d9196') : b === 5 ? '#3b3f3a' : PAL.wallTop[z], fr = b === 4 ? (z === 3 ? '#33363f' : '#5b5f64') : b === 5 ? '#262926' : PAL.wallFront[z];
-      const below = ty + 1 < m.h ? m.block[i + m.w] : 0;
-      if (below !== b) { c.fillStyle = fr; c.fillRect(px, py + T - H, T, H); if (b === 4) { c.fillStyle = '#c9a227'; c.fillRect(px, py + T - 9, T, 4); c.fillStyle = '#1b1b1b'; for (let k = 0; k < 4; k++) c.fillRect(px + k * 8 + ((tx & 1) ? 4 : 0), py + T - 9, 4, 4); } }
-      c.fillStyle = top; c.fillRect(px, py - H, T, T);
-      c.fillStyle = 'rgba(255,255,255,.08)'; c.fillRect(px, py - H, T, 3);
-      c.fillStyle = 'rgba(0,0,0,.12)'; c.fillRect(px + T - 2, py - H, 2, T);
-    } else if (b === 2) {
-      const s = m.sub[i]; if (s === 1) return;
-      if (s === 4) { const v = m.vr[i]; c.fillStyle = 'rgba(0,0,0,.3)'; ell(px + 16, py + 22, 15, 7); c.fill(); for (let k = 0; k < 4; k++) { const ox = 4 + ((v * (k + 2)) % 18), oy = 6 + ((v * (k + 5)) % 14), w = 7 + (v >> k & 7); c.fillStyle = k & 1 ? '#6f6a62' : '#57524b'; c.fillRect(px + ox, py + oy - 8, w, 8); c.fillStyle = '#8b857b'; c.fillRect(px + ox, py + oy - 12, w, 5); } return; }
-      const H = s === 0 ? 13 : 9, top = s === 0 ? '#9a7748' : s === 2 ? '#8f8a6a' : PAL.wallTop[z], fr = s === 0 ? '#6c5230' : s === 2 ? '#6b664c' : PAL.wallFront[z], in0 = s === 0 ? 3 : 0;
-      c.fillStyle = fr; c.fillRect(px + in0, py + T - H - in0, T - in0 * 2, H);
-      c.fillStyle = top; c.fillRect(px + in0, py - H + in0, T - in0 * 2, T - in0 * 2);
-      if (s === 0) { c.strokeStyle = 'rgba(0,0,0,.3)'; c.lineWidth = 1; c.strokeRect(px + in0 + 2.5, py - H + in0 + 2.5, T - in0 * 2 - 5, T - in0 * 2 - 5); }
-      else if (s === 2) { c.fillStyle = 'rgba(0,0,0,.15)'; c.fillRect(px + 15, py - H, 2, T); }
-      else { c.fillStyle = 'rgba(160,210,230,.25)'; c.fillRect(px + 3, py - H + 3, T - 6, T - 6); }
-    } else if (b === 3) {
-      c.fillStyle = 'rgba(0,0,0,.25)'; ell(px + 18, py + 22, 14, 7); c.fill();
-      c.fillStyle = '#4a3623'; c.fillRect(px + 13, py - 6, 6, 28);
-      if (z === 2 || z === 3) { c.strokeStyle = '#3a2a1c'; c.lineWidth = 2; line(px + 16, py - 4, px + 4, py - 20); line(px + 16, py - 2, px + 28, py - 18); line(px + 16, py + 4, px + 24, py - 6); }
-      else { c.globalAlpha = .9; c.fillStyle = PAL.canopy[z]; ell(px + 16, py - 16, 19, 16); c.fill(); c.fillStyle = 'rgba(255,255,255,.08)'; ell(px + 11, py - 21, 9, 7); c.fill(); c.globalAlpha = 1; }
-    } else if (b === 6) {
-      const p = .5 + .5 * Math.sin(G.time * 2 + tx * 1.7 + ty);
-      c.fillStyle = '#0a0810'; c.beginPath(); c.moveTo(px + 4, py + T - 2); c.lineTo(px + 11, py - 22); c.lineTo(px + 17, py + 2); c.lineTo(px + 23, py - 12); c.lineTo(px + 29, py + T - 2); c.closePath(); c.fill();
-      c.strokeStyle = `rgba(160,90,255,${.35 + p * .45})`; c.lineWidth = 1.5; c.beginPath(); c.moveTo(px + 11, py - 22); c.lineTo(px + 13, py + 10); c.moveTo(px + 23, py - 12); c.lineTo(px + 22, py + 14); c.stroke();
+  /* ---------- آثار ماندگار و تکه‌ها ---------- */
+  function drawPiece(g, k, x, y, baked) {
+    g.save(); g.translate(x, y); g.rotate(k.rot); if (baked) g.globalAlpha = .9;
+    if (k.kind === 'tire') { g.strokeStyle = k.col; g.lineWidth = k.w * .32; g.beginPath(); g.arc(0, 0, k.w * .42, 0, TAU); g.stroke(); g.strokeStyle = '#3b3b3b'; g.lineWidth = 1; g.stroke(); }
+    else { g.fillStyle = k.col; g.fillRect(-k.w / 2, -k.h / 2, k.w, k.h); g.strokeStyle = 'rgba(0,0,0,.4)'; g.lineWidth = .8; g.strokeRect(-k.w / 2, -k.h / 2, k.w, k.h); if (k.kind === 'plank') { g.fillStyle = 'rgba(255,255,255,.12)'; g.fillRect(-k.w / 2, -k.h / 2, k.w, 1); } }
+    g.restore();
+  }
+  function drawRemain(g, rm, x, y) {
+    const R = srand(Math.floor(rm.x) * 31 + Math.floor(rm.y) * 7), s = rm.s, t = rm.t, scat = (n, rad, fn) => { for (let i = 0; i < n; i++) { const a = R() * TAU, d = Math.sqrt(R()) * rad; fn(x + Math.cos(a) * d, y + Math.sin(a) * d, R(), i); } };
+    g.save();
+    if (t === 'rubble' || t === 'gravel') {
+      const cs = t === 'rubble' ? ['#8b857b', '#6f6a62', '#a39c8e'] : ['#8a887f', '#9c9a90', '#6c6a63'];
+      g.globalAlpha = .28; g.fillStyle = cs[2]; scat(5, 9 * s, (px, py, q) => { g.beginPath(); g.ellipse(px, py, 9 * s * (.6 + q), 7 * s * (.6 + q), q * 3, 0, TAU); g.fill(); });
+      g.globalAlpha = 1; scat(11, 15 * s, (px, py, q, i) => { const w = (3 + q * 6) * s; g.fillStyle = cs[i % 3]; g.fillRect(px - w / 2, py - w / 2, w, w * .8); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(px - w / 2, py + w * .3, w, 1.2); });
+    } else if (t === 'splinters') {
+      scat(8, 15, (px, py, q, i) => { g.save(); g.translate(px, py); g.rotate(q * 6.3); g.fillStyle = i & 1 ? '#9a6b38' : '#7d5529'; g.fillRect(-5 - q * 4, -1.2, 10 + q * 8, 2.4); g.restore(); });
+    } else if (t === 'sand') {
+      g.fillStyle = '#b9a673'; g.globalAlpha = .55; scat(6, 9, (px, py, q) => { g.beginPath(); g.ellipse(px, py, 8 + q * 7, 6 + q * 5, q * 3, 0, TAU); g.fill(); });
+      g.globalAlpha = .9; scat(4, 12, (px, py, q) => { g.save(); g.translate(px, py); g.rotate(q * 6.3); g.fillStyle = '#9a8a5c'; g.fillRect(-5, -3, 10, 6); g.restore(); });
+    } else if (t === 'stump') {
+      const r = 6.5 * s; g.fillStyle = 'rgba(0,0,0,.25)'; g.beginPath(); g.arc(x + 1.5, y + 2, r, 0, TAU); g.fill();
+      g.fillStyle = '#4a3422'; g.beginPath(); g.arc(x, y, r, 0, TAU); g.fill(); g.fillStyle = '#b08a58'; g.beginPath(); g.arc(x, y, r * .72, 0, TAU); g.fill();
+      g.strokeStyle = '#8a6236'; g.lineWidth = .8; g.beginPath(); g.arc(x, y, r * .42, 0, TAU); g.stroke(); g.fillStyle = '#6b4a2a'; scat(4, r * .7, (px, py) => g.fillRect(px, py, 2.5, 1.2));
+    } else if (t === 'log') {
+      const len = 60 * s, cx = Math.cos(rm.r), cy = Math.sin(rm.r); g.lineCap = 'round';
+      g.strokeStyle = 'rgba(0,0,0,.25)'; g.lineWidth = 8; g.beginPath(); g.moveTo(x + 2 + cx * 6, y + 3 + cy * 6); g.lineTo(x + 2 + cx * len, y + 3 + cy * len); g.stroke();
+      g.strokeStyle = rm.c || '#4a3422'; g.lineWidth = 7; g.beginPath(); g.moveTo(x + cx * 6, y + cy * 6); g.lineTo(x + cx * len, y + cy * len); g.stroke();
+      g.strokeStyle = 'rgba(255,255,255,.14)'; g.lineWidth = 1.5; g.beginPath(); g.moveTo(x + cx * 8 + cy * 2, y + cy * 8 - cx * 2); g.lineTo(x + cx * len + cy * 2, y + cy * len - cx * 2); g.stroke();
+    } else if (t === 'leaves') {
+      g.fillStyle = rm.c || '#3a5c29'; g.globalAlpha = .8; scat(10, 26 * s, (px, py, q) => { g.beginPath(); g.arc(px, py, (7 + q * 8) * s, 0, TAU); g.fill(); });
+      g.fillStyle = 'rgba(0,0,0,.18)'; scat(8, 26 * s, (px, py, q) => { g.beginPath(); g.arc(px, py, (2 + q * 3) * s, 0, TAU); g.fill(); });
+    } else if (t === 'puddle') {
+      g.fillStyle = '#3f6f95'; g.globalAlpha = .3; scat(4, 6 * s, (px, py, q) => { g.beginPath(); g.ellipse(px, py, (8 + q * 6) * s, (6 + q * 4) * s, q * 3, 0, TAU); g.fill(); });
+      g.globalAlpha = .35; g.fillStyle = '#cfe9f7'; g.fillRect(x - 3 * s, y - 2 * s, 5 * s, 1.2);
+    } else if (t === 'barrel') {
+      g.translate(x, y); g.rotate(rm.r); g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(-14, -9, 32, 24);
+      g.fillStyle = rm.c; g.beginPath(); g.roundRect(-16, -12, 32, 24, 3); g.fill(); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(-6, -12, 2, 24); g.fillRect(5, -12, 2, 24); g.fillStyle = 'rgba(255,255,255,.14)'; g.fillRect(-16, -8, 32, 3);
+      g.fillStyle = '#17120f'; g.beginPath(); g.moveTo(-2, -4); g.lineTo(4, -1); g.lineTo(1, 5); g.lineTo(-5, 2); g.fill();
+    } else if (t === 'carwreck') {
+      g.translate(x, y); g.rotate(rm.r); g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(-26, -9, 56, 24);
+      g.fillStyle = '#211e1c'; g.beginPath(); g.roundRect(-28, -12, 56, 24, 5); g.fill(); g.fillStyle = '#0d0c0b'; g.fillRect(-13, -9, 26, 18); g.fillStyle = '#3a342f'; g.fillRect(-28, -3, 9, 2); g.fillRect(17, 1, 11, 2);
+      g.strokeStyle = '#4a433c'; g.lineWidth = 1; g.strokeRect(-13, -9, 26, 18);
+    } else if (t === 'glass') {
+      scat(12, 13, (px, py, q, i) => { g.fillStyle = i & 1 ? 'rgba(223,244,255,.85)' : 'rgba(159,211,234,.7)'; g.fillRect(px, py, 1.5 + q * 2.5, 1.2 + q); });
+    }
+    g.restore();
+  }
+  function drawDebris() {
+    const P = G.P3;
+    for (const k of debris) {
+      c.fillStyle = 'rgba(0,0,0,.28)'; c.fillRect(k.x + k.z * .35 - k.w / 2, k.y + k.z * .45 - k.h / 2, k.w, k.h);
+      const p = P.pt(k.x, k.y, k.z * 2); c.save(); c.translate(p[0], p[1]); c.scale(P.scale(), P.scale()); drawPiece(c, k, 0, 0); c.restore();
+    }
+  }
+
+  /* ---------- دیوارها (منشورهای پرسپکتیو مثل بقیهٔ اشیا) ---------- */
+  const WH = [0, 24, 0, 0, 34, 26], FSH = [.84, .46, .9, .4], wcache = {}, wtops = [[], [], []], crys = []; // وجه‌ها: چپ، راست، بالا، پایین
+  function wallCol(b, z, f) {
+    const k = b * 100 + z * 10 + f; if (wcache[k]) return wcache[k];
+    const base = b === 4 ? (z === 3 ? '#565a66' : '#8d9196') : b === 5 ? '#3b3f3a' : PAL.wallTop[z], n = parseInt(base.slice(1), 16), q = f === 9 ? 1 : FSH[f];
+    return wcache[k] = `rgb(${((n >> 16) * q) | 0},${((n >> 8 & 255) * q) | 0},${((n & 255) * q) | 0})`;
+  }
+  function drawWallShadows(tx0, tx1, ty0, ty1) {
+    const m = G.map, W = m.w, L = G.P3.L, SL = G.PROPS_CFG.shadowLength;
+    c.beginPath();
+    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+      const b = m.block[ty * W + tx]; if (b !== 1 && b !== 4 && b !== 5) continue;
+      const x0 = tx * T, y0 = ty * T, x1 = x0 + T, y1 = y0 + T, sx = L[0] * WH[b] * SL, sy = L[1] * WH[b] * SL;
+      c.moveTo(x0, y0); c.lineTo(x1, y0); c.lineTo(x1 + sx, y0 + sy); c.lineTo(x1 + sx, y1 + sy); c.lineTo(x0 + sx, y1 + sy); c.lineTo(x0, y1); c.closePath();
+    }
+    c.fillStyle = `rgba(0,0,0,${G.PROPS_CFG.shadowOpacity})`; c.fill();
+  }
+  function drawWalls(tx0, tx1, ty0, ty1) {
+    const m = G.map, W = m.w, P = G.P3, vx = P.cx, vy = P.cy, kp = P.persp, blk = m.block;
+    wtops[0].length = wtops[1].length = wtops[2].length = crys.length = 0;
+    const quad = (ax, ay, bx, by, s0, s1) => { c.beginPath(); c.moveTo(vx + (ax - vx) * s0, vy + (ay - vy) * s0); c.lineTo(vx + (bx - vx) * s0, vy + (by - vy) * s0); c.lineTo(vx + (bx - vx) * s1, vy + (by - vy) * s1); c.lineTo(vx + (ax - vx) * s1, vy + (ay - vy) * s1); c.closePath(); c.fill(); };
+    c.lineWidth = .6;
+    for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
+      const i = ty * W + tx, b = blk[i]; if (b !== 1 && b !== 4 && b !== 5) { if (b === 6) crys.push(i); continue; }
+      const px = tx * T, py = ty * T, z = m.zone[i], s = 1 + WH[b] * kp;
+      const face = (ax, ay, bx, by, f) => { c.fillStyle = c.strokeStyle = wallCol(b, z, f); quad(ax, ay, bx, by, 1, s); c.stroke(); if (b === 4) { c.fillStyle = f === 1 || f === 3 ? '#8a6f1a' : '#c9a227'; quad(ax, ay, bx, by, 1 + 4 * kp, 1 + 10 * kp); } };
+      if (vx < px && (tx === 0 || blk[i - 1] !== b)) face(px, py + T, px, py, 0);
+      if (vx > px + T && (tx === W - 1 || blk[i + 1] !== b)) face(px + T, py, px + T, py + T, 1);
+      if (vy < py && (ty === 0 || blk[i - W] !== b)) face(px, py, px + T, py, 2);
+      if (vy > py + T && (ty === m.h - 1 || blk[i + W] !== b)) face(px + T, py + T, px, py + T, 3);
+      wtops[b === 1 ? 0 : b === 5 ? 1 : 2].push(i);
+    }
+    for (const i of crys) { // بلور ماده سیاه
+      const tx = i % W, ty = (i / W) | 0, px = tx * T, py = ty * T, p = .5 + .5 * Math.sin(G.time * 2 + tx * 1.7 + ty);
+      for (const q of [[5, 20, 15, 11, 15, 38], [15, 24, 28, 18, 22, 24]]) {
+        const a = P.pt(px + q[3], py + q[4], q[5]);
+        c.fillStyle = '#0a0810'; c.beginPath(); c.moveTo(px + q[0], py + q[1] + 6); c.lineTo(px + q[2], py + q[1] - 6); c.lineTo(a[0], a[1]); c.closePath(); c.fill();
+        c.strokeStyle = `rgba(160,90,255,${.35 + p * .45})`; c.lineWidth = 1.5; c.beginPath(); c.moveTo(px + (q[0] + q[2]) / 2, py + q[1]); c.lineTo(a[0], a[1]); c.stroke();
+      }
+    }
+    for (let g = 0; g < 3; g++) for (const i of wtops[g]) {
+      const b = blk[i], s = 1 + WH[b] * kp, X = vx + ((i % W) * T - vx) * s, Y = vy + (((i / W) | 0) * T - vy) * s, w = T * s + .5;
+      c.fillStyle = wallCol(b, m.zone[i], 9); c.fillRect(X, Y, w, w);
+      c.fillStyle = 'rgba(255,255,255,.08)'; c.fillRect(X, Y, w, 2.5); c.fillStyle = 'rgba(0,0,0,.12)'; c.fillRect(X + w - 2, Y, 2, w);
+      if (m.thp && m.thp[i] > G.tileMax(i) * .4) { // ترک‌خوردگی دیوارِ آسیب‌دیده
+        const R = srand(i), k = m.thp[i] / G.tileMax(i); c.strokeStyle = 'rgba(25,22,20,.75)'; c.lineWidth = 1 + k; c.beginPath();
+        for (let n = 0; n < 2 + (k > .7 ? 2 : 0); n++) { let x = X + R() * w, y = Y + R() * w; c.moveTo(x, y); for (let q = 0; q < 3; q++) { x = G.clamp(x + (R() - .5) * 20, X, X + w); y = G.clamp(y + (R() - .5) * 20, Y, Y + w); c.lineTo(x, y); } }
+        c.stroke();
+      }
+      const mk = m.marks.get(i); if (mk) for (const q of mk) P.mark(q);
     }
   }
 
@@ -1732,16 +2397,16 @@ G.audio = (function () {
   if (location.protocol !== 'file:' || true) { const im = new Image(); im.onload = () => { SPR.cmd = im; }; im.onerror = () => { }; im.src = 'assets/commander.png'; }
   function drawSoldier(u) {
     const x = u.x, y = u.y;
-    c.globalAlpha = .7; c.strokeStyle = u.color; c.lineWidth = u.isCmd ? 2.5 : 1.8; ell(x, y, u.isCmd ? 14 : 12, u.isCmd ? 8 : 7); c.stroke(); c.globalAlpha = 1;
+    c.globalAlpha = .7; c.strokeStyle = u.color; c.lineWidth = u.isCmd ? 2 : 1.4; c.globalAlpha = .55; ell(x, y, u.isCmd ? 16 : 14, u.isCmd ? 16 : 14); c.stroke(); c.globalAlpha = 1;
     if (u.downed) {
-      c.save(); c.translate(x, y - 2); c.rotate(u.ang + 1.2); c.fillStyle = '#2b2f33'; c.fillRect(-10, -4, 20, 8); c.fillStyle = u.color; ell(11, 0, 4.5, 4.5); c.fill(); c.restore();
-      if (!u.isCmd) { const p = .5 + .5 * Math.sin(G.time * 8); c.fillStyle = `rgba(255,60,60,${.5 + p * .5})`; c.fillRect(x - 2, y - 30, 4, 12); c.fillRect(x - 6, y - 26, 12, 4); bar(x, y - 36, 22, u.bleed / 45, '#ff5a5a'); }
+      c.save(); c.translate(x, y); c.rotate(u.ang + 1.2); c.fillStyle = '#2b2f33'; c.fillRect(-10, -4, 20, 8); c.fillStyle = u.color; ell(11, 0, 4.5, 4.5); c.fill(); c.restore();
+      if (!u.isCmd) { const p = .5 + .5 * Math.sin(G.time * 8); c.fillStyle = `rgba(255,60,60,${.5 + p * .5})`; c.fillRect(x - 2, y - 28, 4, 12); c.fillRect(x - 6, y - 24, 12, 4); bar(x, y - 34, 22, u.bleed / 45, '#ff5a5a'); }
       return;
     }
-    c.fillStyle = 'rgba(0,0,0,.4)'; ell(x, y + 1, 10, 5.5); c.fill();
-    const bob = u.moving ? Math.sin(u.walk * 2) * 1 : 0, d = G.wOf(u).def, K = u.isCmd ? 1.22 : 1.05;
+    c.fillStyle = 'rgba(0,0,0,.3)'; ell(x + 3, y + 4, 9, 9); c.fill();
+    const d = G.wOf(u).def, K = u.isCmd ? 1.22 : 1.05;
     const P = u.isCmd ? PCMD : u.squad === 'alpha' ? PALPHA : PDELTA, trim = u.hurtT > 0 ? '#ffb0b0' : P.trim;
-    c.save(); c.translate(x, y - 9 + bob); c.rotate(u.ang);
+    c.save(); c.translate(x, y); c.rotate(u.ang);
     if (u.isCmd && SPR.cmd) { const im = SPR.cmd, h = 46, w = h * im.width / im.height; c.rotate(Math.PI / 2); c.drawImage(im, -w / 2, -h * .56, w, h); c.restore(); }
     else {
       c.scale(K, K); c.lineCap = 'round';
@@ -1771,10 +2436,10 @@ G.audio = (function () {
       c.fillStyle = '#08090b'; c.fillRect(3.6, -3.4, 4.4, 2.6); c.fillRect(3.6, .8, 4.4, 2.6); c.fillStyle = trim; c.fillRect(7.2, -3.4, .9, 2.6); c.fillRect(7.2, .8, .9, 2.6);
       c.restore();
     }
-    if (!u.isCmd) { bar(x, y - 27, 18, u.hp / u.maxHp, u.hp > u.maxHp * .5 ? '#67e08a' : u.hp > u.maxHp * .25 ? '#ffd23c' : '#ff5a5a'); if (u.medic) { c.fillStyle = '#7dffb0'; c.fillRect(x - 1, y - 35, 2, 6); c.fillRect(x - 3, y - 33, 6, 2); } }
-    else { c.fillStyle = '#e8c15a'; c.beginPath(); c.moveTo(x - 4, y - 33); c.lineTo(x, y - 28); c.lineTo(x + 4, y - 33); c.closePath(); c.fill(); }
-    const w = u.weapons[u.cur]; if (w.rel > 0 && !u.isCmd) { c.strokeStyle = '#fff'; c.lineWidth = 1.5; c.beginPath(); c.arc(x + 14, y - 26, 3.5, -1.57, -1.57 + TAU * (1 - w.rel / w.def.reload)); c.stroke(); }
-    if (u.reviving) { c.strokeStyle = '#7dffb0'; c.lineWidth = 2; c.beginPath(); c.arc(x, y - 9, 16, -1.57, -1.57 + TAU * (u.task ? u.task.t / 3 : 0)); c.stroke(); }
+    if (!u.isCmd) { bar(x, y - 21, 18, u.hp / u.maxHp, u.hp > u.maxHp * .5 ? '#67e08a' : u.hp > u.maxHp * .25 ? '#ffd23c' : '#ff5a5a'); if (u.medic) { c.fillStyle = '#7dffb0'; c.fillRect(x - 1, y - 29, 2, 6); c.fillRect(x - 3, y - 27, 6, 2); } }
+    else { c.fillStyle = '#e8c15a'; c.beginPath(); c.moveTo(x - 4, y - 27); c.lineTo(x, y - 22); c.lineTo(x + 4, y - 27); c.closePath(); c.fill(); }
+    const w = u.weapons[u.cur]; if (w.rel > 0 && !u.isCmd) { c.strokeStyle = '#fff'; c.lineWidth = 1.5; c.beginPath(); c.arc(x + 14, y - 20, 3.5, -1.57, -1.57 + TAU * (1 - w.rel / w.def.reload)); c.stroke(); }
+    if (u.reviving) { c.strokeStyle = '#7dffb0'; c.lineWidth = 2; c.beginPath(); c.arc(x, y, 18, -1.57, -1.57 + TAU * (u.task ? u.task.t / 3 : 0)); c.stroke(); }
   }
 
   /* ---------- زامبی ---------- */
@@ -1803,9 +2468,8 @@ G.audio = (function () {
       if (z.lash > 0) { c.strokeStyle = col; c.lineWidth = 3; line(x, y - 6, x + Math.cos(z.lashA) * 58, y + Math.sin(z.lashA) * 58 - 6); }
     } else {
       const big = f === 'gluttony';
-      c.fillStyle = 'rgba(0,0,0,.35)'; ell(x, y + 1, big ? 20 : F.r, big ? 11 : F.r * .55); c.fill();
-      const bob = Math.sin(z.walk * 2) * 1.2;
-      c.save(); c.translate(x, y - (big ? 13 : 9) + bob); c.rotate(z.ang);
+      c.fillStyle = 'rgba(0,0,0,.3)'; ell(x + 3, y + 4, big ? 19 : F.r, big ? 18 : F.r); c.fill();
+      c.save(); c.translate(x, y); c.rotate(z.ang);
       if (f === 'wrath') {
         if (z.charge > 0) { c.strokeStyle = 'rgba(255,60,40,.5)'; c.lineWidth = 2; line(-10, -4, -24, -5); line(-10, 4, -24, 5); line(-11, 0, -28, 0); }
         c.fillStyle = col; for (let k = -1; k <= 1; k++) { c.beginPath(); c.moveTo(-3, k * 4 - 2); c.lineTo(-11, k * 5); c.lineTo(-3, k * 4 + 2); c.fill(); }
@@ -1847,22 +2511,14 @@ G.audio = (function () {
         c.fillStyle = col; c.fillRect(5, -3.2, 1.8, 1.6); c.fillRect(5, -.8, 1.8, 1.6); c.fillRect(5, 1.6, 1.8, 1.6);
       }
       c.restore();
-      if (envy && f !== 'envy') { c.globalAlpha = .3 + .25 * glow; c.strokeStyle = '#19e68c'; c.lineWidth = 2; ell(x, y - (big ? 13 : 9), (big ? 21 : F.r + 3), (big ? 20 : F.r + 3)); c.stroke(); c.globalAlpha = 1; }
+      if (envy && f !== 'envy') { c.globalAlpha = .3 + .25 * glow; c.strokeStyle = '#19e68c'; c.lineWidth = 2; ell(x, y, (big ? 21 : F.r + 3), (big ? 21 : F.r + 3)); c.stroke(); c.globalAlpha = 1; }
     }
-    const top = y - (f === 'gluttony' ? 40 : f === 'sloth' || f === 'lust' ? 38 : 26);
+    const top = y - (f === 'gluttony' ? 30 : f === 'sloth' || f === 'lust' ? 38 : 19);
     if (z.armor > 0) bar(x, top - 5, 22, z.armor / z.maxArmor, '#ffd86b');
     if (z.hp < z.maxHp) bar(x, top, 22, z.hp / z.maxHp, col);
   }
 
   /* ---------- اشیای ماموریت ---------- */
-  function drawCar(k) {
-    const px = k.x * T, py = k.y * T, w = k.w * T, h = k.h * T, col = k.burnt ? '#2a2725' : k.c;
-    c.fillStyle = 'rgba(0,0,0,.35)'; c.fillRect(px + 2, py + 6, w - 2, h - 2);
-    c.fillStyle = '#151515'; c.beginPath(); c.roundRect(px + 3, py - 2, w - 6, h - 4, 5); c.fill();
-    c.fillStyle = col; c.beginPath(); c.roundRect(px + 3, py - 8, w - 6, h - 5, 6); c.fill();
-    c.fillStyle = k.burnt ? '#141414' : 'rgba(150,200,230,.55)';
-    if (k.w > k.h) { c.fillRect(px + 16, py - 5, 10, h - 11); c.fillRect(px + w - 28, py - 5, 10, h - 11); } else { c.fillRect(px + 6, py + 6, w - 12, 9); c.fillRect(px + 6, py + h - 30, w - 12, 9); }
-  }
   function drawProp(p) {
     const x = p.x, y = p.y, t = G.time;
     if (p.kind === 'crate') {
@@ -1954,42 +2610,44 @@ G.audio = (function () {
     c.setTransform(1, 0, 0, 1, 0, 0); c.fillStyle = '#07090a'; c.fillRect(0, 0, cv.width, cv.height);
     c.setTransform(z, 0, 0, z, Math.round(cv.width / 2 - (view.x + shx) * z), Math.round(cv.height / 2 - (view.y + shy) * z));
     const x0 = view.x - view.w / 2, y0 = view.y - view.h / 2, x1 = view.x + view.w / 2, y1 = view.y + view.h / 2;
+    G.P3.setCam(view.x + shx, view.y + shy);
     drawGround(x0, y0, x1, y1);
     groundMarks();
+    const tx0 = Math.max(0, Math.floor(x0 / T) - 3), tx1 = Math.min(m.w - 1, Math.floor(x1 / T) + 3), ty0 = Math.max(0, Math.floor(y0 / T) - 3), ty1 = Math.min(m.h - 1, Math.floor(y1 / T) + 3);
+    drawWallShadows(tx0, tx1, ty0, ty1);
+    G.drawObjShadows(c, x0, y0, x1, y1);
     for (const p of G.props) if (p.kind === 'heli2') G.Heli.draw(c, p, true);
     drawCasings();
-    const tx0 = Math.max(0, Math.floor(x0 / T) - 1), tx1 = Math.min(m.w - 1, Math.floor(x1 / T) + 1), ty0 = Math.max(0, Math.floor(y0 / T) - 1), ty1 = Math.min(m.h - 1, Math.floor(y1 / T) + 3);
-    const nr = ty1 - ty0 + 1; for (let i = 0; i < nr; i++) { if (rows[i]) rows[i].length = 0; else rows[i] = []; }
-    const put = (e, y) => { const r = Math.floor(y / T) - ty0; if (r >= 0 && r < nr) rows[r].push(e); };
-    for (const s of G.soldiers) if (!s.dead && !s.boarded) put(s, s.y);
-    for (const zb of G.zActive) if (!zb.dead && zb.x > x0 - 60 && zb.x < x1 + 60) put(zb, zb.y);
-    for (const k of m.cars) if (k.x * T < x1 && (k.x + k.w) * T > x0) put(k, (k.y + k.h) * T - 1);
-    for (const p of G.props) put(p, p.y + (p.kind === 'core' ? 20 : 0));
-    for (let ty = ty0; ty <= ty1; ty++) {
-      const base = ty * m.w;
-      for (let tx = tx0; tx <= tx1; tx++) { const b = m.block[base + tx]; if (b && b !== 7) drawTile(tx, ty, b, base + tx); }
-      const r = rows[ty - ty0]; if (r.length > 1) r.sort((a, b) => a.y - b.y);
-      for (const e of r) { if (e.kind === 's') drawSoldier(e); else if (e.kind === 'z') drawZombie(e); else if (e.c !== undefined && e.w) drawCar(e); else drawProp(e); }
-    }
+    // نیروها و اشیای ماموریت (روی زمین)، سپس هر چیز ارتفاع‌دار به ترتیب ارتفاع
+    rows.length = 0;
+    for (const s of G.soldiers) if (!s.dead && !s.boarded) rows.push(s);
+    for (const zb of G.zActive) if (!zb.dead && zb.x > x0 - 60 && zb.x < x1 + 60 && zb.y > y0 - 60 && zb.y < y1 + 80) rows.push(zb);
+    for (const p of G.props) rows.push(p);
+    rows.sort((a, b) => (a.y + (a.kind === 'core' ? 20 : 0)) - (b.y + (b.kind === 'core' ? 20 : 0)));
+    for (const e of rows) { if (e.kind === 's') drawSoldier(e); else if (e.kind === 'z') drawZombie(e); else drawProp(e); }
+    drawDebris();
+    G.drawObjs(c, false);
+    drawWalls(tx0, tx1, ty0, ty1);
+    G.drawObjs(c, true);
     for (const p of G.props) if (p.kind === 'heli2') G.Heli.draw(c, p, false);
     // پرتابه‌ها و افکت‌ها
     for (const p of G.projs) {
-      if (p.type === 'rocket') { c.save(); c.translate(p.x, p.y - 10); c.rotate(p.ang); c.fillStyle = '#5a6b3a'; c.fillRect(-8, -2, 14, 4); c.fillStyle = '#ffb347'; c.fillRect(-13, -1.5, 6, 3); c.restore(); }
-      else { c.fillStyle = 'rgba(0,0,0,.3)'; ell(p.x, p.y, 4, 2.5); c.fill(); c.fillStyle = p.type === 'acid' ? '#b6f03a' : p.type === 'lure' ? '#4db8ff' : '#2e3a25'; ell(p.x, p.y - 8 - (p.z || 0), p.type === 'acid' ? 6 : 4, p.type === 'acid' ? 6 : 4); c.fill(); if (p.type === 'frag' && p.t >= p.dur && ((G.time * 12 | 0) & 1)) { c.fillStyle = '#ff3b2f'; ell(p.x, p.y - 8, 2, 2); c.fill(); } }
+      if (p.type === 'rocket') { c.save(); c.translate(p.x, p.y); c.rotate(p.ang); c.fillStyle = '#5a6b3a'; c.fillRect(-8, -2, 14, 4); c.fillStyle = '#ffb347'; c.fillRect(-13, -1.5, 6, 3); c.restore(); }
+      else { c.fillStyle = 'rgba(0,0,0,.3)'; ell(p.x, p.y, 4, 2.5); c.fill(); c.fillStyle = p.type === 'acid' ? '#b6f03a' : p.type === 'lure' ? '#4db8ff' : '#2e3a25'; const q = G.P3.pt(p.x, p.y, (p.z || 0) * 2.2), r = (p.type === 'acid' ? 6 : 4) * G.P3.scale(); ell(q[0], q[1], r, r); c.fill(); if (p.type === 'frag' && p.t >= p.dur && ((G.time * 12 | 0) & 1)) { c.fillStyle = '#ff3b2f'; ell(p.x, p.y, 2, 2); c.fill(); } }
     }
     c.lineCap = 'round';
     for (const b of bullets) {
       const hd = Math.min(b.go, b.left), tl = Math.max(0, Math.min(b.go - 40, b.left)), ca = Math.cos(b.a), sa = Math.sin(b.a);
-      const hx = b.x + ca * hd, hy = b.y + sa * hd - 10, tx = b.x + ca * tl, ty = b.y + sa * tl - 10;
+      const hx = b.x + ca * hd, hy = b.y + sa * hd, tx = b.x + ca * tl, ty = b.y + sa * tl;
       if (hd - tl > 1) { const g = c.createLinearGradient(tx, ty, hx, hy); g.addColorStop(0, 'rgba(255,210,122,0)'); g.addColorStop(1, 'rgba(255,243,196,.85)'); c.strokeStyle = g; c.lineWidth = 1.2; line(tx, ty, hx, hy); }
       if (b.go < b.left) { c.save(); c.translate(hx, hy); c.rotate(b.a); c.fillStyle = '#c87a45'; c.beginPath(); c.moveTo(-2.4, -.9); c.lineTo(1.2, -.9); c.quadraticCurveTo(3, -.5, 3.4, 0); c.quadraticCurveTo(3, .5, 1.2, .9); c.lineTo(-2.4, .9); c.fill(); c.restore(); }
     }
     c.globalAlpha = 1;
-    for (const f of flashes) { c.save(); c.translate(f.x, f.y - 10); c.rotate(f.ang); c.fillStyle = '#fff3b0'; c.beginPath(); c.moveTo(0, -3); c.lineTo(13, 0); c.lineTo(0, 3); c.fill(); c.globalAlpha = .35; c.fillStyle = '#ffb347'; ell(3, 0, 10, 10); c.fill(); c.restore(); }
-    for (const p of parts) { c.globalAlpha = Math.min(1, p.life / p.max * (p.smoke ? .5 : 1.4)); c.fillStyle = p.color; if (p.smoke) { ell(p.x, p.y - 10, p.size, p.size); c.fill(); } else c.fillRect(p.x - p.size / 2, p.y - 10 - p.size / 2, p.size, p.size); }
+    for (const f of flashes) { if (f.hit) { c.globalAlpha = .8; c.fillStyle = '#fff6c8'; ell(f.x, f.y, 3.5, 3.5); c.fill(); c.globalAlpha = .3; c.fillStyle = '#ffb347'; ell(f.x, f.y, 8, 8); c.fill(); c.globalAlpha = 1; continue; } c.save(); c.translate(f.x, f.y); c.rotate(f.ang); c.fillStyle = '#fff3b0'; c.beginPath(); c.moveTo(0, -3); c.lineTo(13, 0); c.lineTo(0, 3); c.fill(); c.globalAlpha = .35; c.fillStyle = '#ffb347'; ell(3, 0, 10, 10); c.fill(); c.restore(); }
+    for (const p of parts) { c.globalAlpha = Math.min(1, p.life / p.max * (p.smoke ? .5 : 1.4)); c.fillStyle = p.color; if (p.smoke) { ell(p.x, p.y, Math.max(.5, p.size), Math.max(.5, p.size)); c.fill(); } else if (p.spark) { c.strokeStyle = p.color; c.lineWidth = p.size; line(p.x, p.y, p.x - p.vx * .035, p.y - p.vy * .035); } else if (p.leaf) { c.beginPath(); c.ellipse(p.x, p.y, p.size, p.size * .55, p.life * 5 + p.x, 0, TAU); c.fill(); } else c.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size); }
     c.globalAlpha = 1;
-    for (const r of rings) { const k = 1 - r.t / r.max; c.globalAlpha = (1 - k) * .8; c.strokeStyle = r.color; c.lineWidth = 2.5; ell(r.x, r.y - 6, r.r * k, r.r * k * .8); c.stroke(); }
-    for (const b of booms) { const k = 1 - b.t / b.max; c.globalAlpha = (1 - k); c.fillStyle = k < .3 ? '#fff7d0' : '#ff9d2e'; ell(b.x, b.y - 8, b.r * (.35 + k * .65), b.r * (.35 + k * .65) * .85); c.fill(); c.globalAlpha = (1 - k) * .6; c.strokeStyle = '#fff'; c.lineWidth = 3; ell(b.x, b.y - 8, b.r * k * 1.15, b.r * k); c.stroke(); }
+    for (const r of rings) { const k = 1 - r.t / r.max; c.globalAlpha = (1 - k) * .8; c.strokeStyle = r.color; c.lineWidth = 2.5; ell(r.x, r.y, r.r * k, r.r * k); c.stroke(); }
+    for (const b of booms) { const k = 1 - b.t / b.max; c.globalAlpha = (1 - k); c.fillStyle = k < .3 ? '#fff7d0' : '#ff9d2e'; ell(b.x, b.y, b.r * (.35 + k * .65), b.r * (.35 + k * .65)); c.fill(); c.globalAlpha = (1 - k) * .6; c.strokeStyle = '#fff'; c.lineWidth = 3; ell(b.x, b.y, b.r * k * 1.1, b.r * k * 1.1); c.stroke(); }
     c.globalAlpha = 1;
     // حالت هدف‌گیری فرمان
     const WH = G.ui.wheel; if (WH.k > 0) { const p = WH.tgt, col = WH.sel ? G.WHEELS[WH.wheel].color : '#fff'; c.globalAlpha = WH.k; c.strokeStyle = col; c.lineWidth = 2; c.setLineDash([6, 5]); ell(p.x, p.y, 22, 14); c.stroke(); c.setLineDash([]); line(p.x - 8, p.y, p.x + 8, p.y); line(p.x, p.y - 6, p.x, p.y + 6); c.globalAlpha = 1; }
@@ -2325,7 +2983,7 @@ G.audio = (function () {
     u.stamina = G.clamp(u.stamina + (sprint ? -dt / 6 : dt / 7), 0, 1); u.sprinting = sprint;
     if (wheel) { /* هنگام باز بودن چرخ فرمان نشانه‌گیری ثابت می‌ماند */ }
     else if (I.aimStick) { u.ang = Math.atan2(I.aimStick.y, I.aimStick.x); const mg = Math.hypot(I.aimStick.x, I.aimStick.y); I.world.x = u.x + Math.cos(u.ang) * (70 + mg * 230); I.world.y = u.y + Math.sin(u.ang) * (70 + mg * 230); }
-    else if (!G.touch) { const w = G.screenToWorld(I.mx, I.my); I.world.x = w.x; I.world.y = w.y + 9; u.ang = Math.atan2(I.world.y - u.y, I.world.x - u.x); }
+    else if (!G.touch) { const w = G.screenToWorld(I.mx, I.my); I.world.x = w.x; I.world.y = w.y; u.ang = Math.atan2(I.world.y - u.y, I.world.x - u.x); }
     else if (u.moving) { u.ang = G.turn(u.ang, u.mvAng, 8 * dt); I.world.x = u.x + Math.cos(u.ang) * 150; I.world.y = u.y + Math.sin(u.ang) * 150; }
     if (u.fired > 0) u.fired -= dt;
     const w = G.wOf(u);
@@ -2362,7 +3020,7 @@ G.audio = (function () {
     G.flowT -= dt;
     if (G.flowT <= 0) { G.flowT = .35; G.computeFlow(G.soldiers.filter(s => !s.dead && !s.downed)); }
     updateCmd(dt); interact(dt);
-    G.updateSoldiers(dt); G.updateZombies(dt); G.updateProjs(dt); updateDrops(dt);
+    G.updateSoldiers(dt); G.updateZombies(dt); G.updateProjs(dt); G.updateObjs(dt); updateDrops(dt);
     for (let i = G.props.length - 1; i >= 0; i--) { const p = G.props[i]; if (p.kind === 'heli2') { G.Heli.update(p, dt); if (p.gone) G.props.splice(i, 1); } }
     const zn = G.zoneAt(G.cmd.x, G.cmd.y);
     if (zn !== G.zoneNow) { const first = G.zoneNow < 0; G.zoneNow = zn; if (!first) G.ui.banner(G.zoneName(zn), G.ZONES[zn].color, ''); }
@@ -2664,7 +3322,7 @@ G.audio = (function () {
   }
   function wheelOpen(ox, oy) {
     if (G.state !== 'play' || W.open || G.cmd.downed || G.cmd.boarded) return;
-    W.open = true; W.wheel = 'main'; W.vx = W.vy = 0; W.sel = null; W.ox = ox; W.oy = oy; W.tgt = { x: G.input.world.x, y: G.input.world.y - 9 }; G.input.fire = false; G.audio.play('radio');
+    W.open = true; W.wheel = 'main'; W.vx = W.vy = 0; W.sel = null; W.ox = ox; W.oy = oy; W.tgt = { x: G.input.world.x, y: G.input.world.y }; G.input.fire = false; G.audio.play('radio');
   }
   function wheelMove(dx, dy) { W.vx += dx; W.vy += dy; const d = Math.hypot(W.vx, W.vy); if (d > 120) { W.vx *= 120 / d; W.vy *= 120 / d; } wheelPick(); }
   function wheelClose() {
