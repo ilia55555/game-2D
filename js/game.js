@@ -14,7 +14,7 @@
     seed = seed || ((Math.random() * 1e9) | 0); G.seed = seed;
     G.map = G.genMap(seed, md.map); const S = G.map.sites, R = G.rng(seed ^ 0x5bd1e995);
     G.fx.reset(); G.time = 0; G.over = false; G.zombies = []; G.zActive = []; G.projs = []; G.pools = []; G.lures = []; G.markers = []; G.props = [];
-    G.squadDmg = 1; G.cmdDmg = 1; G.noRevive = false;
+    G.squadDmg = 1; G.cmdDmg = 1; G.noRevive = false; G.cmdFloor = 0; G.dropT = 45;
     G.stats = { kills: 0, byType: {}, score: 0, lost: 0, revives: 0, shots: 0 };
     G.mission = { id: md.id, samples: 0, need: md.samples, coreArmed: false, fuse: 0, coreDead: false, extract: 0, exT: 0, waveT: 0, hold: 0, holdKind: null, prompt: '', heli: null, phase: 'go', doom: 0 };
     const cmd = G.cmd = G.makeSoldier({ id: 0, x: S.lz.x, y: S.lz.y, hp: 160, squad: 'cmd', name: 'فرمانده', role: 'فرمانده', isCmd: true, color: '#e8c15a', p: st.cmd.p, s: st.cmd.s });
@@ -37,7 +37,7 @@
     G.state = 'play'; G.ui.onStart();
   };
 
-  G.objPoints = () => G.logic.objPoints();
+  G.objPoints = () => G.logic.objPoints().concat(G.props.filter(p => p.kind === 'drop' && p.z <= 0 && p.uses > 0).map(p => ({ x: p.x, y: p.y, c: '#e8c15a', t: 'تدارکات' })));
   G.objectives = () => G.logic.objectives();
   G.zoneName = zn => (G.mdef.zones && G.mdef.zones[zn]) || G.ZONES[zn].name;
 
@@ -59,6 +59,7 @@
     if (!kind) for (const p of G.props) {
       const d = G.dist(p, u);
       if (p.kind === 'sample' && d < 40) { kind = 'sample'; tgt = p; prompt = 'E  برداشتن نمونه'; break; }
+      if (p.kind === 'drop' && p.z <= 0 && d < 46 && p.uses > 0) { kind = 'crate'; tgt = p; prompt = 'E  ایردراپ'; break; }
       if (p.kind === 'crate' && d < 46 && p.uses > 0) { kind = 'crate'; tgt = p; prompt = 'E  تدارکات'; break; }
       if (p.kind === 'core' && d < 120 && L.canArm()) { kind = 'core'; tgt = p; prompt = 'E  کار گذاشتن خرج'; break; }
       if (p.kind === 'beacon' && d < 56 && M.extract === 0) { kind = 'beacon'; tgt = p; prompt = 'E  فراخوانی بالگرد'; break; }
@@ -99,7 +100,7 @@
     else if (a === 'med') { if (u.medkits > 0 && u.hp < u.maxHp) { u.medkits--; u.hp = Math.min(u.maxHp, u.hp + 70); G.audio.play('ui'); } }
   };
   function updateCmd(dt) {
-    const u = G.cmd, I = G.input; if (u.downed) return;
+    const u = G.cmd, I = G.input; if (u.downed || u.boarded) return;
     const K = I.keys, wheel = G.ui.wheel && G.ui.wheel.open; let mx = I.moveX, my = I.moveY;
     if (K.KeyW || K.ArrowUp) my -= 1; if (K.KeyS || K.ArrowDown) my += 1; if (K.KeyA || K.ArrowLeft) mx -= 1; if (K.KeyD || K.ArrowRight) mx += 1;
     const ml = Math.hypot(mx, my); if (ml > 1) { mx /= ml; my /= ml; }
@@ -119,6 +120,23 @@
     I.firePressed = false;
   }
 
+  /* ---------- ایردراپ ---------- */
+  function updateDrops(dt) {
+    for (const p of G.props) if (p.kind === 'drop' && p.z > 0) { p.z = Math.max(0, p.z - 85 * dt); if (!p.z) { G.fx.burst(p.x, p.y, '#8a8070', 10, 80, .6, 4); G.audio.play('thump', G.dist(p, G.cmd)); } }
+    if (G.logic.noDrops && G.logic.noDrops()) return;
+    const u = G.cmd, w = u.weapons[0], low = !w.def.melee && w.res >= 0 && w.res + w.mag <= w.def.mag;
+    G.dropT -= dt * (low ? 4 : 1);
+    if (G.dropT > 0) return;
+    G.dropT = 75;
+    if (G.props.filter(p => p.kind === 'drop' && p.uses > 0).length >= 2) return;
+    const m = G.map;
+    for (let k = 0; k < 80; k++) {
+      const a = Math.random() * 6.283, r = G.rand(300, 620), x = u.x + Math.cos(a) * r, y = u.y + Math.sin(a) * r, i = G.tileAt(x, y);
+      if (i < 0 || m.block[i] || m.dyn[i] || !m.reach[i] || m.ground[i] === 3 || G.boxBlocked(x, y, 16)) continue;
+      G.props.push({ kind: 'drop', x, y, z: 520, uses: 1 }); G.msg('ایردراپ تدارکات در راه است.', '#e8c15a'); G.audio.play('radio'); return;
+    }
+  }
+
   G.endMission = function (win, reason) {
     if (G.over) return; G.over = true; G.overT = win ? 2.4 : 1.6; G.result = { win, reason };
   };
@@ -130,7 +148,8 @@
     G.flowT -= dt;
     if (G.flowT <= 0) { G.flowT = .35; G.computeFlow(G.soldiers.filter(s => !s.dead && !s.downed)); }
     updateCmd(dt); interact(dt);
-    G.updateSoldiers(dt); G.updateZombies(dt); G.updateProjs(dt);
+    G.updateSoldiers(dt); G.updateZombies(dt); G.updateProjs(dt); updateDrops(dt);
+    for (let i = G.props.length - 1; i >= 0; i--) { const p = G.props[i]; if (p.kind === 'heli2') { G.Heli.update(p, dt); if (p.gone) G.props.splice(i, 1); } }
     const zn = G.zoneAt(G.cmd.x, G.cmd.y);
     if (zn !== G.zoneNow) { const first = G.zoneNow < 0; G.zoneNow = zn; if (!first) G.ui.banner(G.zoneName(zn), G.ZONES[zn].color, ''); }
     G.dark = G.lerp(G.dark, G.ZONES[zn].dark, dt * 1.5);

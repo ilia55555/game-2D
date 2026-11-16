@@ -23,6 +23,7 @@
     };
   };
   G.wOf = u => u.weapons[u.cur];
+  G.setSoldierWeapon = (u, slot, id) => { u.weapons[slot] = mkW(id, u.isCmd); };
 
   /* ---------- شلیک ---------- */
   G.startReload = function (u, w) {
@@ -50,6 +51,7 @@
     G.audio.play(d.snd, cdist);
     if (d.noise) G.noise(u.x, u.y, d.noise);
     G.fx.muzzle(mx, my, ang);
+    if (!d.proj) G.fx.casing(u.x + Math.cos(ang) * 6, u.y + Math.sin(ang) * 6, ang);
     const sp = d.spread * (u.isCmd ? (u.moving ? 1.5 : 1) : (u.moving ? 3.2 : 2.1));
     if (d.proj === 'rocket') {
       G.projs.push({ type: 'rocket', x: mx, y: my, ang: ang + (Math.random() - .5) * sp, sp: 620, left: d.range, dmg: d.dmg, radius: d.radius, owner: u, life: 3 });
@@ -83,8 +85,8 @@
       n--; dmg *= .7;
       if (n <= 0 || h.z.form === 'sloth' || h.z.armor > 0) { end = h.t; break; }
     }
-    if (end >= wall - .5 && wall < d.range) G.fx.burst(x + dx * wall, y + dy * wall, '#d8c9a3', 3, 70, .25, 2);
-    G.fx.tracer(x + dx * 18, y + dy * 18, x + dx * end, y + dy * end, u.isCmd ? '#fff2b0' : '#ffd98a');
+    if (end >= wall - .5 && wall < d.range) { G.fx.burst(x + dx * wall, y + dy * wall, '#d8c9a3', 3, 70, .25, 2); G.damageTile(G.tileAt(x + dx * (wall + 2), y + dy * (wall + 2)), dmg, false); }
+    G.fx.bullet(x + dx * 18, y + dy * 18, ang, Math.max(0, end - 18));
   };
   function melee(u, ang) {
     const w = u.weapons[2]; if (w.cd > 0) return false;
@@ -115,6 +117,7 @@
       if (d > 40 && !G.losClear(x, y, z.x + (x - z.x) / d * 14, z.y + (y - z.y) / d * 14, true)) continue;
       G.damageZombie(z, dmg * (1 - .6 * Math.min(1, d / radius)), { expl: 1, ang: Math.atan2(z.y - y, z.x - x), knock: 120, src: owner && owner.kind === 's' ? owner : null });
     }
+    if (!opts.noTiles) { const m = G.map, r = radius * .8, tx0 = Math.floor((x - r) / T), tx1 = Math.floor((x + r) / T), ty0 = Math.floor((y - r) / T), ty1 = Math.floor((y + r) / T); for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) { if (tx < 0 || ty < 0 || tx >= m.w || ty >= m.h) continue; const dd = Math.hypot(tx * T + T / 2 - x, ty * T + T / 2 - y); if (dd < r) G.damageTile(ty * m.w + tx, dmg * (1 - .5 * dd / r), true); } }
     if (!opts.noFF) for (const s of G.soldiers) {
       if (s.dead) continue; const d = Math.hypot(s.x - x, s.y - y); if (d > radius) continue;
       if (d > 30 && !G.losClear(x, y, s.x, s.y, true)) continue;
@@ -124,8 +127,8 @@
 
   /* ---------- آسیب به سرباز ---------- */
   G.damageSoldier = function (s, dmg, src, raw) {
-    if (s.dead || s.downed || G.over) return;
-    s.hp -= (raw ? dmg : dmg * G.diff.dmg) * (s.isCmd ? (G.cmdDmg || 1) : (G.squadDmg || 1)); s.hurtT = .25;
+    if (s.dead || s.downed || s.boarded || G.over) return;
+    s.hp -= (raw ? dmg : dmg * G.diff.dmg) * (s.isCmd ? (G.cmdDmg || 1) : (G.squadDmg || 1)); s.hurtT = .25; if (s.isCmd && G.cmdFloor && s.hp < G.cmdFloor) s.hp = G.cmdFloor;
     if (s.isCmd) { G.fx.hurt = Math.min(1, (G.fx.hurt || 0) + .35); G.audio.play('hit'); }
     G.fx.burst(s.x, s.y - 8, '#c21d1d', 4, 60, .35, 2.2);
     if (s.hp <= 0) {
@@ -209,7 +212,7 @@
     const sqs = scope === 'all' ? [G.squads.alpha, G.squads.delta] : [G.squads[scope]];
     const cmd = G.cmd; let label = '';
     pt = pt || { x: cmd.x, y: cmd.y };
-    if (pt) { const f = G.nearestFree(Math.floor(pt.x / T), Math.floor(pt.y / T), 4); if (f && !G.walkT(Math.floor(pt.x / T), Math.floor(pt.y / T)) && id !== 'destroy' && id !== 'firesup' && id !== 'distract') pt = { x: f.x * T + T / 2, y: f.y * T + T / 2 }; }
+    if (pt) { const f = G.nearestFree(Math.floor(pt.x / T), Math.floor(pt.y / T), 4); if (f && !G.walkT(Math.floor(pt.x / T), Math.floor(pt.y / T)) && id !== 'destroy' && id !== 'firesup' && id !== 'distract' && id !== 'fireat' && id !== 'blast') pt = { x: f.x * T + T / 2, y: f.y * T + T / 2 }; }
     if (id === 'form') {
       const cur = G.FORMS.findIndex(f => f[0] === G.squads.alpha.form), nx = G.FORMS[(cur + 1) % G.FORMS.length];
       sqs.forEach(sq => { sq.form = nx[0]; if (sq.order.type === 'post' && sq.order.kind !== 'defend') assignPosts(sq, sq.order.x, sq.order.y, sq.order.h || 0, sq.form); });
@@ -245,6 +248,18 @@
           sq.order = { type: id, x: ent ? ent.x : pt.x, y: ent ? ent.y : pt.y, ent, t: 0, prev: (prev.type === 'destroy' || prev.type === 'firesup') ? prev.prev : prev, shots: 0 };
           ms.forEach(u => { u.supShots = 0; });
           label = id === 'destroy' ? 'نابودی هدف' : 'پشتیبانی آتش'; break;
+        }
+        case 'blast': {
+          let ent = null, bd = 60;
+          for (const z of G.zombies) { if (z.dead || z.form !== 'sloth') continue; const d = Math.hypot(z.x - pt.x, z.y - pt.y); if (d < bd) { bd = d; ent = z; } }
+          const ti = G.tileAt(pt.x, pt.y);
+          sq.order = { type: 'destroy', blast: 1, x: pt.x, y: pt.y, ent, tile: ti >= 0 && G.destructible(ti) ? ti : -1, t: 0, prev: (prev.type === 'destroy' || prev.type === 'firesup' || prev.type === 'fireat') ? prev.prev : prev, shots: 0 };
+          ms.forEach(u => { u.supShots = 0; }); label = 'انفجار نقطه'; break;
+        }
+        case 'fireat': {
+          const ti = G.tileAt(pt.x, pt.y);
+          sq.order = { type: 'fireat', x: pt.x, y: pt.y, tile: ti >= 0 && G.destructible(ti) ? ti : -1, t: 0, shots: 0, prev: (prev.type === 'destroy' || prev.type === 'firesup' || prev.type === 'fireat') ? prev.prev : prev };
+          label = 'شلیک به نقطه'; break;
         }
         case 'patrol': sq.order = { type: 'patrol', a: { x: cxm, y: cym }, b: { x: pt.x, y: pt.y }, leg: 1, wait: 0, x: pt.x, y: pt.y }; assignPosts(sq, pt.x, pt.y, h, 'column'); label = 'گشت‌زنی'; break;
         case 'cover': {
@@ -298,7 +313,7 @@
   /* ---------- انتخاب هدف ---------- */
   function pickTarget(u, sq) {
     const o = sq.order, P = u.weapons[0].def;
-    const stance = o.type === 'cover' || o.type === 'post' || o.type === 'firesup';
+    const stance = o.type === 'cover' || o.type === 'post' || o.type === 'firesup' || o.type === 'fireat';
     const maxR = Math.max(P.expl ? 520 : P.range, 420), quietR = sq.holdFire ? 95 : (stance ? 540 : 430);
     const cands = [];
     for (const z of G.zActive) {
@@ -455,13 +470,28 @@
         } else if (o.type !== 'sd') { const d = Math.hypot(u.sx - u.x, u.sy - u.y); if (d > 10) navTo(u, u.sx, u.sy, dt, spd * 1.1); }
         break;
       }
+      case 'fireat': {
+        const zt = findHunt(u, o.x, o.y, 90);
+        if (zt) { u.target = zt; if (dist(u, zt) > 380 || !G.losClear(u.x, u.y, zt.x, zt.y)) navTo(u, zt.x, zt.y, dt, spd); break; }
+        const P = u.weapons[0].def.expl ? (u.weapons[1].def.expl ? -1 : 1) : 0;
+        if (P < 0) break;
+        const d = Math.hypot(o.x - u.x, o.y - u.y), ld = d || 1, w = u.weapons[P], rng = Math.min(w.def.range - 40, 480);
+        const los = G.losClear(u.x, u.y, o.x - (o.x - u.x) / ld * 24, o.y - (o.y - u.y) / ld * 24, true);
+        if (d > rng || !los) { navTo(u, o.x, o.y, dt, spd * 1.1); break; }
+        const a = Math.atan2(o.y - u.y, o.x - u.x); u.ang = G.turn(u.ang, a, 10 * dt); u.target = null; u.cur = P;
+        if (Math.abs(G.angDiff(u.ang, a)) < .1) {
+          if (w.mag <= 0) G.startReload(u, w);
+          else if (G.fire(u, u.ang, o.x, o.y)) { o.shots++; const b = G.map.block[o.tile]; if (o.tile >= 0 && b && !G.SOLID[b]) G.damageTile(o.tile, w.def.dmg * (w.def.pellets || 1) * .7, false); }
+        }
+        return;
+      }
       case 'destroy': case 'firesup': {
         const d = Math.hypot(o.x - u.x, o.y - u.y);
         const ex = u.weapons[0].def.expl ? 0 : u.weapons[1].def.expl ? 1 : -1;
         const can = (ex >= 0 && (u.weapons[ex].mag > 0 || u.weapons[ex].res !== 0)) || (o.type === 'destroy' && u.grenades > 0);
         if (!can) { if (o.type === 'destroy' && d > 240) navTo(u, o.x, o.y, dt, spd); break; }
         const reach = ex >= 0 ? Math.min(u.weapons[ex].def.range - 40, 420) : 320;
-        const los = G.losClear(u.x, u.y, o.x, o.y, true);
+        const ld = Math.hypot(o.x - u.x, o.y - u.y) || 1, los = G.losClear(u.x, u.y, o.x - (o.x - u.x) / ld * 24, o.y - (o.y - u.y) / ld * 24, true);
         if (d > reach || !los) { navTo(u, o.x, o.y, dt, spd * 1.1); break; }
         const minD = (ex >= 0 ? u.weapons[ex].def.radius : 105) + 60;
         if (d < minD) { const a = Math.atan2(u.y - o.y, u.x - o.x); G.moveEnt(u, Math.cos(a) * spd * dt, Math.sin(a) * spd * dt); u.moving = true; u.mvAng = a; break; }
@@ -474,6 +504,13 @@
       }
     }
     combat(u, dt, sq);
+  }
+
+  function restorePrev(sq, o, ms) {
+    const p = o.prev && o.prev.type !== 'destroy' && o.prev.type !== 'firesup' && o.prev.type !== 'fireat' ? o.prev : { type: 'follow' };
+    if (p.type === 'post' || p.type === 'follow' || p.type === 'cover') { sq.order = p; sq.label = p.type === 'follow' ? 'دنبال فرمانده' : p.type === 'cover' ? 'کاور' : 'استقرار'; }
+    else { sq.order = { type: 'post', kind: 'hold', x: ms[0].x, y: ms[0].y }; ms.forEach(u => { u.sx = u.x; u.sy = u.y; }); sq.label = 'ایست'; }
+    G.audio.play('radio');
   }
 
   /* ---------- به‌روزرسانی جوخه ---------- */
@@ -497,6 +534,13 @@
     else if (o.type === 'assault') {
       if (ms.every(u => Math.hypot(u.sx - u.x, u.sy - u.y) < 40) && !ms.some(u => u.hunt || u.target)) { sq.order = { type: 'post', kind: 'move', x: o.x, y: o.y, h: o.h }; sq.label = 'استقرار پس از حمله'; G.msg(`${sq.short}: موضع تصرف شد.`, sq.color); }
     }
+    else if (o.type === 'fireat') {
+      o.t += dt;
+      const zNear = findHunt(ms[0], o.x, o.y, 90), broke = o.tile >= 0 && !G.map.block[o.tile];
+      let end = o.t > 30 || broke || (o.tile < 0 && !zNear && o.shots >= 4 * ms.length);
+      if (o.tile >= 0 && o.shots > 90) end = true;
+      if (end) { if (broke) G.msg(`${sq.short}: مانع از بین رفت.`, sq.color); restorePrev(sq, o, ms); }
+    }
     else if (o.type === 'destroy' || o.type === 'firesup') {
       o.t += dt; let end = false, ok = false;
       if (o.ent && !o.ent.dead) { o.x = o.ent.x; o.y = o.ent.y; }
@@ -505,7 +549,7 @@
           let nx = null, bd = 80; for (const z of G.zombies) { if (z.dead || z.form !== o.ent.form) continue; const d = Math.hypot(z.x - o.x, z.y - o.y); if (d < bd && (z.form === 'sloth')) { bd = d; nx = z; } }
           if (nx) { o.ent = nx; o.x = nx.x; o.y = nx.y; } else { end = true; ok = true; }
         }
-      } else if (o.shots >= (o.type === 'firesup' ? 3 : 4)) end = true;
+      } else if (o.tile >= 0) { if (!G.map.block[o.tile]) { end = true; ok = true; } else if (o.shots >= 14) end = true; } else if (o.shots >= (o.type === 'firesup' ? 3 : o.blast ? 2 : 4)) end = true;
       if (o.type === 'firesup' && !o.ent && o.t > 9) end = true;
       if (o.t > 40) end = true;
       const armed = ms.some(u => (u.weapons[0].def.expl && (u.weapons[0].mag > 0 || u.weapons[0].res !== 0)) || (u.weapons[1].def.expl && (u.weapons[1].mag > 0 || u.weapons[1].res !== 0)) || (o.type === 'destroy' && u.grenades > 0));

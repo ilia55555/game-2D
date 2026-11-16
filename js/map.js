@@ -243,6 +243,31 @@
     return true;
   };
 
+  /* ---------- موانع تخریب‌پذیر ---------- */
+  G.destructible = i => { const b = G.map.block[i]; return b === 1 || b === 2 || b === 3; };
+  G.tileMax = i => { const m = G.map, b = m.block[i]; return b === 1 ? 480 : b === 3 ? 140 : m.sub[i] === 1 ? 360 : 150; };
+  G.damageTile = function (i, dmg, expl) {
+    const m = G.map; if (i == null || i < 0 || !G.destructible(i)) return false;
+    if (!m.thp) m.thp = new Float32Array(m.w * m.h);
+    const b = m.block[i], k = expl ? 1 : b === 1 ? .2 : m.sub[i] === 1 ? .25 : 1;
+    m.thp[i] += dmg * k;
+    if (m.thp[i] >= G.tileMax(i)) G.destroyTile(i);
+    return true;
+  };
+  G.destroyTile = function (i) {
+    const m = G.map, W = m.w, x = i % W, y = (i / W) | 0, b = m.block[i];
+    const clear = j => { m.block[j] = 0; m.sub[j] = 0; m.reach[j] = 1; if (m.thp) m.thp[j] = 0; };
+    if (b === 2 && m.sub[i] === 1) {
+      const k = m.cars.findIndex(c => x >= c.x && x < c.x + c.w && y >= c.y && y < c.y + c.h);
+      if (k >= 0) { const c = m.cars[k]; for (let yy = c.y; yy < c.y + c.h; yy++) for (let xx = c.x; xx < c.x + c.w; xx++) clear(yy * W + xx); m.cars.splice(k, 1); G.fx.boom((c.x + c.w / 2) * T, (c.y + c.h / 2) * T, 50); }
+      else clear(i);
+    } else clear(i);
+    const px = x * T + T / 2, py = y * T + T / 2;
+    G.fx.burst(px, py - 8, b === 3 ? '#4a3623' : '#8b857b', 12, 140, .6, 3.5); G.fx.burst(px, py - 8, '#3b3a38', 8, 90, .8, 5);
+    G.fx.decal(px, py, 'scorch', '#000', 14);
+    G.minimapDirty = true; G.flowT = 0;
+  };
+
   // خانه‌های خطرناک کنار تنبلی‌ها (برای دوری مسیرها از شلاق آن‌ها)
   G.markDanger = function () {
     const m = G.map, W = m.w, H = m.h; m.danger.fill(0);

@@ -61,23 +61,23 @@ G.TEAMS = {
   alpha: {
     key: 'alpha', name: 'نیروهای ویژه', short: 'ویژه', color: '#ff8a3c', hp: 125,
     roles: [
-      { role: 'تهاجمی', p: 'm4', s: 'm9', name: 'کاوه' },
-      { role: 'رخنه‌گر', p: 'm870', s: 'deagle', name: 'آرش' },
-      { role: 'پیشرو', p: 'mp5sd', s: 'sawed', name: 'سام' },
-      { role: 'تفنگدار', p: 'scar', s: 'm9', name: 'بابک' },
-      { role: 'پاکساز', p: 'aa12', s: 'm9', name: 'رستم' },
-      { role: 'شناسایی', p: 'vector', s: 'deagle', name: 'سیاوش' },
+      { role: 'تهاجمی', p: 'm4', s: 'm9', name: 'میلر' },
+      { role: 'رخنه‌گر', p: 'm870', s: 'deagle', name: 'ریس' },
+      { role: 'پیشرو', p: 'mp5sd', s: 'sawed', name: 'واکر' },
+      { role: 'تفنگدار', p: 'scar', s: 'm9', name: 'هیز' },
+      { role: 'پاکساز', p: 'aa12', s: 'm9', name: 'کوپر' },
+      { role: 'شناسایی', p: 'vector', s: 'deagle', name: 'بروکس' },
     ],
   },
   delta: {
     key: 'delta', name: 'دلتا فورس', short: 'دلتا', color: '#4db8ff', hp: 105,
     roles: [
-      { role: 'تیربارچی', p: 'm249', s: 'm9', name: 'بهرام' },
-      { role: 'تیرانداز دقیق', p: 'm14', s: 'deagle', name: 'داریوش' },
-      { role: 'تک‌تیرانداز', p: 'm24', s: 'm9', name: 'کیان' },
-      { role: 'تخریب‌چی', p: 'rpg7', s: 'm79', name: 'فرهاد', demo: 1 },
-      { role: 'امدادگر', p: 'g36', s: 'm9', name: 'مهران', medic: 1 },
-      { role: 'نارنجک‌انداز', p: 'm32', s: 'sawed', name: 'نوید', demo: 1 },
+      { role: 'تیربارچی', p: 'm249', s: 'm9', name: 'پرایس' },
+      { role: 'تیرانداز دقیق', p: 'm14', s: 'deagle', name: 'میسون' },
+      { role: 'تک‌تیرانداز', p: 'm24', s: 'm9', name: 'گریوز' },
+      { role: 'تخریب‌چی', p: 'rpg7', s: 'm79', name: 'کوالسکی', demo: 1 },
+      { role: 'امدادگر', p: 'g36', s: 'm9', name: 'سندرز', medic: 1 },
+      { role: 'نارنجک‌انداز', p: 'm32', s: 'sawed', name: 'هارپر', demo: 1 },
     ],
   },
 };
@@ -104,18 +104,17 @@ G.ZONES = [
 G.FORMS = [['wedge', 'مثلثی'], ['line', 'خطی'], ['column', 'ستونی'], ['circle', 'دفاعی']];
 
 /* ---------- چرخ فرمان ---------- */
-// زاویه‌ها به درجه (۰ = راست، ۹۰ = پایین). راست: نیروهای ویژه | چپ: دلتا | بالا و پایین: هر دو تیم
-G.WHEEL = [
-  { scope: 'alpha', from: -50, to: 50, title: 'نیروهای ویژه', color: '#ff8a3c', items: [
-    { id: 'assault', t: 'حمله', pt: 1 }, { id: 'clear', t: 'پاکسازی', pt: 1 }, { id: 'sd', t: 'جستجو و نابودی', pt: 1 }, { id: 'destroy', t: 'نابودی هدف', pt: 1 }] },
-  { scope: 'all', from: 50, to: 130, title: 'هر دو تیم', color: '#f2e2a0', items: [
-    { id: 'fire', t: 'آتش‌بس' }, { id: 'hold', t: 'ایست' }, { id: 'form', t: 'آرایش' }] },
-  { scope: 'delta', from: 130, to: 230, title: 'دلتا فورس', color: '#4db8ff', items: [
-    { id: 'firesup', t: 'پشتیبانی آتش', pt: 1 }, { id: 'distract', t: 'حواس‌پرتی', pt: 1 }, { id: 'cover', t: 'کاور' }, { id: 'patrol', t: 'گشت‌زنی', pt: 1 }, { id: 'defend', t: 'دفاع', pt: 1 }] },
-  { scope: 'all', from: 230, to: 310, title: 'هر دو تیم', color: '#f2e2a0', items: [
-    { id: 'regroup', t: 'تجمع' }, { id: 'follow', t: 'دنبال من' }, { id: 'move', t: 'برو به نقطه', pt: 1 }] },
-];
-G.PTCMD = { move: 1, assault: 1, clear: 1, sd: 1, destroy: 1, defend: 1, patrol: 1, distract: 1, firesup: 1 };
+// سه دایره: اصلی (هر دو تیم) + نیروهای ویژه + دلتا. زاویه به درجه، ۰ = راست، ۹۰ = پایین
+(function () {
+  const fireat = { id: 'fireat', t: 'شلیک به نقطه', pt: 1 }, blast = { id: 'blast', t: 'انفجار نقطه', pt: 1 }, back = { back: 1, t: 'بازگشت' };
+  const ring = (title, color, items, backAt) => { const n = items.length, span = 360 / n, bi = items.findIndex(x => x.back); return { title, color, items, span, off: bi >= 0 ? backAt - bi * span : 0 }; };
+  G.WHEELS = {
+    main: ring('هر دو تیم', '#e8c15a', [{ sub: 'alpha', t: 'نیروهای ویژه', color: '#ff8a3c' }, fireat, blast, { id: 'move', t: 'برو به نقطه', pt: 1 }, { id: 'form', t: 'آرایش' }, { sub: 'delta', t: 'دلتا فورس', color: '#4db8ff' }, { id: 'follow', t: 'دنبال من' }, { id: 'regroup', t: 'تجمع' }, { id: 'hold', t: 'ایست' }, { id: 'fire', t: 'آتش‌بس' }]),
+    alpha: ring('نیروهای ویژه', '#ff8a3c', [{ id: 'assault', t: 'حمله', pt: 1 }, { id: 'clear', t: 'پاکسازی', pt: 1 }, { id: 'sd', t: 'جستجو و نابودی', pt: 1 }, { id: 'destroy', t: 'نابودی هدف', pt: 1 }, fireat, blast, back], 180),
+    delta: ring('دلتا فورس', '#4db8ff', [{ id: 'defend', t: 'دفاع', pt: 1 }, { id: 'patrol', t: 'گشت‌زنی', pt: 1 }, { id: 'cover', t: 'کاور' }, { id: 'distract', t: 'حواس‌پرتی', pt: 1 }, { id: 'firesup', t: 'پشتیبانی آتش', pt: 1 }, fireat, blast, back], 0),
+  };
+})();
+G.PTCMD = { move: 1, assault: 1, clear: 1, sd: 1, destroy: 1, defend: 1, patrol: 1, distract: 1, firesup: 1, fireat: 1, blast: 1 };
 
 /* ---------- عملیات‌ها ---------- */
 G.MISSIONS = [
@@ -131,7 +130,7 @@ G.saveProg = function (p) { try { localStorage.setItem('blackveil_prog', JSON.st
 /* ---------- تنظیمات ---------- */
 G.defaultSettings = function () {
   return {
-    diff: 1, alphaN: 4, deltaN: 4, sound: 1,
+    diff: 1, alphaN: 5, deltaN: 5, sound: 1,
     cmd: { p: 'm4', s: 'm9' },
     alpha: G.TEAMS.alpha.roles.map(r => ({ p: r.p, s: r.s })),
     delta: G.TEAMS.delta.roles.map(r => ({ p: r.p, s: r.s })),
@@ -148,7 +147,7 @@ G.loadSettings = function () {
       ['alpha', 'delta'].forEach(t => { if (Array.isArray(s[t])) s[t].forEach((m, i) => { if (d[t][i] && m && okW(m.p, t) && okW(m.s, 'sec')) d[t][i] = { p: m.p, s: m.s }; }); });
     }
   } catch (e) { /* ignore */ }
-  d.alphaN = G.clamp(d.alphaN | 0, 1, 6); d.deltaN = G.clamp(d.deltaN | 0, 1, 6); d.diff = G.clamp(d.diff | 0, 0, 2);
+  d.alphaN = 5; d.deltaN = 5; d.diff = G.clamp(d.diff | 0, 0, 2);
   return d;
 };
 G.saveSettings = function () { try { localStorage.setItem('blackmatter7', JSON.stringify(G.settings)); } catch (e) { /* ignore */ } };

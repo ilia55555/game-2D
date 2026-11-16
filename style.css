@@ -134,3 +134,5 @@ body.touch canvas#cv{cursor:default}
   body.touch #tbtns{top:150px;bottom:auto;transform:none;width:140px;gap:4px}body.touch #tbtns button{min-height:30px;font-size:10.5px}
   .card{padding:12px}
 }
+
+.card.armory{max-width:780px}#obj .fail{color:#ff6b6b;opacity:.9}.cntf{margin-inline-start:auto;color:var(--muted);font-size:12px;font-weight:normal}

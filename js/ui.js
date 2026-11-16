@@ -4,7 +4,7 @@
   const $ = id => document.getElementById(id), fa = G.fa;
   const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
   let hudT = 0, bannerT = 0, mapOpen = false, screen = 'title', selM = 'crash', curM = 'crash';
-  const ui = G.ui = Object.assign(G.ui || {}, { wheel: { open: false, k: 0, vx: 0, vy: 0, sel: null, tgt: { x: 0, y: 0 } } });
+  const ui = G.ui = Object.assign(G.ui || {}, { wheel: { open: false, k: 0, vx: 0, vy: 0, sel: null, wheel: 'main', tgt: { x: 0, y: 0 } } });
   const W = ui.wheel;
   G.dev = /[?&]dev\b/.test(location.search);
 
@@ -21,7 +21,7 @@
 
   /* ================= منوها ================= */
   function wOpts(pool, sel) { return G.POOL[pool].map(id => { const w = G.WEAPONS[id]; return `<option value="${id}"${id === sel ? ' selected' : ''}>${w.name} — ${w.cls}</option>`; }).join(''); }
-  const KEYS = [['W A S D', 'حرکت'], ['Shift', 'دویدن'], ['ماوس', 'نشانه‌گیری'], ['کلیک چپ', 'شلیک'], ['R', 'خشاب'], ['Q / چرخ ماوس', 'تعویض سلاح'], ['G', 'نارنجک'], ['T', 'طعمه'], ['F', 'چاقو'], ['H', 'درمان'], ['E', 'اقدام'], ['Tab (نگه‌دار)', 'چرخ فرمان'], ['کلیک راست', 'حرکت تیم‌ها'], ['M', 'نقشه'], ['Esc', 'توقف']];
+  const KEYS = [['W A S D', 'حرکت'], ['Shift', 'دویدن'], ['ماوس', 'نشانه‌گیری'], ['کلیک چپ', 'شلیک'], ['R', 'خشاب'], ['Q / چرخ ماوس', 'تعویض سلاح'], ['G', 'نارنجک'], ['T', 'طعمه'], ['F', 'چاقو'], ['H', 'درمان'], ['E', 'اقدام'], ['کلیک راست (نگه‌دار)', 'چرخ فرمان'], ['Tab (نگه‌دار)', 'چرخ فرمان'], ['M', 'نقشه'], ['Esc', 'توقف']];
   const keysHtml = () => `<div class="keys">${KEYS.map(k => `<div><kbd>${k[0]}</kbd><span>${k[1]}</span></div>`).join('')}</div>`;
   const SCREENS = {
     title() { return { crumb: '', body: `<div class="title"><h1>BLACK VEIL</h1><div class="sub">TACTICAL COMMAND</div><div class="press">برای شروع کلیک کن یا کلیدی را فشار بده</div></div>`, foot: '' }; },
@@ -46,7 +46,7 @@
       let h = `<div class="team" style="--tc:#e8c15a"><h3>فرمانده</h3><div class="mem"><span class="role">سلاح اصلی</span><select data-t="cmd" data-k="p">${wOpts('cmd', st.cmd.p)}</select><span class="role">سلاح دوم</span><select data-t="cmd" data-k="s">${wOpts('sec', st.cmd.s)}</select></div></div>`;
       for (const key of ['alpha', 'delta']) {
         const TM = G.TEAMS[key], n = st[key + 'N'];
-        h += `<div class="team" style="--tc:${TM.color}"><h3>${TM.name}<span class="cnt"><button data-n="${key}" data-d="-1">−</button><b>${fa(n)}</b><button data-n="${key}" data-d="1">+</button></span></h3>`;
+        h += `<div class="team" style="--tc:${TM.color}"><h3>${TM.name}<small class="cntf">${fa(n)} نفر</small></h3>`;
         for (let i = 0; i < n; i++) { const r = TM.roles[i]; h += `<div class="mem"><span class="role">${r.name} · ${r.role}</span><select data-t="${key}" data-i="${i}" data-k="p">${wOpts(key, st[key][i].p)}</select><select data-t="${key}" data-i="${i}" data-k="s">${wOpts('sec', st[key][i].s)}</select></div>`; }
         h += '</div>';
       }
@@ -104,19 +104,19 @@
   const itemText = c => c.id === 'form' ? 'آرایش: ' + G.FORMS.find(f => f[0] === G.squads.alpha.form)[1] : c.id === 'fire' ? (G.squads.alpha.holdFire ? 'آتش آزاد' : 'آتش‌بس') : c.t;
   ui.wheelText = itemText;
   function wheelPick() {
-    const d = Math.hypot(W.vx, W.vy); if (d < 30) { W.sel = null; return; }
-    let a = Math.atan2(W.vy, W.vx) * 180 / Math.PI; if (a < -50) a += 360;
-    for (const g of G.WHEEL) if (a >= g.from && a < g.to) { const i = Math.min(g.items.length - 1, Math.floor((a - g.from) / (g.to - g.from) * g.items.length)), c = g.items[i]; if (!W.sel || W.sel.c !== c) G.audio.play('beep'); W.sel = { g, i, c }; return; }
+    const R = G.WHEELS[W.wheel], d = Math.hypot(W.vx, W.vy); if (d < 30) { W.sel = null; return; }
+    const a = Math.atan2(W.vy, W.vx) * 180 / Math.PI, n = R.items.length, i = ((Math.round((a - R.off) / R.span) % n) + n) % n, it = R.items[i];
+    if ((it.sub || it.back) && d > 75) { W.wheel = it.sub || 'main'; W.vx = W.vy = 0; W.sel = null; W.reorigin = true; G.audio.play('radio'); return; }
+    if (!W.sel || W.sel.it !== it) G.audio.play('beep'); W.sel = { it, i };
   }
   function wheelOpen(ox, oy) {
-    if (G.state !== 'play' || W.open || G.cmd.downed) return;
-    W.open = true; W.vx = W.vy = 0; W.sel = null; W.ox = ox; W.oy = oy; W.tgt = { x: G.input.world.x, y: G.input.world.y - 9 }; G.input.fire = false; G.audio.play('radio');
+    if (G.state !== 'play' || W.open || G.cmd.downed || G.cmd.boarded) return;
+    W.open = true; W.wheel = 'main'; W.vx = W.vy = 0; W.sel = null; W.ox = ox; W.oy = oy; W.tgt = { x: G.input.world.x, y: G.input.world.y - 9 }; G.input.fire = false; G.audio.play('radio');
   }
   function wheelMove(dx, dy) { W.vx += dx; W.vy += dy; const d = Math.hypot(W.vx, W.vy); if (d > 120) { W.vx *= 120 / d; W.vy *= 120 / d; } wheelPick(); }
-  function wheelClose(scope) {
-    if (!W.open) return; W.open = false; const s = W.sel; if (!s) return;
-    const sc = s.g.scope === 'all' ? (scope || 'all') : s.g.scope;
-    G.command(sc, s.c.id, s.c.pt ? W.tgt : null);
+  function wheelClose() {
+    if (!W.open) return; W.open = false; const s = W.sel; W.sel = null; if (!s || s.it.sub || s.it.back) return;
+    G.command(W.wheel === 'main' ? 'all' : W.wheel, s.it.id, s.it.pt ? W.tgt : null);
   }
 
   /* ================= پنل جوخه‌ها و HUD ================= */
@@ -145,7 +145,7 @@
       }
     }
     const zn = Math.max(0, G.zoneNow), z = G.ZONES[zn]; $('zone').innerHTML = `<i style="background:${z.color}"></i>${G.zoneName(zn)}`;
-    $('obj').innerHTML = G.objectives().map(o => `<div class="${o.done ? 'done' : ''}">${o.done ? '✔' : '◻'} ${o.t}</div>`).join('');
+    $('obj').innerHTML = G.objectives().map(o => `<div class="${o.fail ? 'fail' : o.done ? 'done' : ''}">${o.fail ? '✖' : o.done ? '✔' : '◻'} ${o.t}</div>`).join('');
     const p = $('prompt'); p.textContent = M.prompt; p.hidden = !M.prompt;
     G.drawMinimap($('mini'), false);
     if (mapOpen) G.drawMinimap($('bigmap'), true);
@@ -170,9 +170,16 @@
     m.querySelector('#bRes').onclick = closeModal; G.drawMinimap(bm, true);
   };
   ui.openArmory = function () {
-    G.state = 'pause'; const u = G.cmd;
-    const m = modal(`<h2>تدارکات</h2><div class="mem"><span class="role">سلاح اصلی</span><select id="aP">${wOpts('cmd', u.weapons[0].id)}</select></div><div class="mem"><span class="role">سلاح دوم</span><select id="aS">${wOpts('sec', u.weapons[1].id)}</select></div><div class="btns"><button id="bRes" class="primary">ادامه</button></div>`);
-    m.querySelector('#aP').onchange = e => G.setCmdWeapon(0, e.target.value); m.querySelector('#aS').onchange = e => G.setCmdWeapon(1, e.target.value); m.querySelector('#bRes').onclick = closeModal;
+    G.state = 'pause'; W.open = false; const u = G.cmd;
+    let h = `<h2>تدارکات</h2><div class="team" style="--tc:#e8c15a"><h3>فرمانده</h3><div class="mem"><span class="role">اصلی</span><select data-u="0" data-k="0">${wOpts('cmd', u.weapons[0].id)}</select><span class="role">دوم</span><select data-u="0" data-k="1">${wOpts('sec', u.weapons[1].id)}</select></div></div>`;
+    for (const key of ['alpha', 'delta']) {
+      const sq = G.squads[key], ms = sq.members.filter(x => !x.dead); if (!ms.length) continue;
+      h += `<div class="team" style="--tc:${sq.color}"><h3>${sq.name}</h3>` + ms.map(x => `<div class="mem"><span class="role">${x.name} · ${x.role}</span><select data-u="${x.id}" data-k="0">${wOpts(key, x.weapons[0].id)}</select><select data-u="${x.id}" data-k="1">${wOpts('sec', x.weapons[1].id)}</select></div>`).join('') + '</div>';
+    }
+    h += '<div class="btns"><button id="bRes" class="primary">ادامه</button></div>';
+    const m = modal(h, 'armory');
+    m.querySelectorAll('select').forEach(x => x.onchange = () => { const id = +x.dataset.u, k = +x.dataset.k; if (!id) G.setCmdWeapon(k, x.value); else { const q = G.soldiers.find(o => o.id === id); if (q) G.setSoldierWeapon(q, k, x.value); } });
+    m.querySelector('#bRes').onclick = closeModal;
   };
   ui.showEnd = function () {
     const r = G.result, s = G.stats, e = G.logic.end && G.logic.end();
@@ -213,11 +220,11 @@
     });
     cv.addEventListener('mousedown', e => {
       G.audio.init(); I.mx = e.clientX; I.my = e.clientY; if (G.state !== 'play') return;
-      if (W.open) { if (W.sel) wheelClose(e.button === 0 ? 'delta' : e.button === 2 ? 'alpha' : 'all'); return; }
+      if (e.button === 2) { wheelOpen(e.clientX, e.clientY); return; }
+      if (W.open) return;
       if (e.button === 0) { I.fire = true; I.firePressed = true; }
-      else if (e.button === 2) G.command('all', 'move', G.screenToWorld(e.clientX, e.clientY));
     });
-    window.addEventListener('mouseup', e => { if (e.button === 0) I.fire = false; });
+    window.addEventListener('mouseup', e => { if (e.button === 0) I.fire = false; if (e.button === 2) wheelClose(); });
     cv.addEventListener('contextmenu', e => e.preventDefault());
     cv.addEventListener('wheel', e => { if (G.state === 'play' && !W.open) G.cmdAct(e.deltaY > 0 ? 'swap' : 'swapBack'); e.preventDefault(); }, { passive: false });
 
@@ -247,7 +254,7 @@
       const a = b.dataset.a;
       if (a === 'wheel') { // نگه‌دار و بکش، رها کن
         b.addEventListener('touchstart', e => { e.preventDefault(); const t = e.changedTouches[0]; wheelOpen(t.clientX, t.clientY); }, { passive: false });
-        b.addEventListener('touchmove', e => { e.preventDefault(); const t = e.changedTouches[0]; if (!W.open) return; W.vx = (t.clientX - W.ox) * 1.4; W.vy = (t.clientY - W.oy) * 1.4; wheelMove(0, 0); }, { passive: false });
+        b.addEventListener('touchmove', e => { e.preventDefault(); const t = e.changedTouches[0]; if (!W.open) return; if (W.reorigin) { W.reorigin = false; W.ox = t.clientX; W.oy = t.clientY; } W.vx = (t.clientX - W.ox) * 1.4; W.vy = (t.clientY - W.oy) * 1.4; wheelMove(0, 0); }, { passive: false });
         b.addEventListener('touchend', e => { e.preventDefault(); wheelClose(); });
         return;
       }
