@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="fa">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>NOVA: Endless Demolition</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #0e0c14; overflow: hidden; touch-action: none; user-select: none; -webkit-user-select: none; }
+  body { display: flex; align-items: center; justify-content: center; font-family: ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace; color: #fff8e8; }
+  canvas { image-rendering: pixelated; image-rendering: crisp-edges; cursor: none; background: #000; }
+  #help { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: rgba(14, 12, 20, .78); cursor: pointer; transition: opacity .35s; z-index: 5; }
+  #help.hide { opacity: 0; pointer-events: none; }
+  #card { max-width: 720px; width: calc(100% - 32px); max-height: calc(100% - 24px); overflow: auto; padding: 22px 26px; background: #17121f; border: 3px solid #ffc83c; box-shadow: 8px 8px 0 #000; box-sizing: border-box; }
+  h1 { margin: 0 0 2px; font-size: 34px; letter-spacing: 3px; color: #ffc83c; text-shadow: 3px 3px 0 #d0382c; }
+  h1 small { display: block; font-size: 13px; letter-spacing: 6px; color: #7ff3ff; text-shadow: none; margin-top: 6px; }
+  .fa { direction: rtl; font-family: Vazirmatn, Tahoma, "Segoe UI", sans-serif; font-size: 14px; line-height: 1.9; color: #d8d0c0; margin: 12px 0 14px; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; }
+  td { padding: 4px 6px; border-bottom: 1px solid #2c2438; vertical-align: top; }
+  td:first-child { color: #7ff3ff; white-space: nowrap; width: 40%; }
+  td:last-child { direction: rtl; text-align: right; font-family: Vazirmatn, Tahoma, "Segoe UI", sans-serif; color: #e8e0d0; }
+  kbd { display: inline-block; padding: 1px 6px; border: 1px solid #6a6078; border-bottom-width: 3px; border-radius: 3px; background: #221c2c; color: #fff8e8; font: inherit; font-size: 12px; }
+  .go { margin-top: 16px; text-align: center; color: #ffc83c; font-size: 16px; letter-spacing: 2px; animation: blink 1s steps(2) infinite; }
+  @keyframes blink { 50% { opacity: .25; } }
+  #pads { display: none; position: fixed; inset: 0; z-index: 4; pointer-events: none; }
+  .stick { position: absolute; bottom: 22px; width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(255, 248, 232, .35); background: rgba(23, 18, 31, .25); pointer-events: auto; }
+  .stick i { position: absolute; left: 36px; top: 36px; width: 48px; height: 48px; border-radius: 50%; background: rgba(255, 200, 60, .55); }
+  #stickL { left: 22px; } #stickR { right: 22px; } #stickR i { background: rgba(255, 74, 60, .6); }
+  .btn { position: absolute; width: 54px; height: 54px; border-radius: 50%; border: 2px solid rgba(255, 248, 232, .45); background: rgba(23, 18, 31, .4); color: #fff8e8; font: 700 11px ui-monospace, monospace; display: flex; align-items: center; justify-content: center; pointer-events: auto; }
+  .btn.on { background: rgba(255, 200, 60, .6); }
+  #bJump { right: 160px; bottom: 24px; } #bDash { right: 160px; bottom: 88px; } #bPound { right: 96px; bottom: 154px; } #bPunch { right: 30px; bottom: 154px; }
+  #bNext { left: 160px; bottom: 24px; } #bNuke { left: 160px; bottom: 88px; border-color: #ff4a3c; color: #ff8a7c; }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="pads">
+  <div class="stick" id="stickL"><i></i></div><div class="stick" id="stickR"><i></i></div>
+  <div class="btn" id="bJump">JUMP<br>FLY</div><div class="btn" id="bDash">DASH</div><div class="btn" id="bPound">POUND</div><div class="btn" id="bPunch">PUNCH</div>
+  <div class="btn" id="bNext">WPN</div><div class="btn" id="bNuke">NUKE</div>
+</div>
+<div id="help"><div id="card">
+  <h1>NOVA<small>ENDLESS DEMOLITION</small></h1>
+  <p class="fa">یک اَبَرقهرمان، یک شهرِ بی‌انتها، و هیچ چیزی که نشود خرابش کرد. ساختمان‌ها را از وسط ببُر تا فرو بریزند، با سرعتِ نور از دلِ دیوارها رد شو، از آسمان شهاب‌سنگ بیار و وقتی نوارِ هرج‌ومرج پُر شد، بمبِ اتمی را رها کن.</p>
+  <table>
+    <tr><td><kbd>A</kbd> <kbd>D</kbd> · <kbd>W</kbd> <kbd>S</kbd></td><td>حرکت · در پرواز: بالا و پایین</td></tr>
+    <tr><td><kbd>Space</kbd></td><td>پرش · دوباره در هوا: پرواز (و دوباره: فرود)</td></tr>
+    <tr><td><kbd>S</kbd> + <kbd>Space</kbd></td><td>سوپر جامپ (سقف‌ها را می‌شکافد)</td></tr>
+    <tr><td><kbd>Shift</kbd></td><td>سرعتِ فلش: از وسط دیوارها رد شو، روی آب بدو، در پرواز دیوار صوتی بشکن</td></tr>
+    <tr><td><kbd>C</kbd></td><td>کوبشِ زمین از هوا (گودالِ عظیم)</td></tr>
+    <tr><td><kbd>F</kbd> / Right click</td><td>مشتِ ویرانگر</td></tr>
+    <tr><td>Mouse · Left click</td><td>نشانه‌گیری و شلیک</td></tr>
+    <tr><td><kbd>1</kbd>…<kbd>0</kbd> · <kbd>Q</kbd> <kbd>E</kbd> · Wheel</td><td>ده سلاح: بلستر، راکت، خوشه‌ای، نگاهِ لیزری، صاعقه، شهاب‌سنگ، سیاه‌چاله، گردباد، تیغه‌های یخ، پرتوِ آسمانی</td></tr>
+    <tr><td><kbd>R</kbd></td><td>بمبِ اتمی (وقتی نوار پُر است)</td></tr>
+  </table>
+  <div class="go">CLICK / TAP TO START</div>
+</div></div>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>
