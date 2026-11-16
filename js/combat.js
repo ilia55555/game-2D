@@ -54,7 +54,7 @@
     if (!d.proj) G.fx.casing(u.x + Math.cos(ang) * 6, u.y + Math.sin(ang) * 6, ang);
     const sp = d.spread * (u.isCmd ? (u.moving ? 1.5 : 1) : (u.moving ? 3.2 : 2.1));
     if (d.proj === 'rocket') {
-      G.projs.push({ type: 'rocket', x: mx, y: my, ang: ang + (Math.random() - .5) * sp, sp: 620, left: d.range, dmg: d.dmg, radius: d.radius, owner: u, life: 3 });
+      G.projs.push({ type: 'rocket', x: mx, y: my, ang: ang + (Math.random() - .5) * sp, sp: 620, left: d.range, dmg: d.dmg, radius: d.radius, owner: u, life: 3, heavy: 1 });
     } else if (d.proj === 'gren') {
       let dd = Math.min(Math.hypot(tx - u.x, ty - u.y), d.range); dd = Math.max(dd, 60);
       const a = ang + (Math.random() - .5) * sp;
@@ -118,19 +118,19 @@
   G.explode = function (x, y, radius, dmg, owner, opts) {
     opts = opts || {};
     G._ex = { x, y, id: (G._exId = (G._exId || 0) + 1) }; G.shockObjs(x, y, radius * 2);
-    G.fx.boom(x, y, radius); G.audio.play('boom', Math.hypot(x - G.cmd.x, y - G.cmd.y)); G.noise(x, y, 900);
-    const sh = G.clamp(1 - Math.hypot(x - G.cmd.x, y - G.cmd.y) / 700, 0, 1); G.fx.shake(10 * sh);
+    G.fx.boom(x, y, radius, opts.heavy); G.audio.play('boom', Math.hypot(x - G.cmd.x, y - G.cmd.y)); G.noise(x, y, 900);
+    const sh = G.clamp(1 - Math.hypot(x - G.cmd.x, y - G.cmd.y) / 700, 0, 1); G.fx.shake((opts.heavy ? 26 : 10) * sh);
     for (const z of G.zombies) {
       if (z.dead) continue; const d = Math.hypot(z.x - x, z.y - y); if (d > radius + z.r) continue;
       if (d > 40 && !G.losClear(x, y, z.x + (x - z.x) / d * 14, z.y + (y - z.y) / d * 14, true)) continue;
       G.damageZombie(z, dmg * (1 - .6 * Math.min(1, d / radius)), { expl: 1, ang: Math.atan2(z.y - y, z.x - x), knock: 120, src: owner && owner.kind === 's' ? owner : null });
     }
-    if (!opts.noTiles) { const m = G.map, r = radius * .8, tx0 = Math.floor((x - r) / T), tx1 = Math.floor((x + r) / T), ty0 = Math.floor((y - r) / T), ty1 = Math.floor((y + r) / T); for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) { if (tx < 0 || ty < 0 || tx >= m.w || ty >= m.h) continue; const dd = Math.hypot(tx * T + T / 2 - x, ty * T + T / 2 - y); if (dd < r) G.damageTile(ty * m.w + tx, dmg * (1 - .5 * dd / r), true); } }
+    if (!opts.noTiles) { const m = G.map, r = radius * (opts.heavy ? .95 : .8), tx0 = Math.floor((x - r) / T), tx1 = Math.floor((x + r) / T), ty0 = Math.floor((y - r) / T), ty1 = Math.floor((y + r) / T); for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) { if (tx < 0 || ty < 0 || tx >= m.w || ty >= m.h) continue; const dd = Math.hypot(tx * T + T / 2 - x, ty * T + T / 2 - y); if (dd < r) G.damageTile(ty * m.w + tx, dmg * (1 - .5 * dd / r), true); } }
     G._ex = null;
     if (!opts.noFF) for (const s of G.soldiers) {
       if (s.dead) continue; const d = Math.hypot(s.x - x, s.y - y); if (d > radius) continue;
       if (d > 30 && !G.losClear(x, y, s.x, s.y, true)) continue;
-      G.damageSoldier(s, dmg * .22 * (1 - .7 * d / radius), null, true);
+      G.damageSoldier(s, dmg * (opts.heavy ? .09 : .22) * (1 - .7 * d / radius), null, true);
     }
   };
 
@@ -161,7 +161,7 @@
         for (const z of G.zActive) { if (z.dead) continue; const rx = z.x - p.x, ry = z.y - p.y, t = rx * dx + ry * dy; if (t < -z.r || t > mv + z.r) continue; const qx = rx - dx * t, qy = ry - dy * t; if (qx * qx + qy * qy < (z.r + 4) * (z.r + 4)) { hit = true; break; } }
         p.x += dx * mv; p.y += dy * mv; p.left -= mv;
         if (Math.random() < .9) G.fx.smoke(p.x - dx * 8, p.y - dy * 8);
-        if (hit || p.left <= 0) { G.explode(p.x - dx * 6, p.y - dy * 6, p.radius, p.dmg, p.owner); done = true; }
+        if (hit || p.left <= 0) { G.explode(p.x - dx * 6, p.y - dy * 6, p.radius, p.dmg, p.owner, { heavy: p.heavy }); done = true; }
       } else if (p.type === 'acid') {
         p.t += dt; const k = Math.min(1, p.t / p.dur); p.x = G.lerp(p.x0, p.x1, k); p.y = G.lerp(p.y0, p.y1, k); p.z = Math.sin(k * Math.PI) * 46;
         if (k >= 1) { G.acidPool(p.x, p.y, 44, 6); G.audio.play('splat', Math.hypot(p.x - G.cmd.x, p.y - G.cmd.y)); done = true; }
@@ -431,14 +431,23 @@
   }
 
   /* ---------- حرکت شکاری (حمله/پاکسازی/جستجو) ---------- */
+  // عقب‌نشینی رو به دشمن (بدن به سمت هدف می‌ماند و تیراندازی ادامه دارد)؛ اگر پشت سر بسته بود به پهلو می‌رود
+  function backOff(u, t, dt, spd) {
+    const a = Math.atan2(u.y - t.y, u.x - t.x), x0 = u.x, y0 = u.y; u.kite = u.kite || (Math.random() < .5 ? 1 : -1);
+    G.moveEnt(u, Math.cos(a) * spd * dt, Math.sin(a) * spd * dt);
+    if (Math.hypot(u.x - x0, u.y - y0) < spd * dt * .5) { const b = a + u.kite * 1.35; G.moveEnt(u, Math.cos(b) * spd * dt, Math.sin(b) * spd * dt); if (Math.hypot(u.x - x0, u.y - y0) < spd * dt * .4) u.kite = -u.kite; }
+    u.moving = true; u.mvAng = a + Math.PI; u.backing = true;
+  }
   function huntMove(u, dt, spd, z) {
-    const d = dist(u, z), P = u.weapons[0].def, pref = G.clamp((P.expl ? 300 : P.range) * .45, 80, 250);
-    const vis = u.target === z || (u.target && !u.target.dead);
-    const tz = u.target && !u.target.dead ? u.target : z, td = dist(u, tz);
-    if (vis) {
-      if (td > pref) navTo(u, tz.x, tz.y, dt, spd);
-      else if (td < 62 && tz.form !== 'lust') { const a = Math.atan2(u.y - tz.y, u.x - tz.x); G.moveEnt(u, Math.cos(a) * spd * .7 * dt, Math.sin(a) * spd * .7 * dt); u.moving = true; u.mvAng = a + Math.PI; }
-    } else if (d > 40) { if (!navTo(u, z.x, z.y, dt, spd)) { z.noPathT = G.time + 8; u.hunt = null; } }
+    const d = dist(u, z), P = u.weapons[0].def, long = P.range >= 650 || P.expl;
+    const pref = G.clamp((P.expl ? 420 : P.range) * .55, 150, long ? 380 : 260), keep = long ? 190 : P.pellets > 1 ? 95 : 135;
+    const tz = u.target && !u.target.dead ? u.target : null;
+    if (tz) {
+      const td = dist(u, tz), mobile = G.ZT[tz.form].speed > 0;
+      if (mobile && td < keep) backOff(u, tz, dt, spd * (td < keep * .55 ? 1 : .8));        // دشمن نزدیک شد: عقب برو و بزن
+      else if (td > pref && !(mobile && tz.tgt === u)) navTo(u, tz.x, tz.y, dt, spd * .8); // هنوز دور است: آرام نزدیک شو
+      // در بُرد مناسب: بایست و شلیک کن
+    } else if (d > 40) { if (!navTo(u, z.x, z.y, dt, spd * (d > 500 ? .95 : .7))) { z.noPathT = G.time + 8; u.hunt = null; } } // پیشروی محتاطانه
   }
 
   /* ---------- هوش سرباز ---------- */
@@ -457,6 +466,7 @@
     if (u.task && runTask(u, dt, spd)) { if (!u.reviving) combat(u, dt, sq); return; }
     switch (o.type) {
       case 'follow': case 'regroup': case 'cover': {
+        const tz = u.target; if (tz && !tz.dead && o.type !== 'regroup' && G.ZT[tz.form].speed > 0 && dist(u, tz) < 85) { backOff(u, tz, dt, spd * .85); break; }
         const ms = alive(sq), i = ms.indexOf(u), n = ms.length; let p;
         if (o.type === 'cover') {
           const c = o.who === 'cmd' ? cmd : (alive(G.squads.alpha)[0] || cmd);
@@ -474,7 +484,7 @@
           else if (o.type === 'clear') u.hunt = findHunt(u, o.x, o.y, o.R);
           else u.hunt = findHunt(u, o.x, o.y, o.R) || findHunt(u, u.x, u.y, 450);
         }
-        if (u.hunt) { huntMove(u, dt, spd * 1.1, u.hunt); break; }
+        if (u.hunt) { huntMove(u, dt, spd, u.hunt); break; }
         if (u.target) { huntMove(u, dt, spd, u.target); break; }
         if (o.type === 'clear' && u.wps && u.wps.length) {
           const w = u.wps[0]; if (Math.hypot(w.x - u.x, w.y - u.y) < 30 || !navTo(u, w.x, w.y, dt, spd)) u.wps.shift();

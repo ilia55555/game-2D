@@ -5,6 +5,7 @@
   // انواع بلوک: 0 خالی | 1 دیوار ساختمان | 2 مانع کوتاه | 3 درخت | 4 دیوار قرنطینه | 5 مرز | 6 بلور ماده سیاه | 7 هسته
   const SOLID = [0, 1, 0, 0, 1, 1, 1, 1];
   G.SOLID = SOLID;
+  G.WALL_H = [0, 46, 0, 0, 62, 56, 30, 30]; // ارتفاع دیوارها (ساختمان، قرنطینه، مرز)
 
   const CFG = {
     zones: { W: 190, H: 140, cx: 95, cy: 70, rx: 88, ry: 64, LZ: { x: 16, y: 122 }, EX: { x: 174, y: 16 }, lzR: 17, nb: 130, cars: 260 },
@@ -68,10 +69,66 @@
     keepR(LZ.x, LZ.y, 7); keepR(EX.x, EX.y, 7); keepR(cx, cy, 6);
     for (const s of [LZ, EX]) for (let y = s.y - 3; y <= s.y + 3; y++) for (let x = s.x - 3; x <= s.x + 3; x++) if (Math.hypot(x - s.x, y - s.y) <= 3.2) m.ground[I(x, y)] = 5;
 
-    // ساختمان‌ها
-    const bmask = new Uint8Array(N);
-    for (let a = 0; a < 6000 && m.buildings.length < cfg.nb; a++) {
-      const w = R.int(6, 13), h = R.int(5, 10), x = R.int(4, W - w - 4), y = R.int(4, H - h - 4);
+    // ساختمان‌ها: خانه‌های واقعی (راهرو، آشپزخانه، اتاق خواب، نشیمن، حمام، انبار) و اتاقک‌های کوچک
+    const bmask = new Uint8Array(N); m.furn = []; m.doors = [];
+    const keep3 = (tx, ty) => { for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) m.keep[I(tx + dx, ty + dy)] = 1; };
+    // درب: باز (فقط تزئینی) یا بسته/قفل (شیء تخریب‌پذیر که راه را می‌بندد)
+    const door = (tiles, hor, closed, weak) => { for (const [tx, ty] of tiles) { const i = I(tx, ty); m.block[i] = closed ? 2 : 0; m.sub[i] = closed ? 7 : 0; if (weak) m.keep[i] = 1; else keep3(tx, ty); } m.doors.push({ tiles: tiles.map(t => I(t[0], t[1])), hor, closed, weak }); };
+    const put = (type, tiles, rot) => { for (const [tx, ty] of tiles) { const i = I(tx, ty); if (m.block[i] || m.keep[i]) return false; } for (const [tx, ty] of tiles) { const i = I(tx, ty); m.block[i] = 2; m.sub[i] = 9; } m.furn.push({ type, tiles: tiles.map(t => I(t[0], t[1])), rot }); return true; };
+    function house(x, y, w, h) {
+      const ix0 = x + 1, ix1 = x + w - 2, iy0 = y + 1, iy1 = y + h - 2, a = Math.floor((h - 6) / 2), wt = iy0 + a, cy0 = wt + 1, wb = cy0 + 2, Wd = ix1 - ix0 + 1;
+      for (let xx = ix0; xx <= ix1; xx++) { m.block[I(xx, wt)] = 1; m.block[I(xx, wb)] = 1; }
+      for (let xx = ix0; xx <= ix1; xx++) { m.keep[I(xx, cy0)] = 1; m.keep[I(xx, cy0 + 1)] = 1; } // راهرو همیشه باز می‌ماند
+      const types = R.shuffle(['kitchen', 'living', 'bed', 'bath', 'store', 'bed']); let ti = 0; types[R.int(0, 2)] = 'kitchen';
+      for (const band of [{ r0: iy0, r1: wt - 1, wall: wt, far: iy0, rot: 0 }, { r0: wb + 1, r1: iy1, wall: wb, far: iy1, rot: Math.PI }]) {
+        const cuts = [];
+        if (Wd >= 14) { const p1 = ix0 + R.int(4, Wd - 10); cuts.push(p1, p1 + R.int(5, ix1 - 4 - p1)); } else cuts.push(ix0 + R.int(4, Wd - 5));
+        for (const px of cuts) for (let yy = band.r0; yy <= band.r1; yy++) m.block[I(px, yy)] = 1;
+        const xs = [ix0 - 1].concat(cuts, [ix1 + 1]);
+        for (let k = 0; k < xs.length - 1; k++) {
+          const sx0 = xs[k] + 1, sx1 = xs[k + 1] - 1, type = types[ti++ % types.length], dx = R.int(sx0 + 1, sx1 - 1), fy = band.far, rot = band.rot, depth = band.r1 - band.r0 + 1;
+          door([[dx, band.wall]], true, R.chance(.3), true);
+          m.keep[I(dx, band.wall + (band.wall === wt ? -1 : 1))] = 1;
+          const row = (list) => { let cx = sx0; for (const t of list) { if (cx > sx1) break; if (t === 'sofa' || t === 'bed' || t === 'tub') { if (cx + 1 <= sx1 && put(t, [[cx, fy], [cx + 1, fy]], rot)) cx += 2; else cx++; } else if (t) { put(t, [[cx, fy]], rot); cx++; } else cx++; } };
+          if (type === 'kitchen') { row(['fridge', 'counter', 'stove', 'counter', 'sink']); if (depth >= 3) put('table', [[sx1 - 1, (band.r0 + band.r1) >> 1]], rot); }
+          else if (type === 'living') { row(['shelf', null, 'sofa', null, 'tv']); if (depth >= 3) put('table', [[sx0 + 2, (band.r0 + band.r1) >> 1]], rot); }
+          else if (type === 'bed') { row(['wardrobe', 'bed', null, 'nightstand']); }
+          else if (type === 'bath') { row(['tub', null, 'toilet', 'sink']); }
+          else { row(['shelf', 'shelf', null, 'wardrobe']); for (let q = 0; q < 2; q++) { const tx = R.int(sx0, sx1), ty = R.int(band.r0, band.r1), i = I(tx, ty); if (!m.block[i] && !m.keep[i]) { m.block[i] = 2; m.sub[i] = 0; } } }
+        }
+      }
+      const both = R.chance(.6), left = both || R.chance(.5);
+      if (left) door([[x, cy0], [x, cy0 + 1]], false, R.chance(.4), false);
+      if (both || !left) door([[x + w - 1, cy0], [x + w - 1, cy0 + 1]], false, R.chance(.4), false);
+    }
+    // خانهٔ متوسط: دو اتاق (آشپزخانه/نشیمن + خواب) با یک درب داخلی
+    function cottage(x, y, w, h) {
+      const ix0 = x + 1, ix1 = x + w - 2, iy0 = y + 1, iy1 = y + h - 2, px = ix0 + R.int(4, ix1 - ix0 - 4), dy = R.int(iy0 + 1, iy1 - 1);
+      for (let yy = iy0; yy <= iy1; yy++) m.block[I(px, yy)] = 1;
+      door([[px, dy]], false, R.chance(.3), true); m.keep[I(px - 1, dy)] = 1; m.keep[I(px + 1, dy)] = 1;
+      const top = R.chance(.5), ey = top ? y : y + h - 1, ex = R.int(ix0 + 1, px - 3 > ix0 + 1 ? px - 3 : ix0 + 1);
+      door([[ex, ey], [ex + 1, ey]], true, R.chance(.45), false);
+      const fy = top ? iy1 : iy0, rot = top ? Math.PI : 0; let cx = ix0;
+      for (const t of R.chance(.5) ? ['fridge', 'counter', 'stove', 'sink'] : ['shelf', 'sofa', 'tv']) { if (cx >= px) break; if (t === 'sofa') { if (cx + 1 < px && put(t, [[cx, fy], [cx + 1, fy]], rot)) cx += 2; else cx++; } else { put(t, [[cx, fy]], rot); cx++; } }
+      cx = px + 1; for (const t of ['wardrobe', 'bed', 'nightstand']) { if (cx > ix1) break; if (t === 'bed') { if (cx + 1 <= ix1 && put(t, [[cx, fy], [cx + 1, fy]], rot)) cx += 2; else cx++; } else { put(t, [[cx, fy]], rot); cx++; } }
+      if (R.chance(.5)) door([[x + w - 1, R.int(iy0, iy1 - 1)]].map(t => t).concat([]).flatMap(t => [t, [t[0], t[1] + 1]]), false, R.chance(.4), false);
+    }
+    function shed(x, y, w, h) {
+      const sides = R.shuffle([0, 1, 2, 3]), nd = 1 + (R.chance(.5) ? 1 : 0);
+      for (let k = 0; k < nd; k++) {
+        const s = sides[k]; let dx0, dy0, hor;
+        if (s === 0) { dx0 = R.int(x + 1, x + w - 3); dy0 = y; hor = true; }
+        else if (s === 1) { dx0 = R.int(x + 1, x + w - 3); dy0 = y + h - 1; hor = true; }
+        else if (s === 2) { dx0 = x; dy0 = R.int(y + 1, y + h - 3); hor = false; }
+        else { dx0 = x + w - 1; dy0 = R.int(y + 1, y + h - 3); hor = false; }
+        door([[dx0, dy0], [dx0 + (hor ? 1 : 0), dy0 + (hor ? 0 : 1)]], hor, k === 0 ? false : R.chance(.4), false);
+      }
+    }
+    let nBig = 0, nMid = 0; const maxBig = Math.round(cfg.nb * .35), maxMid = Math.round(cfg.nb * .35);
+    for (let a = 0; a < 20000 && m.buildings.length < cfg.nb; a++) { // اول خانه‌های بزرگ، بعد متوسط، بعد اتاقک‌ها در فضای مانده
+      if (a < 8000 && nBig >= maxBig) a = 8000; if (a >= 8000 && a < 14000 && nMid >= maxMid) a = 14000;
+      const big = a < 8000, mid = !big && a < 14000;
+      const w = big ? R.int(12, 17) : mid ? R.int(10, 13) : R.int(6, 9), h = big ? R.int(11, 14) : mid ? R.int(7, 9) : R.int(5, 8), x = R.int(4, W - w - 4), y = R.int(4, H - h - 4);
       let ok = true;
       for (let yy = y - 2; yy < y + h + 2 && ok; yy++) for (let xx = x - 2; xx < x + w + 2; xx++) { const i = I(xx, yy); if (m.block[i] || m.ground[i] === 1 || m.ground[i] === 5 || m.keep[i] || bmask[i]) { ok = false; break; } }
       if (!ok) continue;
@@ -83,36 +140,16 @@
         m.ground[i] = 3;
         if (xx === x || xx === x + w - 1 || yy === y || yy === y + h - 1) m.block[i] = 1;
       }
-      const doors = [];
-      const sides = R.shuffle([0, 1, 2, 3]); const nd = 1 + (R.chance(.7) ? 1 : 0) + (w + h > 18 ? 1 : 0);
-      for (let k = 0; k < nd; k++) {
-        const s = sides[k]; let dx0, dy0, hor;
-        if (s === 0) { dx0 = R.int(x + 1, x + w - 3); dy0 = y; hor = true; }
-        else if (s === 1) { dx0 = R.int(x + 1, x + w - 3); dy0 = y + h - 1; hor = true; }
-        else if (s === 2) { dx0 = x; dy0 = R.int(y + 1, y + h - 3); hor = false; }
-        else { dx0 = x + w - 1; dy0 = R.int(y + 1, y + h - 3); hor = false; }
-        for (let q = 0; q < 2; q++) {
-          const tx = dx0 + (hor ? q : 0), ty = dy0 + (hor ? 0 : q); m.block[I(tx, ty)] = 0; doors.push({ x: tx, y: ty });
-          for (let ddy = -1; ddy <= 1; ddy++) for (let ddx = -1; ddx <= 1; ddx++) m.keep[I(tx + ddx, ty + ddy)] = 1;
-        }
-      }
-      // تیغهٔ داخلی
-      if (w >= 10) {
-        const px = x + R.int(4, w - 5);
-        if (!doors.some(d => Math.abs(d.x - px) <= 1 && (d.y === y || d.y === y + h - 1))) {
-          const gy = R.int(y + 1, y + h - 3);
-          for (let yy = y + 1; yy < y + h - 1; yy++) if (yy !== gy && yy !== gy + 1) m.block[I(px, yy)] = 1; else m.keep[I(px, yy)] = 1;
-        }
-      }
+      if (big) { house(x, y, w, h); nBig++; } else if (mid) { cottage(x, y, w, h); nMid++; } else shed(x, y, w, h);
       // پنجره و خرابی
       for (let yy = y; yy < y + h; yy++) for (let xx = x; xx < x + w; xx++) {
         const edge = xx === x || xx === x + w - 1 || yy === y || yy === y + h - 1; if (!edge) continue;
         const corner = (xx === x || xx === x + w - 1) && (yy === y || yy === y + h - 1); const i = I(xx, yy);
-        if (corner || m.block[i] !== 1) continue;
-        if (R.chance(.15)) { m.block[i] = 2; m.sub[i] = 3; }
-        else if (zc >= 2 && R.chance(.09)) { m.block[i] = 0; }
+        if (corner || m.block[i] !== 1 || m.keep[i]) continue;
+        if (R.chance(.16)) { m.block[i] = 2; m.sub[i] = 3; }
+        else if (zc >= 2 && R.chance(.07)) { m.block[i] = 0; }
       }
-      m.buildings.push({ x, y, w, h, zone: zc });
+      m.buildings.push({ x, y, w, h, zone: zc, big, mid });
     }
 
     // گودال‌های بمباران و ردّ سقوط
@@ -207,6 +244,9 @@
     }
     const used = new Uint8Array(N);
     for (const c of m.cars) { const ts = []; for (let yy = c.y; yy < c.y + c.h; yy++) for (let xx = c.x; xx < c.x + c.w; xx++) { ts.push(I(xx, yy)); used[I(xx, yy)] = 1; } add('car', ts, { car: c, vert: c.h > c.w }); }
+    m.decor = [];
+    for (const d of m.doors) { if (d.closed) { add('door', d.tiles, { hor: d.hor, weak: d.weak }); d.tiles.forEach(i => used[i] = 1); } else if (!d.weak) m.decor.push(d); }
+    for (const f of m.furn) { if (f.tiles.every(i => m.block[i] === 2 && m.sub[i] === 9)) { add(f.type, f.tiles, { rot: f.rot, furn: 1 }); f.tiles.forEach(i => used[i] = 1); } }
     const BC = ['red', 'red', 'rust', 'olive', 'blue', 'blue'];
     for (let y = 2; y < H - 2; y++) for (let x = 2; x < W - 2; x++) {
       const i = I(x, y), b = m.block[i]; if (used[i]) continue;
@@ -216,7 +256,8 @@
         o.x += jit(); o.y += jit();
       } else if (b === 2) {
         const s = m.sub[i];
-        if (s === 1) add('junk', [i]);
+        if (s === 7 || s === 9) { m.block[i] = 0; m.sub[i] = 0; }
+        else if (s === 1) add('junk', [i]);
         else if (s === 3) add('window', [i], { horiz: m.block[I(x - 1, y)] === 1 || m.block[I(x + 1, y)] === 1 || m.block[I(x - 1, y)] === 2 || m.block[I(x + 1, y)] === 2 });
         else if (s === 4) add('rubble', [i], { rot: R.range(0, 6.28) });
         else if (s === 5) add('rock', [i], { rot: R.range(0, 6.28) });
@@ -308,11 +349,15 @@
     const o = m.obj[i]; if (o) { G.damageObj(o, dmg, expl, ang); return true; }
     if (!m.thp) m.thp = new Float32Array(m.w * m.h);
     const b = m.block[i], k = expl ? 1 : b === 1 ? .2 : 0;
-    m.thp[i] += dmg * k;
+    const q0 = m.thp[i] / G.tileMax(i); m.thp[i] += dmg * k;
+    if (G.W3 && ((q0 < .4) !== (m.thp[i] / G.tileMax(i) < .4))) G.W3.tileDirty(i);
     if (m.thp[i] >= G.tileMax(i)) G.destroyTile(i);
     return true;
   };
-  G.clearTile = function (j) { const m = G.map; m.block[j] = 0; m.sub[j] = 0; m.reach[j] = 1; m.obj[j] = null; if (m.thp) m.thp[j] = 0; m.marks.delete(j); G.minimapDirty = true; G.flowT = 0; };
+  G.clearTile = function (j) { const m = G.map; if (G.W3) G.W3.tileGone(j); m.block[j] = 0; m.sub[j] = 0; m.reach[j] = 1; m.obj[j] = null; if (m.thp) m.thp[j] = 0; m.marks.delete(j); G.minimapDirty = true; G.flowT = 0;
+    // راهِ تازه‌بازشده (مثلاً درب شکسته): فضای پشت آن هم «در دسترس» می‌شود
+    const W = m.w, st = [j]; while (st.length) { const c = st.pop(), x = c % W, y = (c / W) | 0; for (const n of [c - 1, c + 1, c - W, c + W]) { if (n < 0 || n >= m.block.length || m.reach[n] || m.block[n]) continue; const nx = n % W; if (Math.abs(nx - x) > 1) continue; m.reach[n] = 1; st.push(n); } }
+  };
   G.destroyTile = function (i) {
     const m = G.map, W = m.w, x = i % W, y = (i / W) | 0, b = m.block[i], o = m.obj[i];
     if (o) { G.killObj(o); return; }
@@ -338,6 +383,8 @@
     let stx = Math.floor(sx / T), sty = Math.floor(sy / T), gtx = Math.floor(gx / T), gty = Math.floor(gy / T);
     if (!G.walkT(stx, sty)) { const f = G.nearestFree(stx, sty, 3); if (!f) return null; stx = f.x; sty = f.y; }
     if (!G.walkT(gtx, gty)) { const f = G.nearestFree(gtx, gty, 5); if (!f) return null; gtx = f.x; gty = f.y; }
+    // مقصدِ داخل خانهٔ قفل: به نزدیک‌ترین نقطهٔ در دسترس (پشت درب) برو، نه جستجوی بی‌نتیجهٔ کل نقشه
+    if (!m.reach[gty * W + gtx] && m.reach[sty * W + stx]) { let bd = 1e9, bx = -1, by = -1; for (let dy = -9; dy <= 9; dy++) for (let dx = -9; dx <= 9; dx++) { const x = gtx + dx, y = gty + dy; if (x < 0 || y < 0 || x >= W || y >= H || !m.reach[y * W + x] || !G.walkT(x, y)) continue; const d = dx * dx + dy * dy; if (d < bd) { bd = d; bx = x; by = y; } } if (bx < 0) return null; gtx = bx; gty = by; }
     const start = sty * W + stx, goal = gty * W + gtx;
     const hf = (i) => { const dx = Math.abs(i % W - gtx), dy = Math.abs(((i / W) | 0) - gty); return (dx + dy) + (1.4142 - 2) * Math.min(dx, dy); };
     heap.length = 0;

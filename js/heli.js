@@ -41,6 +41,7 @@
     return dist < 3 && Math.hypot(s.vx, s.vy) < 8;
   }
   G.Heli = {
+    IB, IR, C,
     flyTo(s, x, y, land) {
       s.tx = x; s.ty = y; s.autoLand = land !== false;
       if (s.phase === 'ground' || s.phase === 'spooldown') s.phase = 'spoolup'; else if (s.phase === 'descend' || s.phase === 'idle') s.phase = 'liftoff';
