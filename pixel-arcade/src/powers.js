@@ -318,8 +318,8 @@ class Icicle {
 class Blizzard extends Power {
   constructor(g, h, ax, ay) {
     const y = ground(g, ax, ay);
-    super(g, new ScaledFx(blizzardVortex, { x: ax, y, sx: 1.7, clipY: 0.5 }));
-    this.s.ground = (wx) => g.world.surfaceY(wx, this.y - 60);
+    // the plain vortex, the same size as the fire tornado (228 x 304)
+    super(g, new ScaledFx(blizzardVortex, { x: ax, y, sx: 1.8, sy: 2.6 }));
     Object.assign(this, { x: ax, y, dir: ax >= h.x ? 1 : -1 });
     g.sfx("wind"); g.sfx("ice");
   }
@@ -330,10 +330,10 @@ class Blizzard extends Power {
     const gy = w.surfaceY(this.x, this.y - 60);
     this.y += Math.max(-80 * dt, Math.min(160 * dt, gy - this.y));
     s.x = this.x; s.y = this.y;
-    g.eachEnemy(this.x, this.y - 70, 90, (e) => { e.vx += (this.x - e.x) * 5 * dt; e.vy -= 1500 * dt; e.vx *= 0.97; e.hurt(14 * dt); });
+    g.eachEnemy(this.x, this.y - 140, 150, (e) => { if (Math.abs(e.x - this.x) > 70) return; e.vx += (this.x - e.x) * 5 * dt; e.vy -= 1500 * dt; e.vx *= 0.97; e.hurt(14 * dt); });
     ticks(this, dt, () => {
       for (let k = 0; k < 4; k++) {
-        const hgt = rnd(0, 1), px = this.x + rnd(-1, 1) * (14 + hgt * 40), py = this.y - hgt * 140, cx = Math.floor(px / CELL), cy = Math.floor(py / CELL);
+        const hgt = rnd(0, 1), px = this.x + rnd(-1, 1) * (14 + hgt * 44), py = this.y + 6 - hgt * 280, cx = Math.floor(px / CELL), cy = Math.floor(py / CELL);
         if (w.get(cx, cy)) g.addScore(w.destroyCell(cx, cy, (this.x - px) * 5 + rnd(-140, 140), rnd(-480, -150)));
         else if (w.getBg(cx, cy) && Math.random() < 0.5) w.destroyBg(cx, cy);
       }
@@ -583,28 +583,28 @@ class SkyBeam extends Power {
 // ================================================================================================= THE HOTBAR
 
 export const AQUA = {
-  name: "AQUA", col: 0xffffa040, cd: 1.0, altCd: 3,
+  name: "AQUA", col: 0xffffa040, cd: 1.0, altCd: 0.5, altMax: 1,
   tap(g, h, ax, ay) { g.shots.push(new Whirl(g, ax, ay)); },
   hold(g, h, ax, ay, t, dt) { held(g, "bubble", () => new Bubble(g, ax, ay)).follow(ax, ay, t, dt); },
   release(g) { g.held?.bubble?.end(); },
   alt(g, h, ax, ay) { g.shots.push(new Tsunami(g, ax, ay)); },
 };
 export const FROST = {
-  name: "FROST", col: 0xfffff0a0, cd: 0.15, altCd: 2,
+  name: "FROST", col: 0xfffff0a0, cd: 0.15, altCd: 0.9, altMax: 3,
   tap(g, h, ax, ay) { g.shots.push(new Icicle(g, ax, ay)); },
   hold(g, h, ax, ay) { held(g, "frost", () => new Breath(g, h, "frost")).aimAt(ax, ay); },
   release(g) { g.held?.frost?.end(); },
   alt(g, h, ax, ay) { g.shots.push(new Blizzard(g, h, ax, ay)); },
 };
 export const ARCANE = {
-  name: "ARCANE", col: 0xffff60c0, cd: 0.45, altCd: 1.4,
+  name: "ARCANE", col: 0xffff60c0, cd: 0.45, altCd: 0.5, altMax: 1,
   tap(g, h, ax, ay) { g.shots.push(new Missiles(g, h, ax, ay)); },
   hold(g, h, ax, ay, t) { held(g, "arc", () => new ArcCharge(g, h)).follow(ax, ay, t); },
   release(g, h) { const c = g.held?.arc; if (!c) return; const p = c.p; c.end(); g.held.arc = null; g.shots.push(new ArcBeam(g, h, p)); },
   alt(g, h, ax, ay) { g.shots.push(new StarRain(g, ax, ay)); },
 };
 export const INFERNO = {
-  name: "INFERNO", col: 0xff2a6aff, cd: 1.4, altCd: 0.2,
+  name: "INFERNO", col: 0xff2a6aff, cd: 0.5, altCd: 0.12, altMax: 7,
   tap(g, h, ax, ay) { g.shots.push(new FireTwister(g, h, ax, ay)); },
   hold(g, h, ax, ay) { held(g, "fire", () => new Breath(g, h, "fire")).aimAt(ax, ay); },
   release(g) { g.held?.fire?.end(); },

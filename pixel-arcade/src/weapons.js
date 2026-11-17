@@ -9,6 +9,7 @@ import { ScaledFx } from "./scaled.js";
 import { CELL, SEA } from "./world.js";
 import { PT } from "./particles.js";
 import { MJOLNIR } from "./thor.js";
+import { lightningLeft } from "./lightning.js";
 import { AQUA, FROST, ARCANE, INFERNO, RADIANCE } from "./powers.js";
 import { PETS } from "./pets.js";
 import { upgradeHeat, upgradeBlackHole, upgradeTornado, addThorAlt } from "./powers2.js";
@@ -108,11 +109,11 @@ export const WEAPONS = [
       } else h.heatAcc = 0;
       g.sfx("laser");
     } }),
-  addThorAlt(MJOLNIR), // hold to charge; see thor.js
+  addThorAlt(lightningLeft(MJOLNIR)), // hold to charge; see thor.js
   INFERNO,
   upgradeBlackHole({ name: "BLACK HOLE", cd: 2.2, col: 0xffff60a0,
     fire(g, h, ax, ay) { const [x, y] = h.muzzle(ax, ay); g.shots.push(new VoidShot(g, x, y, ax, ay)); g.sfx("fly"); } }),
-  upgradeTornado({ name: "TORNADO", cd: 1.8, col: 0xffc0c8d0,
+  upgradeTornado({ name: "TORNADO", cd: 0.8, col: 0xffc0c8d0,
     fire(g, h, ax, ay) { const dir = ax >= h.x ? 1 : -1, x = h.x + dir * 30; g.shots.push(new Twister(g, x, g.world.surfaceY(x, h.y - 40), dir)); } }),
   RADIANCE,
   PETS, // slot 0: summoned critters

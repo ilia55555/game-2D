@@ -339,7 +339,11 @@ class Game {
         else if (this.altT) { if (this.altT > 0) wp.altRelease(this, h, I.aimX, I.aimY, this.altT); this.altT = 0; }
       } else if (I.altP) { if (wp.alt) { if (this.altCd <= 0) { this.altQ = { wp, x: I.aimX, y: I.aimY }; this.altCd = wp.altCd ?? 0.5; } } else this.punch(); }
       // big moves go one after another: a queued one waits for the last to finish
-      if (this.altQ && !(this.spell && this.spell.some((s) => this.shots.includes(s)))) { const q = this.altQ; this.altQ = null; const n0 = this.shots.length; q.wp.alt(this, h, q.x, q.y); this.spell = this.shots.slice(n0); h.fireT = 0; }
+      // each power allows a few of its big moves at once (altMax; tsunami / starfall one at a time, meteors many)
+      if (this.altQ) {
+        const q = this.altQ, k = q.wp.name, live = (this.spells = this.spells || {})[k] = (this.spells[k] || []).filter((sp) => sp.some((s) => this.shots.includes(s)));
+        if (live.length < (q.wp.altMax ?? 3)) { this.altQ = null; const n0 = this.shots.length; q.wp.alt(this, h, q.x, q.y); const sp = this.shots.slice(n0); if (sp.length) live.push(sp); h.fireT = 0; }
+      }
       if (wp.empty) { /* free slot */ }
       else if (wp.tap || wp.hold) {
         // left click: a quick click taps, holding past HOLD_T holds
