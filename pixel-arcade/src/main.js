@@ -20,6 +20,7 @@ import { FxMan } from "./fxm.js";
 import { Hero } from "./hero.js";
 import { Soldier, Car, Tank, Heli } from "./enemies.js";
 import { WEAPONS, nuke } from "./weapons.js";
+import { Moon } from "./powers2.js";
 import { drawSky } from "./sky.js";
 import { initAudio, sfx } from "./audio.js";
 
@@ -54,6 +55,7 @@ class Game {
   }
   sfx(n, k) { sfx(n, k); }
   shake(a) { this.shakeAmp = Math.min(16, Math.max(this.shakeAmp, a)); }
+  moonImpact(x, y) { nuke(this, x, y); this.say("NUKE!", UI.red); }
   later(t, fn) { this.timers.push({ t, fn }); }
   flashLight(x, y, r, c, k, life = 0.25) { if (this.lights.length < 24) this.lights.push({ x, y, r, c, k, life, t: 0 }); }
   say(text, c = UI.gold) { this.banner = { text, t: 0, c }; }
@@ -66,7 +68,7 @@ class Game {
     this.comboN += n; this.comboT = 2.6; this.combo = 1 + Math.min(24, Math.floor(this.comboN / 120));
     this.heat = Math.min(5, this.heat + n / 900);
     const was = this.nuke;
-    this.nuke = Math.min(1, this.nuke + n / 5000);
+    this.nuke = Math.min(1, this.nuke + n / 14000);
     if (was < 1 && this.nuke >= 1) { this.say("NUKE READY  [R]", UI.cyan); sfx("ready"); }
     while (this.rank < RANKS.length && this.comboN >= RANKS[this.rank][0]) { this.say(RANKS[this.rank][1]); this.rank++; }
   }
@@ -228,7 +230,10 @@ class Game {
       this.cd -= dt; this.altCd = (this.altCd || 0) - dt;
       const wp = WEAPONS[this.weapon];
       // right click: the power's second move, or a punch if it has none
-      if (I.altP) { if (wp.alt) { if (this.altCd <= 0) { wp.alt(this, h, I.aimX, I.aimY); this.altCd = wp.altCd ?? 0.5; h.fireT = 0; } } else this.punch(); }
+      if (wp.altHold) {
+        if (I.alt) { this.altT = (this.altT || 0) + dt; wp.altHold(this, h, I.aimX, I.aimY, this.altT, dt); h.fireT = 0; }
+        else if (this.altT) { if (this.altT > 0) wp.altRelease(this, h, I.aimX, I.aimY, this.altT); this.altT = 0; }
+      } else if (I.altP) { if (wp.alt) { if (this.altCd <= 0) { wp.alt(this, h, I.aimX, I.aimY); this.altCd = wp.altCd ?? 0.5; h.fireT = 0; } } else this.punch(); }
       if (wp.empty) { /* free slot */ }
       else if (wp.tap || wp.hold) {
         // left click: a quick click taps, holding past HOLD_T holds
@@ -245,7 +250,7 @@ class Game {
         if (I.fire && h.punchT <= 0 && this.cd <= 0) { this.chargeT = (this.chargeT || 0) + dt; wp.charging(this, h, I.aimX, I.aimY, this.chargeT); h.fireT = 0; }
         else if (this.chargeT > 0) { wp.release(this, h, I.aimX, I.aimY, this.chargeT); this.chargeT = 0; this.cd = wp.cd; h.fireT = 0; }
       } else if (I.fire && h.punchT <= 0 && (wp.beam || this.cd <= 0)) { wp.fire(this, h, I.aimX, I.aimY, dt); this.cd = wp.cd; h.fireT = 0; }
-      if (I.nukeP && this.nuke >= 1) { this.nuke = 0; const y = w.solidPx(I.aimX, I.aimY) ? I.aimY : w.surfaceY(I.aimX, I.aimY); nuke(this, I.aimX, y); this.say("NUKE!", UI.red); }
+      if (I.nukeP && this.nuke >= 1) { this.nuke = 0; const y = w.solidPx(I.aimX, I.aimY) ? I.aimY : w.surfaceY(I.aimX, I.aimY); this.shots.push(new Moon(this, h, I.aimX, y)); }
       // trails
       if (h.fly && h.speed > 90) { const [fx, fy] = h.local(0, 2); for (let i = 0; i < (h.dashing ? 3 : 1); i++) this.parts.spawn(PT.FLAME, fx + rnd(-2, 2), fy + rnd(-2, 2), -h.vx * 0.2 + rnd(-20, 20), -h.vy * 0.2 + rnd(-20, 20), rnd(0.2, 0.45), 0, h.dashing ? 3 : 2); }
       if (h.dashing && h.onGround && Math.abs(h.vx) > 300 && Math.random() < 0.5) this.parts.spawn(PT.SMOKE, h.x - h.face * 8, h.y - 2, -h.vx * 0.1, -10, 0.5, 0xffb0c4d0, 4);
@@ -381,8 +386,8 @@ function fit() {
 addEventListener("resize", fit); fit();
 
 const keys = new Set(), I = game.I;
-let mouseX = W / 2 + 80, mouseY = H / 2, mouseFire = false;
-const setWeapon = (i) => { const n = WEAPONS.length; game.weapon = ((i % n) + n) % n; game.chargeT = 0; game.holdT = 0; game.holding = false; game.cd = Math.min(game.cd, 0.2); sfx("swap"); };
+let mouseX = W / 2 + 80, mouseY = H / 2, mouseFire = false, mouseAlt = false;
+const setWeapon = (i) => { const n = WEAPONS.length; game.weapon = ((i % n) + n) % n; game.chargeT = 0; game.holdT = 0; game.holding = false; game.altT = 0; game.cd = Math.min(game.cd, 0.2); sfx("swap"); };
 addEventListener("keydown", (e) => {
   if (e.repeat) { if (["Space", "ArrowUp", "ArrowDown", "Tab"].includes(e.code)) e.preventDefault(); return; }
   const c = e.code;
@@ -399,11 +404,11 @@ addEventListener("keydown", (e) => {
   start();
 });
 addEventListener("keyup", (e) => keys.delete(e.code));
-addEventListener("blur", () => { keys.clear(); mouseFire = false; });
+addEventListener("blur", () => { keys.clear(); mouseFire = false; mouseAlt = false; });
 const toCanvas = (e) => { const r = canvas.getBoundingClientRect(); return [((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * H]; };
 addEventListener("mousemove", (e) => { [mouseX, mouseY] = toCanvas(e); });
-addEventListener("mousedown", (e) => { if (e.target.closest && (e.target.closest("#help") || e.target.closest("#pause"))) return; if (game.paused) return; start(); [mouseX, mouseY] = toCanvas(e); if (e.button === 0) mouseFire = true; if (e.button === 2) I.altP = true; });
-addEventListener("mouseup", (e) => { if (e.button === 0) mouseFire = false; });
+addEventListener("mousedown", (e) => { if (e.target.closest && (e.target.closest("#help") || e.target.closest("#pause"))) return; if (game.paused) return; start(); [mouseX, mouseY] = toCanvas(e); if (e.button === 0) mouseFire = true; if (e.button === 2) { I.altP = true; mouseAlt = true; } });
+addEventListener("mouseup", (e) => { if (e.button === 0) mouseFire = false; if (e.button === 2) mouseAlt = false; });
 addEventListener("contextmenu", (e) => e.preventDefault());
 addEventListener("wheel", (e) => { setWeapon(game.weapon + (e.deltaY > 0 ? 1 : -1)); }, { passive: true });
 
@@ -426,7 +431,7 @@ function touchSetup() {
   btn("bJump", () => { I.jumpP = true; T.jump = true; }, () => (T.jump = false));
   btn("bDash", () => (T.dash = true), () => (T.dash = false));
   btn("bPound", () => (I.poundP = true));
-  btn("bPunch", () => (I.altP = true));
+  btn("bPunch", () => { I.altP = true; T.alt = true; }, () => (T.alt = false));
   btn("bNext", () => setWeapon(game.weapon + 1));
   btn("bNuke", () => (I.nukeP = true));
 }
@@ -456,12 +461,12 @@ function readInput() {
     I.mx = Math.abs(T.move.x) > 0.25 ? Math.sign(T.move.x) * (h.fly ? Math.abs(T.move.x) : 1) : 0; I.my = Math.abs(T.move.y) > 0.3 ? T.move.y : 0;
     if (T.aim.on && Math.hypot(T.aim.x, T.aim.y) > 0.25) { const m = Math.hypot(T.aim.x, T.aim.y); T.ax = T.aim.x / m; T.ay = T.aim.y / m; I.fire = true; } else I.fire = false;
     I.aimX = h.x + T.ax * 170; I.aimY = h.cy + T.ay * 170;
-    I.jump = !!T.jump; I.dash = T.dash;
+    I.jump = !!T.jump; I.dash = T.dash; I.alt = !!T.alt;
   } else {
     I.mx = (keys.has("KeyD") || keys.has("ArrowRight") ? 1 : 0) - (keys.has("KeyA") || keys.has("ArrowLeft") ? 1 : 0);
     I.my = (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0) - (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0);
     I.jump = keys.has("Space"); I.dash = keys.has("ShiftLeft") || keys.has("ShiftRight");
-    I.fire = mouseFire; I.aimX = f.ox + mouseX; I.aimY = f.oy + mouseY;
+    I.fire = mouseFire; I.alt = mouseAlt; I.aimX = f.ox + mouseX; I.aimY = f.oy + mouseY;
   }
 }
 

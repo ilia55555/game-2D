@@ -7,8 +7,9 @@
 // Effects are pixelfx effects drawn through ScaledFx, so their size, length and angle follow the game, not the
 // effect's own fixed frame.
 import { ScaledFx } from "./scaled.js";
+import { painterFor } from "../vendor/pixelfx/src/core/index.js";
 import { PT } from "./particles.js";
-import { CELL } from "./world.js";
+import { CELL, SEA } from "./world.js";
 import * as whirlpool from "../vendor/pixelfx/src/fx/water/whirlpool.js";
 import * as waterOrb from "../vendor/pixelfx/src/fx/water/water-orb.js";
 import * as waveCrash from "../vendor/pixelfx/src/fx/water/wave-crash.js";
@@ -21,7 +22,7 @@ import * as arcaneBeam from "../vendor/pixelfx/src/fx/arcane/arcane-beam.js";
 import * as arcaneMissiles from "../vendor/pixelfx/src/fx/arcane/arcane-missiles.js";
 import * as fireBreath from "../vendor/pixelfx/src/fx/fire/fire-breath.js";
 import * as fireTornado from "../vendor/pixelfx/src/fx/fire/fire-tornado.js";
-import * as healFx from "../vendor/pixelfx/src/fx/holy/heal.js";
+import * as healFx from "../vendor/pixelfx/src/fx/holy/heal-aoe.js";
 import * as sunburst from "../vendor/pixelfx/src/fx/holy/sunburst.js";
 import * as holyPillar from "../vendor/pixelfx/src/fx/holy/holy-pillar.js";
 
@@ -76,7 +77,7 @@ class Whirl extends Power {
   fling(e) {
     const a = rnd(0, TAU), sp = rnd(650, 1000), g = this.g;
     e.vx = Math.cos(a) * sp; e.vy = Math.sin(a) * sp - 260;
-    e.hurt(10); e.flungT = g.time + 1.2;
+    e.hurt(30); e.flungT = g.time + 1.2;
     this.caught.delete(e);
     g.sfx("thud");
   }
@@ -91,7 +92,7 @@ class Whirl extends Power {
       if (!live(e)) { this.caught.delete(e); continue; }
       c.t += dt; c.a += dt * (8 + c.t * 10); c.r = Math.max(10, c.r - dt * 40);
       e.x = this.x + Math.cos(c.a) * c.r; e.y = this.y + Math.sin(c.a) * c.r * 0.45 + e.h / 2; e.vx = 0; e.vy = 0;
-      e.hurt(5 * dt);
+      e.hurt(0.8 * dt);
       if (c.t > rnd(0.7, 1.1)) this.fling(e);
     }
     // the world too: bits of whatever it touches are torn off and thrown out spinning
@@ -109,7 +110,7 @@ class Whirl extends Power {
 
 /** Hold: a bubble of water that starts small and swells while held. Anyone inside floats helpless and takes damage
  *  that climbs the longer they're in. Let go and it bursts. */
-const ORB_MIN = 8, ORB_MAX = 96, ORB_GROW = 46;
+const ORB_MIN = 8, ORB_MAX = 150, ORB_GROW = 62;
 class Bubble extends HeldPower {
   constructor(g, x, y) {
     super(g, new ScaledFx(waterOrb, { radius: ORB_MIN, pad: ORB_MAX + 16 }));
@@ -139,8 +140,42 @@ class Bubble extends HeldPower {
   onEnd() {
     const g = this.g, R = this.r;
     for (const [e, tin] of this.inside) if (live(e)) e.hurt(4 + tin * 12, (e.x - this.x) * 4, -200);
-    for (let i = 0; i < 30 + R; i++) { const a = rnd(0, TAU); g.parts.spawn(PT.DROP, this.x + Math.cos(a) * R, this.y + Math.sin(a) * R, Math.cos(a) * rnd(80, 260), Math.sin(a) * rnd(80, 260) - 80, rnd(0.4, 1), i & 1 ? 0xffffe0b0 : 0xffffa040); }
-    g.sfx("glass");
+    g.shots.push(new Burst(g, this.x, this.y, R));
+    this.s.fx.stop = () => {}; this.s.done = () => true; // the skin is gone at once: the water is all in the burst
+  }
+}
+
+/** The bubble's water thrown out all round as it pops: a ring of spray that hits whatever it reaches. */
+class Burst {
+  constructor(g, x, y, R) {
+    Object.assign(this, { g, x, y, R0: R, r: R, t: 0, hit: new Set() });
+    for (let i = 0; i < 160 + R * 2; i++) {
+      const a = rnd(0, TAU), sp = rnd(160, 420) + R;
+      g.parts.spawn(PT.DROP, x + Math.cos(a) * R, y + Math.sin(a) * R, Math.cos(a) * sp, Math.sin(a) * sp - 60, rnd(0.5, 1.2), i % 3 ? 0xffffe0b0 : i & 1 ? 0xffffffff : 0xffffa040, 1 + (i % 3 === 0));
+    }
+    g.sfx("crash", 0.6); g.sfx("glass"); g.shake(3 + R / 30);
+  }
+  update(dt) {
+    const g = this.g, w = g.world;
+    this.t += dt;
+    this.r = this.R0 + (140 + this.R0) * Math.min(1, this.t / 0.45);
+    for (const e of g.enemies) {
+      if (!live(e) || this.hit.has(e)) continue;
+      const d = Math.hypot(e.x - this.x, mid(e) - this.y);
+      if (d < this.r + e.hw) { this.hit.add(e); e.hurt(18 + this.R0 * 0.2, ((e.x - this.x) / (d + 1)) * 500, -250); }
+    }
+    for (let k = 0; k < 6; k++) {
+      const a = rnd(0, TAU), cx = Math.floor((this.x + Math.cos(a) * this.r) / CELL), cy = Math.floor((this.y + Math.sin(a) * this.r) / CELL);
+      if (w.get(cx, cy) && Math.random() < 0.5) g.addScore(w.destroyCell(cx, cy, Math.cos(a) * 200, Math.sin(a) * 200 - 100));
+    }
+    return this.t < 0.45;
+  }
+  draw(f) {
+    const p = painterFor(f); p.place(0, 0);
+    const k = 1 - this.t / 0.45;
+    p.ring(this.x, this.y, this.r, 2, 0xffffe0b0, k);
+    p.ring(this.x, this.y, this.r - 3, 1, 0xffffffff, k * 0.8);
+    p.glowRing(this.x, this.y, this.r, 6, 0xffffa040, 0.3 * k);
   }
 }
 
@@ -153,7 +188,9 @@ class Tsunami extends Power {
   constructor(g, ax, ay) {
     const v = view(g), dir = ax >= g.cam.x ? 1 : -1, edge = dir > 0 ? v.l - 10 : v.r + 10, gy = ground(g, ax, ay);
     const sx = Math.max(1.5, Math.abs(ax - edge) / 132), sy = (v.H * 0.8) / 48;
-    super(g, new ScaledFx(waveCrash, { x: ax - dir * 22 * sx, y: gy, sx, sy, flip: dir < 0 }));
+    const w = g.world, floor = (wx) => { const cx = Math.floor(wx / CELL), y = w.surfaceY(wx, gy - 160); return w.wet(cx) ? Math.min(SEA * CELL, y) : y; };
+    super(g, new ScaledFx(waveCrash, { x: ax - dir * 22 * sx, y: gy, sx, sy, flip: dir < 0, clipY: 0.5, ground: floor }));
+    this.floor = floor;
     Object.assign(this, { dir, ax, gy, sx, sy, crashed: false });
     g.sfx("wind"); g.sfx("rumble");
   }
@@ -161,19 +198,19 @@ class Tsunami extends Power {
     const g = this.g, w = g.world, t = this.t, dir = this.dir, s = this.s;
     const front = crestX(t) + 14, hgt = crestH(t) * this.sy + 10;
     const fx = s.x + dir * front * this.sx, bx = s.x + dir * (front - 50) * this.sx, top = this.gy - hgt;
-    const lo = Math.min(fx, bx), hi = Math.max(fx, bx);
+    const lo = Math.min(fx, bx), hi = Math.max(fx, bx), fy = this.floor(fx);
     // everything the water reaches is swept along with it
     for (const e of g.enemies) {
-      if (!live(e) || e.x < lo || e.x > hi || e.y < top) continue;
+      if (!live(e) || e.x < lo || e.x > hi || e.y < this.floor(e.x) - hgt) continue;
       e.vx = dir * rnd(600, 900); e.vy = -rnd(150, 350); e.hurt(30 * dt);
     }
     ticks(this, dt, () => {
       for (let k = 0; k < 12; k++) {
-        const px = fx - dir * rnd(0, 30 * this.sx), py = this.gy - rnd(0, hgt), cx = Math.floor(px / CELL), cy = Math.floor(py / CELL);
+        const px = fx - dir * rnd(0, 30 * this.sx), py = this.floor(px) - rnd(0, hgt), cx = Math.floor(px / CELL), cy = Math.floor(py / CELL);
         if (w.get(cx, cy)) g.addScore(w.destroyCell(cx, cy, dir * rnd(200, 600), -rnd(50, 300)));
         else if (w.getBg(cx, cy)) w.destroyBg(cx, cy);
       }
-      for (let k = 0; k < 3; k++) g.parts.spawn(PT.DROP, fx + rnd(-10, 10), top + rnd(0, 20), dir * rnd(100, 400), -rnd(100, 400), rnd(0.4, 1), k & 1 ? 0xffffffff : 0xffffd890);
+      for (let k = 0; k < 3; k++) g.parts.spawn(PT.DROP, fx + rnd(-10, 10), fy - hgt + rnd(0, 20), dir * rnd(100, 400), -rnd(100, 400), rnd(0.4, 1), k & 1 ? 0xffffffff : 0xffffd890);
     });
     if (t > 0.3) g.shake(t < CRASH ? 2 : 1);
     if (!this.crashed && t >= CRASH) {
@@ -232,22 +269,43 @@ class Breath extends HeldPower {
   }
 }
 
-/** Tap: an icicle forms in the air over the spot you aimed at, snaps and drops onto it. */
+/** Tap: an icicle forms at the very top of the screen above the aim, drops, and shatters on the spot aimed at. */
 const ICE_SC = 1.4, ICE_IMPACT = 0.64 + Math.sqrt((2 * 44) / 950);
-class Icicle extends Power {
+class Icicle {
   constructor(g, ax, ay) {
-    const y = ground(g, ax, ay);
-    super(g, new ScaledFx(icicleFall, { x: ax, y, sx: ICE_SC }));
-    Object.assign(this, { x: ax, y, hit: false });
+    const w = g.world, y = w.solidPx(ax, ay) ? ay : w.surfaceY(ax, ay);
+    Object.assign(this, { g, x: ax, gy: y, y: view(g).t + 4, vy: 60, t: 0, s: null, form: 0.25 });
     g.sfx("ice");
   }
-  step() {
-    if (this.hit || this.t < ICE_IMPACT) return;
+  update(dt) {
     const g = this.g;
-    this.hit = true;
-    g.addScore(g.world.explode(this.x, this.y - 6, 16, 8, { fire: 0, clean: true, kick: 1.3, debris: 10 }));
-    g.eachEnemy(this.x, this.y - 12, 26, (e) => e.hurt(35, (e.x - this.x) * 8, -220));
-    g.shake(3); g.sfx("glass");
+    this.t += dt;
+    if (this.s) { this.s.update(dt); return !this.s.done(); }
+    if (this.t < this.form) return true; // it grows out of the sky first
+    this.vy += 1500 * dt; this.y += this.vy * dt;
+    const e = g.enemyAt(this.x, this.y, 4);
+    if (this.y >= this.gy || e) {
+      const y = e ? this.y : this.gy;
+      // the shatter: the icicle effect, jumped to the moment it hits the floor
+      this.s = new ScaledFx(icicleFall, { x: this.x, y, sx: ICE_SC });
+      this.s.update(ICE_IMPACT);
+      g.addScore(g.world.explode(this.x, y - 6, 16, 8, { fire: 0, clean: true, kick: 1.3, debris: 10 }));
+      g.eachEnemy(this.x, y - 12, 26, (q) => q.hurt(35, (q.x - this.x) * 8, -220));
+      g.shake(3); g.sfx("glass");
+    }
+    return true;
+  }
+  draw(f) {
+    if (this.s) return this.s.draw(f);
+    const p = painterFor(f); p.place(0, 0);
+    const L = 34 * Math.min(1, this.t / this.form + 0.15), W = 6, top = this.y - L;
+    for (let i = 0; i < L; i++) {
+      const u = i / L, hw = W * (1 - u) + 0.6, y = top + i;
+      p.line(this.x - hw, y, this.x + hw, y, u > 0.85 ? 0xffffffff : 0xfff4c862);
+      p.px(this.x - hw * 0.5, y, 0xffffffff);
+      p.px(this.x + hw, y, 0xffa86a2c);
+    }
+    p.glow(this.x, this.y - 6, 14, 0xffffd8a0, 0.5);
   }
 }
 
@@ -255,7 +313,8 @@ class Icicle extends Power {
 class Blizzard extends Power {
   constructor(g, h, ax, ay) {
     const y = ground(g, ax, ay);
-    super(g, new ScaledFx(blizzardVortex, { x: ax, y, sx: 1.7 }));
+    super(g, new ScaledFx(blizzardVortex, { x: ax, y, sx: 1.7, clipY: 0.5 }));
+    this.s.ground = (wx) => g.world.surfaceY(wx, this.y - 60);
     Object.assign(this, { x: ax, y, dir: ax >= h.x ? 1 : -1 });
     g.sfx("wind"); g.sfx("ice");
   }
@@ -344,24 +403,34 @@ class ArcBeam extends Power {
   }
 }
 
-/** Right click: stars rain down over an area round the aim. */
-class StarRain extends Power {
-  constructor(g, ax, ay) {
-    const y = ground(g, ax, ay);
-    super(g, new ScaledFx(starFall, { x: ax, y, sx: 1.7, sy: 1.5 }));
-    this.x = ax; this.y = y; this.n = 0;
-  }
+/** Right click: a long rain of stars over a wide area round the aim: several showers one after another. */
+class StarFall extends Power {
+  constructor(g, x, y) { super(g, new ScaledFx(starFall, { x, y, sx: 1.7, sy: 1.5 })); this.x = x; this.y = y; this.n = 0; }
   step() {
     const g = this.g;
     while (this.n < 11 && this.t >= 0.42 + this.n * 0.105) {
       const x = this.x + rnd(-46, 46) * 1.7, y = g.world.surfaceY(x, this.y - 80);
-      g.addScore(g.world.explode(x, y - 4, 13, 7, { fire: 0.2, debris: 8 }));
-      g.eachEnemy(x, y - 10, 24, (e) => e.hurt(24, (e.x - x) * 6, -220));
-      g.flashLight(x, y, 34, 0xffff60c0, 0.9, 0.25);
-      g.shake(2); g.sfx("boom", 0.4);
+      g.addScore(g.world.explode(x, y - 4, 20, 10, { fire: 0.3, debris: 14, kick: 1.3 }));
+      g.eachEnemy(x, y - 10, 32, (e) => e.hurt(30, (e.x - x) * 6, -260));
+      g.flashLight(x, y, 40, 0xffff60c0, 0.9, 0.25);
+      g.shake(2.5); g.sfx("boom", 0.5);
       this.n++;
     }
   }
+}
+class StarRain {
+  constructor(g, ax, ay) { Object.assign(this, { g, ax, ay: ground(g, ax, ay), t: 0, n: 0 }); }
+  update(dt) {
+    const g = this.g;
+    this.t += dt;
+    while (this.n < 7 && this.t >= this.n * 0.38) {
+      const x = this.ax + (this.n === 0 ? 0 : rnd(-140, 140));
+      g.shots.push(new StarFall(g, x, g.world.surfaceY(x, this.ay - 120)));
+      this.n++;
+    }
+    return this.n < 7;
+  }
+  draw() {}
 }
 
 // ================================================================================================= FIRE
@@ -437,7 +506,7 @@ class FireTwister extends Power {
 /** Tap: a burst of healing light on the hero; the flash of it burns enemies close by. */
 class Heal extends Power {
   constructor(g, h) {
-    super(g, new ScaledFx(healFx, { x: h.x, y: h.y, sx: 1.3 }));
+    super(g, new ScaledFx(healFx, { x: h.x, y: h.y, sx: 1.1 }));
     this.h = h;
     h.hp = Math.min(100, h.hp + 25);
     g.eachEnemy(h.x, h.cy, 95, (e) => { e.hurt(28, (e.x - h.x) * 3, -150); for (let i = 0; i < 6; i++) g.parts.spawn(PT.EMBER, e.x + rnd(-4, 4), mid(e) + rnd(-8, 8), rnd(-40, 40), rnd(-80, -20), rnd(0.4, 0.9), 0xff60e0ff); });

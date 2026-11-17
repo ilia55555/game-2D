@@ -81,6 +81,7 @@ const P = {
   hover: (t) => { const u = Math.sin(t * 3); return { fx: -7, fy: -19 + u, bx: 10, by: -19 + u, ffx: -3, ffy: -6 - u, fbx: 4, fby: -4, turn: 0.5 }; },
   punch: { lean: 5, crouch: 3, fx: 17, fy: -25, bx: -4, by: -22, ffx: 9, fbx: -9, ghost: 1 },
   wind: { lean: -4, crouch: 3, fx: -10, fy: -24, bx: 8, by: -24, ffx: 6, fbx: -8 },
+  lift: { lean: -2, crouch: 1, fx: -3, fy: -47, bx: 4, by: -47, ffx: -3, ffy: -5, fbx: 4, fby: -5, turn: 1 },
   swim: (t) => { const c = Math.cos(t * 6); return { lean: 6, fx: 8 + 6 * c, fy: -26, bx: 8 - 6 * c, by: -24, ffx: -3 + 4 * c, ffy: -5, fbx: 2 - 4 * c, fby: -5 }; },
 };
 
@@ -192,6 +193,7 @@ export class Hero {
       pose = { ...pose, fx: 13 * Math.cos(qa), fy: -26 + 13 * Math.sin(qa), bx: 6, by: -22, ...(this.weaponPose ? { weapon: this.weaponPose, sa: qa } : {}) };
       if (!this.onGround) pose.lean = 0;
     }
+    if (this.lift > 0) { this.lift -= dt; pose = P.lift; rot = 0; }
     this.pose = pose;
     let d = rot - this.rot; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2;
     this.rot += d * Math.min(1, 14 * dt);

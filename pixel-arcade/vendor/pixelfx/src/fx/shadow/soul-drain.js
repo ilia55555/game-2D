@@ -22,6 +22,13 @@ const line = (i) => {
   return { sx, sy, c1x: sx * 0.55, c1y: sy + bend, c2x: 22 + rand(i, 4) * 14, c2y: VY + (sy - VY) * 0.25 };
 };
 const LN = Array.from({ length: LINES }, (_, i) => line(i));
+// o.sources: points (local, round the origin) the souls are torn from, from any direction; each gets a streamline
+// that bends into the vessel. Without it the funnel comes in from the right as drawn.
+const lineFrom = (sx, sy, i) => {
+  const dx = sx, dy = sy - VY, L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, bend = (rand(i, 3) - 0.5) * Math.min(50, L * 0.4), e = 22 + rand(i, 4) * 14;
+  return { sx, sy, c1x: dx * 0.55 + nx * bend, c1y: VY + dy * 0.55 + ny * bend, c2x: (dx / L) * e, c2y: VY + (dy / L) * e };
+};
+const linesOf = (o) => (o.sources && o.sources.length ? o.sources.map(([x, y], i) => lineFrom(x, y, i)) : LN);
 // a point along streamline i at u (0 at its start, 1 at the vessel), cubic bezier
 function along(L, u) {
   const v = 1 - u, a = v * v * v, b = 3 * v * v * u, c = 3 * v * u * u, d = u * u * u;
@@ -56,7 +63,7 @@ function vessel(p, C, t, f) {
 }
 
 export function drawBack(p, t, o) {
-  const C = fit(o.palette, 8);
+  const C = fit(o.palette, 8), LN = linesOf(o), LINES = LN.length;
   // the funnel: streamlines bunching into the vessel, dashes running down them, brighter as they close in
   for (let i = 0; i < LINES; i++) {
     const L = LN[i], ph = wrap(t + i * 0.37) / D;
@@ -73,10 +80,11 @@ export function drawBack(p, t, o) {
 }
 
 export function draw(p, t, o) {
-  const C = fit(o.palette, 8), S = fit(o.soul, 4), f = landings(t);
+  const C = fit(o.palette, 8), S = fit(o.soul, 4), f = landings(t), LN = linesOf(o), LINES = LN.length;
   // where the souls are torn from: a faint pale haze out on the right
   cycle(t, D, 10, o.seed, (r) => r.range(0.8, 1.3), (age, Lf, r) => {
-    const x = r.range(100, 150), y = r.range(-80, -20) - age * 18, u = age / Lf;
+    const src = o.sources && o.sources.length ? o.sources[Math.floor(r.next() * o.sources.length)] : null;
+    const x = src ? src[0] + r.range(-6, 6) : r.range(100, 150), y = (src ? src[1] + r.range(-8, 4) : r.range(-80, -20)) - age * 18, u = age / Lf;
     p.dot(x, y, S[2], (1 - u) * 0.8);
     p.glow(x, y, 4, S[1], 0.2 * (1 - u));
   });
@@ -98,7 +106,7 @@ export function draw(p, t, o) {
   for (let j = 0; j < SOULS; j++) {
     const s = soul(j), age = wrap(t - s.born);
     if (age > TRAVEL) continue;
-    const L = LN[s.line], u = Math.pow(age / TRAVEL, 1.8), [x, y] = along(L, u);
+    const L = LN[s.line % LINES], u = Math.pow(age / TRAVEL, 1.8), [x, y] = along(L, u);
     if (age < 0.18) {
       const k = 1 - age / 0.18;
       ringFast(p, L.sx, L.sy, 3 + 9 * (1 - k), 1, k > 0.5 ? S[2] : S[1]);

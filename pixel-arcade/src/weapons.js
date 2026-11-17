@@ -10,6 +10,7 @@ import { PT } from "./particles.js";
 import { MJOLNIR } from "./thor.js";
 import { AQUA, FROST, ARCANE, INFERNO, RADIANCE } from "./powers.js";
 import { PETS } from "./pets.js";
+import { upgradeHeat, upgradeBlackHole, upgradeTornado, addThorAlt } from "./powers2.js";
 
 const BLUE = ["#061a3c", "#0b3b8c", "#1f6ad0", "#3f9cff", "#7fd0ff", "#c8f0ff", "#ffffff"];
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -91,7 +92,7 @@ export const WEAPONS = [
   AQUA,
   FROST,
   ARCANE,
-  { name: "HEAT VISION", cd: 0, beam: true, col: 0xff3030ff,
+  upgradeHeat({ name: "HEAT VISION", cd: 0, beam: true, col: 0xff3030ff,
     fire(g, h, ax, ay, dt) {
       const [ex, ey] = h.eyes(), a = Math.atan2(ay - ey, ax - ex), c = Math.cos(a), s = Math.sin(a), w = g.world;
       const hit = w.raycast(ex + c * 4, ey + s * 4, c, s, 560);
@@ -105,13 +106,13 @@ export const WEAPONS = [
         if (Math.random() < 0.25) g.parts.spawn(PT.SMOKE, hit.x, hit.y, rnd(-10, 10), -20, 0.8, 0xff605860, 4);
       } else h.heatAcc = 0;
       g.sfx("laser");
-    } },
-  MJOLNIR, // hold to charge; see thor.js
+    } }),
+  addThorAlt(MJOLNIR), // hold to charge; see thor.js
   INFERNO,
-  { name: "BLACK HOLE", cd: 2.2, col: 0xffff60a0,
-    fire(g, h, ax, ay) { const [x, y] = h.muzzle(ax, ay); g.shots.push(new VoidShot(g, x, y, ax, ay)); g.sfx("fly"); } },
-  { name: "TORNADO", cd: 1.8, col: 0xffc0c8d0,
-    fire(g, h, ax, ay) { const dir = ax >= h.x ? 1 : -1, x = h.x + dir * 30; g.shots.push(new Twister(g, x, g.world.surfaceY(x, h.y - 40), dir)); } },
+  upgradeBlackHole({ name: "BLACK HOLE", cd: 2.2, col: 0xffff60a0,
+    fire(g, h, ax, ay) { const [x, y] = h.muzzle(ax, ay); g.shots.push(new VoidShot(g, x, y, ax, ay)); g.sfx("fly"); } }),
+  upgradeTornado({ name: "TORNADO", cd: 1.8, col: 0xffc0c8d0,
+    fire(g, h, ax, ay) { const dir = ax >= h.x ? 1 : -1, x = h.x + dir * 30; g.shots.push(new Twister(g, x, g.world.surfaceY(x, h.y - 40), dir)); } }),
   RADIANCE,
   PETS, // slot 0: summoned critters
 ];
@@ -122,11 +123,11 @@ export function nuke(g, x, y) {
   g.fx.spawn(nukeFx, { x, y, keep: true, cost: 4 });
   g.sfx("nuke");
   g.flash = 1.2; g.freeze = 0.12;
-  for (let k = 0; k < 12; k++) g.later(0.06 + k * 0.085, () => {
-    const r = 40 + k * 12;
-    g.addScore(w.explode(x, y - 24, r, 18, { fire: 0.5, debris: 110, kick: 1.6 }));
+  for (let k = 0; k < 16; k++) g.later(0.06 + k * 0.08, () => {
+    const r = 50 + k * 15;
+    g.addScore(w.explode(x, y - 24, r, 24, { fire: 0.6, debris: 160, kick: 1.9 }));
     g.eachEnemy(x, y - 24, r + 20, (e, d) => e.hurt(200, (e.x - x) * 4, -300));
-    g.shake(14 - k * 0.6);
+    g.shake(18 - k * 0.7);
     for (let i = 0; i < 16; i++) { const a = rnd(Math.PI, Math.PI * 2); g.parts.spawn(i & 1 ? PT.FLAME : PT.SMOKE, x + Math.cos(a) * r, y - 24 + Math.sin(a) * r * 0.8, Math.cos(a) * 80, Math.sin(a) * 80 - 30, rnd(0.6, 1.6), 0xff383038, rnd(4, 8)); }
     if (g.hero.dead <= 0 && Math.hypot(g.hero.x - x, g.hero.cy - y) < r) g.hero.vy -= 60;
   });

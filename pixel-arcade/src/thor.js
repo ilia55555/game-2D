@@ -183,7 +183,7 @@ function strike(g, h, ax, ay, p) {
     const reach = Math.min(Math.hypot(ax - mx, ay - my), L(160, 320));
     const hit = w.raycast(mx + c * 3, my + s * 3, c, s, reach);
     sx = mx + c * hit.d; sy = my + s * hit.d;
-    storm.add(new Arc(mx, my, sx, sy, p, life));
+    storm.add(new Arc(mx, my, sx, sy, Math.max(p, 0.6), Math.max(life, 0.22))); // even a tap is a thick bolt
     if (hit.hit) g.addScore(w.explode(sx, sy, 3 + p * 12, 3, { fire: 0.2, debris: 3 }));
     g.sfx("laser");
   } else {

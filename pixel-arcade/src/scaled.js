@@ -5,11 +5,11 @@ import { createFx, createFrame } from "../vendor/pixelfx/src/core/index.js";
 export class ScaledFx {
   /** o: { x, y (where the effect's origin lands), sx, sy, angle, flip, pad (extra buffer room), ...effect options } */
   constructor(mod, o = {}) {
-    const m = mod.meta, { x = 0, y = 0, sx = 1, sy, angle = 0, flip = false, pad = 0, ...rest } = o;
+    const m = mod.meta, { x = 0, y = 0, sx = 1, sy, angle = 0, flip = false, pad = 0, clipY = Infinity, ground = null, ...rest } = o;
     this.buf = createFrame(m.size[0] + pad * 2, m.size[1] + pad * 2);
     this.ox = m.origin[0] + pad; this.oy = m.origin[1] + pad;
     this.fx = createFx(mod, { seed: (Math.random() * 1e6) | 0, ...rest, x: this.ox, y: this.oy });
-    Object.assign(this, { x, y, sx, sy: sy ?? sx, angle, flip });
+    Object.assign(this, { x, y, sx, sy: sy ?? sx, angle, flip, clipY, ground });
   }
   get options() { return this.fx.options; }
   get t() { return this.fx.t; }
@@ -38,15 +38,23 @@ export class ScaledFx {
       x0 = Math.min(x0, wx); y0 = Math.min(y0, wy); x1 = Math.max(x1, wx); y1 = Math.max(y1, wy);
     }
     const FX = f.ox, FY = f.oy, W = f.w, H = f.h;
-    const X0 = Math.max(0, Math.floor(x0 - FX)), X1 = Math.min(W, Math.ceil(x1 - FX)), Y0 = Math.max(0, Math.floor(y0 - FY)), Y1 = Math.min(H, Math.ceil(y1 - FY));
+    // ground: a function giving the floor's world y under each column; the effect's floor line (local y = 0)
+    // then follows the terrain instead of one flat height (no rotation in that mode)
+    const G = this.ground, clip = this.clipY;
+    const X0 = Math.max(0, Math.floor(x0 - FX)), X1 = Math.min(W, Math.ceil(x1 - FX));
+    const Y0 = G ? 0 : Math.max(0, Math.floor(y0 - FY)), Y1 = G ? H : Math.min(H, Math.ceil(y1 - FY));
+    let base = null;
+    if (G) { base = new Float32Array(X1 - X0); for (let X = X0; X < X1; X++) base[X - X0] = G(X + 0.5 + FX) - this.y; }
     if (X0 >= X1 || Y0 >= Y1) return;
     const c = Math.cos(this.angle), s = Math.sin(this.angle), fl = this.flip ? -1 : 1;
     const C = f.color, L = f.light, BC = B.color, BL = B.light, ox = this.ox, oy = this.oy;
     for (let Y = Y0; Y < Y1; Y++) {
-      const dy = Y + 0.5 + FY - this.y;
+      const dy0 = Y + 0.5 + FY - this.y;
       for (let X = X0; X < X1; X++) {
-        const dx = X + 0.5 + FX - this.x;
-        const bx = Math.floor(((dx * c + dy * s) / sx) * fl + ox), by = Math.floor((-dx * s + dy * c) / sy + oy);
+        const dx = X + 0.5 + FX - this.x, dy = base ? dy0 - base[X - X0] : dy0;
+        const ly = (-dx * s + dy * c) / sy;
+        if (ly > clip) continue;
+        const bx = Math.floor(((dx * c + dy * s) / sx) * fl + ox), by = Math.floor(ly + oy);
         if (bx < 0 || by < 0 || bx >= BW || by >= BH) continue;
         const j = by * BW + bx, i = Y * W + X, col = BC[j], li = BL[j];
         if (col) {
