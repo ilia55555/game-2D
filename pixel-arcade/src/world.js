@@ -3,7 +3,8 @@
 
 import { rgb } from "../vendor/pixelfx/src/core/index.js";
 
-export const CELL = 4, CW = 32, WH = 200, SEA = 146, ZONE = 8;
+// WH: the world goes deep; the bottom LAVA rows are molten rock nothing can dig through
+export const CELL = 4, CW = 32, WH = 640, SEA = 146, ZONE = 8, LAVA = 28;
 export const WORLD_PX_H = WH * CELL;
 export const M = {
   AIR: 0, DIRT: 1, GRASS: 2, STONE: 3, SAND: 4, SNOW: 5, ROAD: 6, BEDROCK: 7,
@@ -16,7 +17,7 @@ export const SOLID = [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0];
 export const FLAM = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1];
 export const isStruct = (m) => m >= 8;
 const BASE = [
-  0, 0x6b4a32, 0x5a9a3a, 0x7c7a84, 0xd9c07a, 0xf2f6fa, 0x4b4a55, 0x1c1a22,
+  0, 0x6b4a32, 0x5a9a3a, 0x7c7a84, 0xd9c07a, 0xf2f6fa, 0x4b4a55, 0xe8501a,
   0xb9b0a0, 0xa65a3c, 0x86cfe0, 0x5c6676, 0x8a5a34, 0x3f8a3a, 0x8a3434, 0xd03a2c, 0xe8dcc0, 0xffe27a, 0x2c6a4a,
 ];
 export const MAT_COLOR = BASE.map((c) => rgb(c >> 16, (c >> 8) & 255, c & 255));
@@ -48,7 +49,7 @@ function texel(m, x, y) {
     case M.SAND: return sh(b, n < 0.1 ? 0.86 : n > 0.9 ? 1.08 : 1);
     case M.SNOW: return sh(b, n < 0.12 ? 0.9 : 1);
     case M.ROAD: return y % 4 === 0 ? sh(0x8a8894, 1) : sh(b, n < 0.1 ? 0.85 : 1);
-    case M.BEDROCK: return sh(b, n < 0.2 ? 1.5 : 1);
+    case M.BEDROCK: return n < 0.12 ? sh(0xfff07a, 1) : n < 0.35 ? sh(0xffa030, 1) : n > 0.9 ? sh(0x8a1a10, 1) : sh(b, 1);
     case M.CONCRETE: return sh(b, x % 8 === 0 || y % 8 === 0 ? 0.82 : n > 0.92 ? 0.93 : 1);
     case M.BRICK: return y % 4 === 3 || (x + (y >> 2 & 1) * 4) % 8 === 7 ? sh(0xd8c8b0, 0.8) : sh(b, 0.9 + hash((x + (y >> 2 & 1) * 4) >> 3, y >> 2) * 0.25);
     case M.GLASS: return (x + y) % 8 < 2 ? sh(0xd8f6ff, 1) : x % 4 === 0 || y % 4 === 0 ? sh(b, 0.72) : sh(b, 1);
@@ -179,7 +180,8 @@ export class World {
       for (let cy = h; cy < WH; cy++) {
         const d = cy - h;
         let m;
-        if (cy >= WH - 5) m = M.BEDROCK;
+        if (cy >= WH - LAVA) m = M.BEDROCK;
+        else if (d > 40 && hash(cx >> 2, cy >> 2) < 0.06) m = M.DIRT;
         else if (h > SEA - 2) m = d < 6 ? M.SAND : M.STONE;
         else if (b === MOUNT || h < 126) m = h < 96 && d < 2 ? M.SNOW : d > 3 || h < 118 ? M.STONE : d === 0 ? M.GRASS : M.DIRT;
         else if (b === CITY) m = d === 0 ? M.ROAD : d < 10 ? M.DIRT : M.STONE;
@@ -393,7 +395,7 @@ export class World {
   }
 
   // ---- destruction
-  key(cx, cy) { return (cx + 1048576) * 256 + cy; }
+  key(cx, cy) { return (cx + 1048576) * 1024 + cy; }
   destroyCell(cx, cy, vx = 0, vy = 0, quiet = false) {
     if (cy < 0 || cy >= WH) return 0;
     const c = this.chunk(cx >> 5), i = (cx & 31) * WH + cy, m = c.fg[i];

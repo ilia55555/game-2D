@@ -2,7 +2,7 @@
 // The body is pixelfx's skeleton rig, re-dressed: every pose is solved and drawn down to pixels.
 
 import { posed, luma, rgb, hex, mix } from "../vendor/pixelfx/src/core/index.js";
-import { CELL, SEA } from "./world.js";
+import { CELL, SEA, WH, LAVA } from "./world.js";
 
 const INK = hex("#0e0c14"), MARK = hex("#f53cd1");
 const SUIT = [hex("#141a3c"), hex("#3f7cff")], LEGS = [hex("#10142e"), hex("#2f5fd0")], HELM = [hex("#5a6890"), hex("#ffffff")], GOLD = [hex("#7a3a08"), hex("#ffc83c")];
@@ -172,8 +172,7 @@ export class Hero {
     if (this.fly && this.onGround && I.my > 0.3) this.fly = false;
     if (water && !this._wet && Math.abs(vy0) > 120) g.splash(this.x, SEA * CELL, Math.abs(vy0));
     this._wet = water;
-    if (this.y > 199 * CELL) { this.y = 190 * CELL; this.vy = 0; }
-    if (this.y < -1400) { this.y = -1400; this.vy = Math.max(0, this.vy); }
+    if (this.y > (WH - LAVA) * CELL) { this.y = (WH - LAVA) * CELL; this.vy = Math.min(0, this.vy); }
 
     // ---- the pose
     const moving = Math.abs(this.vx) > 20;

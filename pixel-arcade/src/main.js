@@ -14,7 +14,7 @@ import * as splashFx from "../vendor/pixelfx/src/fx/water/splash.js";
 import * as manaBurst from "../vendor/pixelfx/src/fx/arcane/mana-burst.js";
 import * as thunderclap from "../vendor/pixelfx/src/fx/lightning/thunderclap.js";
 import * as birdFx from "../vendor/pixelfx/src/fx/critters/bird.js";
-import { World, CELL, WORLD_PX_H, MAT_COLOR, M, SEA, BIOME_NAMES } from "./world.js";
+import { World, CELL, WORLD_PX_H, MAT_COLOR, M, SEA, BIOME_NAMES, WH, LAVA } from "./world.js";
 import { Parts, PT } from "./particles.js";
 import { FxMan } from "./fxm.js";
 import { Hero } from "./hero.js";
@@ -113,6 +113,7 @@ class Game {
     const R = r * 1.25;
     this.eachEnemy(x, y, R, (e, d) => e.hurt(power * 2.2 * (1 - d / (R + e.hw)) + 1, ((e.x - x) / (d + 6)) * power * 45, -power * 28));
     const h = this.hero, dh = Math.hypot(h.x - x, h.cy - y);
+    if (o.owner === "enemy" && this.pets) for (const p of this.pets) { const d = Math.hypot(p.x - x, p.cy - y); if (d < r + p.r) p.hurt(power * 1.5 * (1 - d / (r + p.r)) + 2); }
     if (o.owner === "enemy" && dh < r + 6) { this.hurtHero(power * 1.5 * (1 - dh / (r + 6)) + 2); h.vx += ((h.x - x) / (dh + 6)) * 200; h.vy -= 120; }
     if (o.quiet) { for (let i = 0; i < 3; i++) P.spawn(PT.SPARK, x, y, rnd(-160, 160), rnd(-200, 60), rnd(0.2, 0.5), 0xff60c0ff); }
     else {
@@ -199,6 +200,7 @@ class Game {
         s.x += s.vx * dt / n; s.y += s.vy * dt / n;
         if (w.solidPx(s.x, s.y)) hit = true;
         else if (h.dead <= 0 && Math.abs(s.x - h.x) < 7 && s.y > h.y - 34 && s.y < h.y) { hit = true; if (s.type === "bullet") this.hurtHero(3); }
+        else if (this.pets) { const p = this.pets.find((q) => q.hits(s.x, s.y, 2)); if (p) { hit = true; if (s.type === "bullet") p.hurt(3); } }
       }
       if ((s.life -= dt) <= 0) hit = true;
       if (!hit) continue;
@@ -220,6 +222,8 @@ class Game {
       if ((h.dead -= dt) <= 0) { h.dead = 0; h.hp = 100; h.inv = 2.5; h.vx = h.vy = 0; h.y = w.surfaceY(h.x, 0) - 2; this.fx.spawn(respawnBeam, { x: h.x, y: h.y, keep: true }); sfx("ready"); }
     } else {
       if (h.hurtT > 3) h.hp = Math.min(100, h.hp + 16 * dt);
+      // the molten floor of the world: it burns and throws you back up
+      if (h.y > (WH - LAVA) * CELL - 3) { h.inv = 0; this.hurtHero(12); h.vy = -650; for (let i = 0; i < 12; i++) this.parts.spawn(PT.FLAME, h.x + rnd(-6, 6), h.y, rnd(-60, 60), -rnd(60, 200), rnd(0.3, 0.6), 0, 3); }
       if (I.punchP) this.punch();
       this.cd -= dt; this.altCd = (this.altCd || 0) - dt;
       const wp = WEAPONS[this.weapon];
@@ -360,6 +364,7 @@ class Game {
     if (this.cd > 0.15 && WEAPONS[this.weapon].cd > 0.5) p.rect(W / 2 - 20, y0 - 6, 40 * (1 - this.cd / WEAPONS[this.weapon].cd), 2, UI.cyan);
     if (this.banner) { const b = this.banner, k = b.t < 0.12 ? 3 : 2, a = b.t > 1.5 ? 1 - (b.t - 1.5) / 0.5 : 1; t(b.text, W / 2, 70 - (k - 2) * 4, b.c, { align: "center", scale: k, a }); }
     if (!this.touch) { const mx = this.I.aimX - camX, my = this.I.aimY - camY; p.rect(mx - 5, my, 4, 1, UI.white); p.rect(mx + 2, my, 4, 1, UI.white); p.rect(mx, my - 5, 1, 4, UI.white); p.rect(mx, my + 2, 1, 4, UI.white); p.px(mx, my, UI.red); }
+    if (this.paused) { p.rect(0, H / 2 - 22, W, 40, UI.ink, 0.7); t("PAUSED", W / 2, H / 2 - 12, UI.white, { align: "center", scale: 2 }); t("ESC TO RESUME", W / 2, H / 2 + 8, UI.dim, { align: "center" }); }
     if (this.showFps) p.text(Math.round(this.fps) + " FPS  FX " + this.fx.list.length + " " + this.fx.ms.toFixed(1) + "MS  P " + this.parts.n, 8, 34, UI.dim, { outline: UI.ink });
   }
 }
@@ -390,13 +395,14 @@ addEventListener("keydown", (e) => {
   if (c === "KeyE" || c === "Tab") { setWeapon(game.weapon + 1); e.preventDefault(); }
   if (c.startsWith("Digit")) { const d = +c.slice(5); setWeapon(d === 0 ? 9 : d - 1); }
   if (c === "KeyP") game.showFps = !game.showFps;
+  if (c === "Escape") togglePause();
   start();
 });
 addEventListener("keyup", (e) => keys.delete(e.code));
 addEventListener("blur", () => { keys.clear(); mouseFire = false; });
 const toCanvas = (e) => { const r = canvas.getBoundingClientRect(); return [((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * H]; };
 addEventListener("mousemove", (e) => { [mouseX, mouseY] = toCanvas(e); });
-addEventListener("mousedown", (e) => { if (e.target.closest && e.target.closest("#help")) return; start(); [mouseX, mouseY] = toCanvas(e); if (e.button === 0) mouseFire = true; if (e.button === 2) I.altP = true; });
+addEventListener("mousedown", (e) => { if (e.target.closest && (e.target.closest("#help") || e.target.closest("#pause"))) return; if (game.paused) return; start(); [mouseX, mouseY] = toCanvas(e); if (e.button === 0) mouseFire = true; if (e.button === 2) I.altP = true; });
 addEventListener("mouseup", (e) => { if (e.button === 0) mouseFire = false; });
 addEventListener("contextmenu", (e) => e.preventDefault());
 addEventListener("wheel", (e) => { setWeapon(game.weapon + (e.deltaY > 0 ? 1 : -1)); }, { passive: true });
@@ -425,6 +431,16 @@ function touchSetup() {
   btn("bNuke", () => (I.nukeP = true));
 }
 addEventListener("touchstart", () => { if (!game.touch) touchSetup(); }, { once: true, passive: true });
+
+function togglePause() {
+  if (!game.started) return;
+  game.paused = !game.paused;
+  mouseFire = false; keys.clear();
+  pauseBtn.textContent = game.paused ? "\u25B6" : "\u275A\u275A";
+}
+const pauseBtn = document.getElementById("pause");
+pauseBtn.addEventListener("click", (e) => { e.stopPropagation(); togglePause(); });
+pauseBtn.addEventListener("touchend", (e) => { e.preventDefault(); e.stopPropagation(); togglePause(); }, { passive: false });
 
 function start() {
   if (game.started) return;
@@ -455,7 +471,7 @@ function tick(now) {
   game.fps = game.fps * 0.95 + (1 / Math.max(raw, 0.001)) * 0.05;
   readInput();
   if (game.started) {
-    if (game.freeze > 0) game.freeze -= raw; else game.update(Math.min(raw, 1 / 30));
+    if (game.paused) { /* stopped */ } else if (game.freeze > 0) game.freeze -= raw; else game.update(Math.min(raw, 1 / 30));
   } else { game.time += raw; game.world.update(raw); game.parts.update(raw); game.fx.update(raw); }
   game.render(raw);
   if ((saveT += raw) > 5) { saveT = 0; try { localStorage.setItem("nova-best", String(game.best)); } catch (e) { /* private mode */ } }

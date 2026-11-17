@@ -44,7 +44,7 @@ function zigzag(x0, y0, x1, y1, rough, depth) {
 }
 
 /** One segment of lightning: re-forks itself every few frames so it flickers like the real thing. */
-class Arc {
+export class Arc {
   constructor(x0, y0, x1, y1, power, life) {
     Object.assign(this, { x0, y0, x1, y1, p: power, life, span: life, flick: 0 });
     this.reshape();

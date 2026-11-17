@@ -1,7 +1,7 @@
 // The army that shows up when the city starts falling down: soldiers, tanks, helicopters. And parked cars.
 import { posed, hex, mix } from "../vendor/pixelfx/src/core/index.js";
 import { moveBody, boxHits, dressWith } from "./hero.js";
-import { CELL } from "./world.js";
+import { CELL, WH, LAVA } from "./world.js";
 import { PT } from "./particles.js";
 
 const INK = hex("#0e0c14");
@@ -59,7 +59,7 @@ export class Soldier extends Enemy {
       const a = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.16;
       g.enemyShot("bullet", this.x + Math.cos(a) * 14, this.y - 24 + Math.sin(a) * 14, Math.cos(a) * 250, Math.sin(a) * 250);
     }
-    if (this.y > 198 * CELL) this.dead = true;
+    if (this.y > (WH - LAVA) * CELL - 3) this.dead = true;
   }
   die() {
     const g = this.g;
@@ -86,7 +86,7 @@ export class Car extends Enemy {
     const vy0 = this.vy;
     moveBody(this.g.world, this, dt, 0);
     if (this.onGround) { if (vy0 > 500) return this.hurt(99); this.vy = 0; }
-    if (this.y > 198 * CELL) this.dead = true;
+    if (this.y > (WH - LAVA) * CELL - 3) this.dead = true;
   }
   die() { this.g.blast(this.x, this.y - 6, 36, 8, { kind: "small", size: 1, owner: "enemy", metal: this.col }); }
   draw(f) {
@@ -121,7 +121,7 @@ export class Tank extends Enemy {
         g.sfx("cannon"); this.vx -= this.face * 30;
       }
     }
-    if (this.y > 198 * CELL) this.dead = true;
+    if (this.y > (WH - LAVA) * CELL - 3) this.dead = true;
   }
   die() { this.g.blast(this.x, this.y - 8, 48, 10, { kind: "big", owner: "enemy", metal: COL.tank }); }
   draw(f) {
@@ -145,7 +145,7 @@ export class Heli extends Enemy {
       this.x += this.vx * dt; this.y += this.vy * dt;
       if (Math.random() < 0.6) g.parts.spawn(PT.SMOKE, this.x, this.y - 10, (Math.random() - 0.5) * 30, -20, 0.9, K("#2a2630"), 5);
       if (Math.random() < 0.5) g.parts.spawn(PT.FLAME, this.x, this.y - 8, (Math.random() - 0.5) * 40, -30, 0.5, 0, 3);
-      if (boxHits(w, this.x, this.y, 12, 12) || this.y > 198 * CELL) { this.dead = true; g.blast(this.x, this.y, 50, 11, { kind: "big", owner: "enemy", metal: COL.heli }); }
+      if (boxHits(w, this.x, this.y, 12, 12) || this.y > (WH - LAVA) * CELL - 3) { this.dead = true; g.blast(this.x, this.y, 50, 11, { kind: "big", owner: "enemy", metal: COL.heli }); }
       return;
     }
     if ((this.sideT -= dt) < 0) { this.sideT = 4 + Math.random() * 4; this.side *= -1; }

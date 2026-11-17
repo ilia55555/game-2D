@@ -8,7 +8,8 @@ import * as nukeFx from "../vendor/pixelfx/src/fx/explosions/nuke.js";
 import { CELL, SEA } from "./world.js";
 import { PT } from "./particles.js";
 import { MJOLNIR } from "./thor.js";
-import { AQUA, FROST, ARCANE, INFERNO, RADIANCE, EMPTY } from "./powers.js";
+import { AQUA, FROST, ARCANE, INFERNO, RADIANCE } from "./powers.js";
+import { PETS } from "./pets.js";
 
 const BLUE = ["#061a3c", "#0b3b8c", "#1f6ad0", "#3f9cff", "#7fd0ff", "#c8f0ff", "#ffffff"];
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -112,7 +113,7 @@ export const WEAPONS = [
   { name: "TORNADO", cd: 1.8, col: 0xffc0c8d0,
     fire(g, h, ax, ay) { const dir = ax >= h.x ? 1 : -1, x = h.x + dir * 30; g.shots.push(new Twister(g, x, g.world.surfaceY(x, h.y - 40), dir)); } },
   RADIANCE,
-  EMPTY, // slot 0: free for a power to come
+  PETS, // slot 0: summoned critters
 ];
 
 /** The ultimate. */
