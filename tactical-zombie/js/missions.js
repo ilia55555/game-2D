@@ -1,0 +1,155 @@
+'use strict';
+/* منطق اختصاصی هر عملیات */
+(function () {
+  const ML = G.ML = G.ML || {}, fa = G.fa;
+  const squadAlive = () => G.soldiers.filter(s => !s.isCmd && !s.dead && !s.downed);
+  const squadLeft = () => G.soldiers.filter(s => !s.isCmd && !s.dead);
+
+  /* ================= عملیات ۰۱ — سقوط ================= */
+  function failCharge() {
+    const M = G.mission, S = G.map.sites, D = G.diff.count;
+    M.phase = 'collapse'; M.erupt = 1; M.doom = 0; M.waveT = 2; M.claimT = 3; M.say = [];
+    G.fx.boom(S.core.x, S.core.y - 20, 70); G.audio.play('boom', G.dist(G.cmd, S.core)); G.fx.shake(14); G.fx.black = .9;
+    G.noRevive = true; G.cmdDmg = .3; G.cmdFloor = 30;
+    for (const z of G.zombies) z.alert = 90;
+    G.spawnRing(S.core.x, S.core.y, 200, 520, ['wrath', 'wrath', 'greed', 'envy'], Math.round(26 * D), true);
+    for (const key of ['alpha', 'delta']) { const sq = G.squads[key]; sq.order = { type: 'follow' }; sq.holdFire = false; sq.label = 'عقب‌نشینی'; sq.members.forEach(u => { u.hunt = null; u.wps = null; u.task = null; }); }
+    const live = squadAlive(), who = i => live.length ? live[i % live.length].name : null;
+    const q = (t, n, txt) => { if (n) M.say.push({ t, txt: `${n}: ${txt}`, c: '#ff6b6b' }); };
+    q(1.2, who(0), 'هیچ اثری نداشت!'); q(2.8, who(1), 'هنوز سر جاشه... داره بزرگ‌تر می‌شه!'); q(4.4, 'فرمانده', 'همه عقب! برگردید به نقطهٔ فرود!');
+    G.ui.banner('بمب‌گذاری ناموفق', '#ff4a3c', 'عقب‌نشینی');
+  }
+  function collapse(dt) {
+    const M = G.mission, S = G.map.sites, u = G.cmd, D = G.diff.count;
+    M.doom += dt; G.squadDmg = 2.5 + M.doom / 3;
+    const dLZ = G.dist(u, S.lz);
+    while (M.say.length && M.say[0].t <= M.doom) { const s = M.say.shift(); G.msg(s.txt, s.c); G.audio.play('radio'); }
+    M.waveT -= dt;
+    if (M.waveT <= 0 && !M.boarded) {
+      M.waveT = 3.5;
+      if (G.zActive.length < 130) G.spawnRing(u.x, u.y, 620, 840, M.doom > 30 ? ['wrath', 'wrath', 'greed', 'greed', 'envy', 'pride'] : ['wrath', 'wrath', 'greed', 'greed', 'envy'], Math.round((4 + M.doom / 10) * D));
+    }
+    // بالگرد تخلیه
+    if (!M.heli && (dLZ < 1700 || M.doom > 12)) {
+      const sx = S.lz.x - 1700, sy = S.lz.y + 800;
+      M.heli = G.makeHeli(sx, sy, Math.atan2(S.lz.y - sy, S.lz.x - sx), { z: 120, rotor: 1, phase: 'cruise' });
+      G.Heli.flyTo(M.heli, S.lz.x, S.lz.y, true); G.props.push(M.heli);
+      G.msg('بی‌سیم: بالگرد تخلیه در راه است.', '#4db8ff'); G.audio.play('radio');
+    }
+    // از دست رفتن نیروها
+    M.claimT -= dt;
+    if (M.claimT <= 0) {
+      M.claimT = dLZ < 700 ? .9 : Math.max(1.6, 3.2 - M.doom / 20);
+      const live = squadAlive();
+      if (live.length) {
+        const s = live[(Math.random() * live.length) | 0];
+        if (M.doom > 14 || dLZ < 700 || G.dist(s, u) > 760) G.killSoldier(s);
+        else G.spawnRing(s.x, s.y, 70, 170, ['wrath'], 4, true).forEach(z => { z.tgt = s; });
+      }
+    }
+    // سوار شدن: فقط فرمانده
+    const h = M.heli;
+    if (h && h.phase === 'idle' && !M.boarded) {
+      const left = squadLeft();
+      if (left.length) { M.cutT = (M.cutT || 0) - dt; if (M.cutT <= 0) { M.cutT = .35; G.killSoldier(left[0]); left[0].dead = true; G.stats.lost++; } }
+      if (G.dist(u, h) < 95) { M.boardT = (M.boardT || 0) + dt; if (M.boardT > 1 && !left.length) { M.boarded = 1; M.leaveT = 0; u.boarded = true; G.Heli.leave(h, h.x - 2200, h.y + 1200); } }
+      else M.boardT = 0;
+    }
+    if (M.boarded) { u.x = h.x; u.y = h.y; M.leaveT += dt; if (M.leaveT > 5) G.endMission(true, ''); }
+  }
+  ML.crash = {
+    init() {
+      const S = G.map.sites, M = G.mission;
+      G.props.push({ kind: 'wreck', x: S.wreck.x, y: S.wreck.y });
+      M.ins = G.makeHeli(S.lz.x, S.lz.y, -.6, { rotor: 1, phase: 'idle' }); M.insT = 4; G.props.push(M.ins);
+    },
+    noDrops() { return G.mission.phase === 'collapse'; },
+    canArm() { const M = G.mission; return !M.coreArmed && M.samples >= M.need; },
+    onArm() {
+      const M = G.mission; M.coreArmed = true; M.fuse = 12; G.audio.play('alarm'); G.cmdFloor = 30; G.cmdDmg = .6;
+      G.msg('خرج کار گذاشته شد. فاصله بگیرید!', '#ff6bd6');
+      for (const z of G.zombies) if (z.zone === 3) z.alert = Math.max(z.alert, 40);
+    },
+    objPoints() {
+      const M = G.mission, S = G.map.sites, out = [];
+      if (M.phase === 'collapse') return M.boarded ? [] : [{ x: S.lz.x, y: S.lz.y, c: '#4db8ff', t: 'تخلیه' }];
+      for (const p of G.props) if (p.kind === 'sample') out.push({ x: p.x, y: p.y, c: '#c9a0ff', t: 'نمونه' });
+      if (M.samples >= M.need && !M.coreArmed) out.push({ x: S.core.x, y: S.core.y, c: '#ff6bd6', t: 'منشأ' });
+      return out;
+    },
+    objectives() {
+      const M = G.mission;
+      if (M.phase === 'collapse') return [
+        { t: 'بمب‌گذاری و نابودی منشأ', fail: true },
+        { t: M.heli && M.heli.phase === 'idle' ? 'سوار بالگرد شو' : 'عقب‌نشینی به نقطهٔ تخلیه', done: !!M.boarded },
+      ];
+      return [
+        { t: `یافتن نمونه (${fa(M.samples)}/${fa(M.need)})`, done: M.samples >= M.need },
+        { t: M.coreArmed ? `فاصله بگیر — ${fa(Math.ceil(M.fuse))}` : 'بمب‌گذاری و نابودی منشأ', done: false },
+      ];
+    },
+    update(dt) {
+      const M = G.mission, S = G.map.sites;
+      if (M.ins && !M.ins.leave) { M.insT -= dt; if (M.insT <= 0) G.Heli.leave(M.ins, S.lz.x - 2200, S.lz.y + 1200); }
+      if (M.phase === 'go' && M.coreArmed) {
+        M.fuse -= dt; if (((M.fuse * 2) | 0) !== (((M.fuse + dt) * 2) | 0) && M.fuse < 10) G.audio.play('beep', G.dist(G.cmd, S.core));
+        if (M.fuse <= 0) { M.fuse = 0; failCharge(); }
+      } else if (M.phase === 'collapse') collapse(dt);
+    },
+    end() {
+      const r = G.result, team = G.soldiers.filter(x => !x.isCmd);
+      if (!r.win) return null;
+      const p = G.loadProg(); p.crash = 1; G.saveProg(p);
+      return { title: 'عملیات ناموفق', color: '#ff6b6b', roll: team.map(u => ({ name: u.name, role: u.role, team: G.squads[u.squad].short })), stats: [[fa(team.length) + '/' + fa(team.length), 'تلفات'], [fa(1), 'بازمانده']] };
+    },
+  };
+
+  /* ================= میدان آزمایشی (مرحلهٔ کنار گذاشته‌شده) ================= */
+  ML.zones = {
+    init() { const S = G.map.sites; G.props.push({ kind: 'beacon', x: S.ex.x, y: S.ex.y - 100 }); },
+    canArm() { return !G.mission.coreArmed; },
+    onArm() { const M = G.mission; M.coreArmed = true; M.fuse = 25; G.msg('خرج کار گذاشته شد. فاصله بگیرید!', '#ff6bd6'); G.audio.play('alarm'); for (const z of G.zombies) if (z.zone === 3) z.alert = Math.max(z.alert, 40); },
+    onBeacon() { const M = G.mission; M.extract = 1; M.exT = 75; M.waveT = 2; G.msg('بالگرد در راه است.', '#4db8ff'); G.audio.play('alarm'); },
+    objPoints() {
+      const M = G.mission, S = G.map.sites, out = [];
+      for (const p of G.props) if (p.kind === 'sample') out.push({ x: p.x, y: p.y, c: '#c9a0ff', t: 'نمونه' });
+      if (!M.coreArmed) out.push({ x: S.core.x, y: S.core.y, c: '#ff6bd6', t: 'هسته' });
+      if (M.coreDead || M.extract) out.push({ x: S.ex.x, y: S.ex.y, c: '#4db8ff', t: 'خروج' });
+      return out;
+    },
+    objectives() {
+      const M = G.mission;
+      return [
+        { t: `نمونه‌ها (${fa(M.samples)}/${fa(2)})`, done: M.samples >= 2 },
+        { t: M.coreArmed && !M.coreDead ? `فاصله بگیر — ${fa(Math.ceil(M.fuse))}` : 'نابودی هسته', done: M.coreDead },
+        { t: M.extract === 1 ? `دفاع تا رسیدن بالگرد — ${fa(Math.max(0, Math.ceil(M.exT)))}` : M.extract === 2 ? 'سوار بالگرد شو' : 'خروج با بالگرد', done: false },
+      ];
+    },
+    update(dt) {
+      const M = G.mission, S = G.map.sites, u = G.cmd, m = G.map;
+      if (M.coreArmed && !M.coreDead) {
+        M.fuse -= dt; if (((M.fuse * 2) | 0) !== (((M.fuse + dt) * 2) | 0) && M.fuse < 10) G.audio.play('beep', G.dist(u, S.core));
+        if (M.fuse <= 0) {
+          M.fuse = 0; M.coreDead = true; for (const [x, y] of m.coreTiles) m.block[y * m.w + x] = 0;
+          for (let k = 0; k < 7; k++) G.explode(S.core.x + G.rand(-90, 90), S.core.y + G.rand(-70, 70), 240, 900, null);
+          G.fx.shake(26); G.stats.score += 1000;
+          for (const z of G.zombies) if (z.zone >= 2) z.alert = 70;
+          G.spawnRing(S.core.x, S.core.y, 380, 620, ['wrath', 'wrath', 'greed', 'envy'], Math.round(26 * G.diff.count));
+          G.ui.banner('هسته نابود شد', '#ff6bd6', '');
+        }
+      }
+      if (M.extract === 1) {
+        M.exT -= dt; M.waveT -= dt;
+        if (M.waveT <= 0) { M.waveT = 8; const pool = M.exT < 35 ? ['wrath', 'wrath', 'greed', 'greed', 'envy', 'pride', 'gluttony'] : ['wrath', 'wrath', 'greed', 'greed', 'envy']; G.spawnRing(S.ex.x, S.ex.y, 560, 820, pool, Math.round((7 + (75 - M.exT) / 9) * G.diff.count)); }
+        if (M.exT <= 12 && !M.heli) { const sx = S.ex.x + 1600, sy = S.ex.y - 700; M.heli = G.makeHeli(sx, sy, Math.atan2(S.ex.y - sy, S.ex.x - sx), { z: 120, rotor: 1, phase: 'cruise' }); G.Heli.flyTo(M.heli, S.ex.x, S.ex.y, true); G.props.push(M.heli); }
+        if (M.exT <= 0 && M.heli && M.heli.phase === 'idle') { M.extract = 2; G.ui.banner('بالگرد فرود آمد', '#4db8ff', ''); }
+      }
+      if (M.extract === 2 && Math.hypot(u.x - M.heli.x, u.y - M.heli.y) < 120) { M.boardT = (M.boardT || 0) + dt; if (M.boardT > 2) G.endMission(true, ''); } else M.boardT = 0;
+    },
+    end() {
+      const r = G.result, team = G.soldiers.filter(x => !x.isCmd), surv = team.filter(x => !x.dead).length;
+      if (!r.win) return null;
+      return { title: 'خروج موفق', color: '#7dffb0', stats: [[fa(surv) + '/' + fa(team.length), 'نیروی زنده']] };
+    },
+  };
+})();

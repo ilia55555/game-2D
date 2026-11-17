@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>انتقال به بازی…</title>
+<script>
+  // هر آدرس قدیمی یا اشتباه زیر این سایت را به صفحهٔ اصلی بازی می‌برد
+  (function () {
+    var parts = location.pathname.split('/');
+    var base = location.hostname.endsWith('github.io') && parts[1] ? '/' + parts[1] + '/' : '/';
+    location.replace(base);
+  })();
+</script>
+</head>
+<body style="background:#0a0c0d;color:#eee;font-family:Tahoma,sans-serif;text-align:center;padding-top:20vh">
+  <p>در حال انتقال به بازی… <a href="./" style="color:#ffe27a">اگر منتقل نشدی اینجا را بزن</a></p>
+</body>
+</html>
