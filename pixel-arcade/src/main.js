@@ -223,7 +223,10 @@ class Game {
       if (I.punchP) this.punch();
       this.cd -= dt;
       const wp = WEAPONS[this.weapon];
-      if (I.fire && h.punchT <= 0 && (wp.beam || this.cd <= 0)) { wp.fire(this, h, I.aimX, I.aimY, dt); this.cd = wp.cd; h.fireT = 0; }
+      if (wp.charge) {
+        if (I.fire && h.punchT <= 0 && this.cd <= 0) { this.chargeT = (this.chargeT || 0) + dt; wp.charging(this, h, I.aimX, I.aimY, this.chargeT); h.fireT = 0; }
+        else if (this.chargeT > 0) { wp.release(this, h, I.aimX, I.aimY, this.chargeT); this.chargeT = 0; this.cd = wp.cd; h.fireT = 0; }
+      } else if (I.fire && h.punchT <= 0 && (wp.beam || this.cd <= 0)) { wp.fire(this, h, I.aimX, I.aimY, dt); this.cd = wp.cd; h.fireT = 0; }
       if (I.nukeP && this.nuke >= 1) { this.nuke = 0; const y = w.solidPx(I.aimX, I.aimY) ? I.aimY : w.surfaceY(I.aimX, I.aimY); nuke(this, I.aimX, y); this.say("NUKE!", UI.red); }
       // trails
       if (h.fly && h.speed > 90) { const [fx, fy] = h.local(0, 2); for (let i = 0; i < (h.dashing ? 3 : 1); i++) this.parts.spawn(PT.FLAME, fx + rnd(-2, 2), fy + rnd(-2, 2), -h.vx * 0.2 + rnd(-20, 20), -h.vy * 0.2 + rnd(-20, 20), rnd(0.2, 0.45), 0, h.dashing ? 3 : 2); }
@@ -360,7 +363,7 @@ addEventListener("resize", fit); fit();
 
 const keys = new Set(), I = game.I;
 let mouseX = W / 2 + 80, mouseY = H / 2, mouseFire = false;
-const setWeapon = (i) => { const n = WEAPONS.length; game.weapon = ((i % n) + n) % n; game.cd = Math.min(game.cd, 0.2); sfx("swap"); };
+const setWeapon = (i) => { const n = WEAPONS.length; game.weapon = ((i % n) + n) % n; game.chargeT = 0; game.cd = Math.min(game.cd, 0.2); sfx("swap"); };
 addEventListener("keydown", (e) => {
   if (e.repeat) { if (["Space", "ArrowUp", "ArrowDown", "Tab"].includes(e.code)) e.preventDefault(); return; }
   const c = e.code;

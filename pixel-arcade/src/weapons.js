@@ -15,6 +15,7 @@ import * as nukeFx from "../vendor/pixelfx/src/fx/explosions/nuke.js";
 import * as zapHit from "../vendor/pixelfx/src/fx/lightning/zap-hit.js";
 import { CELL, SEA } from "./world.js";
 import { PT } from "./particles.js";
+import { MJOLNIR } from "./thor.js";
 
 const BLUE = ["#061a3c", "#0b3b8c", "#1f6ad0", "#3f9cff", "#7fd0ff", "#c8f0ff", "#ffffff"];
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -166,16 +167,7 @@ export const WEAPONS = [
       } else h.heatAcc = 0;
       g.sfx("laser");
     } },
-  { name: "THUNDER", cd: 0.42, col: 0xffffe080,
-    fire(g, h, ax, ay) {
-      const w = g.world, y = w.solidPx(ax, ay) ? ay : w.surfaceY(ax, ay);
-      g.fx.spawn(strike, { x: ax, y });
-      g.later(0.5, () => {
-        g.blast(ax, y, 34, 10, { kind: "none", fire: 0.7 }); g.sfx("thunder"); g.shake(5); g.flash = Math.max(g.flash, 0.25);
-        let n = 0;
-        g.eachEnemy(ax, y, 130, (e) => { if (n++ < 5) { e.hurt(12); g.fx.spawn(zapHit, { x: e.x, y: e.y - 12 }); } });
-      });
-    } },
+  MJOLNIR, // hold to charge; see thor.js
   { name: "METEOR", cd: 0.9, col: 0xff2a6aff,
     fire(g, h, ax, ay) {
       const w = g.world, y = w.solidPx(ax, ay) ? ay : w.surfaceY(ax, ay), flip = ax < h.x;
