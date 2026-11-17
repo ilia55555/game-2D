@@ -138,7 +138,7 @@ export class Hero {
       const sp = this.dashing ? 600 : 240, k = Math.min(1, (this.dashing ? 5 : 7) * dt);
       this.vx += (mx * sp - this.vx) * k; this.vy += (my * sp - this.vy) * k;
     } else {
-      const sp = this.dashing ? 540 : 165, acc = this.onGround ? (this.dashing ? 2600 : 1800) : 900;
+      const sp = this.dashing ? 560 : 165, acc = this.onGround ? (this.dashing ? 2600 : 1800) : 900;
       const tv = I.mx * sp * (water ? 0.6 : 1);
       if (I.mx) this.vx += Math.max(-acc * dt, Math.min(acc * dt, tv - this.vx));
       else this.vx *= Math.max(0, 1 - (this.onGround ? 12 : 1.5) * dt);
@@ -167,6 +167,13 @@ export class Hero {
       let sp = this.speed || 1, nx = this.vx / sp, ny = this.vy / sp;
       if (sp < 200 && this.dashing) { const im = Math.hypot(I.mx, this.fly ? I.my : 0) || 1; nx = I.mx / im; ny = (this.fly ? I.my : 0) / im; sp = 200; }
       const look = Math.max(6, sp * dt * 1.6);
+      if (this.dashing) {
+        const ax = this.x + nx * look, ay = this.y + ny * look, x0 = Math.floor((Math.min(this.x, ax) - this.hw - 2) / CELL), x1 = Math.floor((Math.max(this.x, ax) + this.hw + 2) / CELL);
+        const y0 = Math.floor((Math.min(this.y, ay) - this.h - 2) / CELL), y1 = Math.floor((Math.max(this.y, ay) - (this.onGround && !this.fly ? 1 : -1)) / CELL);
+        let n = 0;
+        for (let cx = x0; cx <= x1; cx++) for (let cy = y0; cy <= y1; cy++) if (w.get(cx, cy)) n += w.destroyCell(cx, cy, nx * 200 + (Math.random() - 0.5) * 120, ny * 200 - 80, true);
+        if (n) g.addScore(n);
+      }
       if (boxHits(w, this.x + nx * look, this.y + ny * look - (this.onGround && ny === 0 ? CELL * 2 : 0), this.hw + 1, this.h + 1)) g.smashThrough(this.x + nx * 12, this.y - 16 + ny * 14, nx, ny);
     }
     // the flash runs on water

@@ -431,10 +431,10 @@ class StarRain {
     this.t += dt;
     while (this.n < 7 && this.t >= this.n * 0.38) {
       const x = this.ax + (this.n === 0 ? 0 : rnd(-140, 140));
-      g.shots.push(new StarFall(g, x, g.world.surfaceY(x, this.ay - 120)));
+      const sf = new StarFall(g, x, g.world.surfaceY(x, this.ay - 120)); (this.falls = this.falls || []).push(sf); g.shots.push(sf);
       this.n++;
     }
-    return this.n < 7;
+    return this.n < 7 || this.falls.some((f) => g.shots.includes(f));
   }
   draw() {}
 }

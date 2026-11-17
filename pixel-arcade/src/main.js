@@ -202,24 +202,31 @@ class Game {
     this.flareCd = this.time + 16;
     this.vfx(flareFx, { x, y, sx: 0.6 });
     this.say("FLARE! REINFORCEMENTS", UI.red); sfx("rocket");
-    this.later(2, () => { const h = this.hero; for (let i = 0; i < 4; i++) this.enemies.push(new Soldier(this, x + rnd(-120, 120), Math.min(h.y - 260, this.cam.y - H / 2 - 20), true)); });
+    this.later(2, () => { const h = this.hero; for (let i = 0; i < 2; i++) { const px = x + rnd(-120, 120); this.enemies.push(new Soldier(this, px, this.paraY(px), true)); } });
     return true;
   }
+  /** Where a paratrooper starts: in the air above the open ground, never inside rock and never up in space. */
+  paraY(x) { return this.world.surfaceY(x, 0) - rnd(180, 240); }
   spawnWave(dt) {
     const w = this.world, h = this.hero;
+    let close = 0; for (const e of this.enemies) if (!e.dead && Math.abs(e.x - h.x) < 700) close++;
     for (const s of w.spawns.splice(0)) {
-      if (this.enemies.length > 44) break;
+      if (this.enemies.length > 22 || close >= 12) break;
+      if (s.type === "soldier" && Math.random() < 0.5) continue;
+      close++;
       this.enemies.push(s.type === "soldier" ? new Soldier(this, s.x, s.y) : s.type === "car" ? new Car(this, s.x, s.y) : new Tank(this, s.x, s.y));
     }
     this.heat = Math.max(0, this.heat - 0.018 * dt);
     if ((this.spawnT -= dt) > 0 || h.dead > 0) return;
-    this.spawnT = 3.2;
+    this.spawnT = 4.5;
+    let near = 0; for (const e of this.enemies) if (!e.dead && Math.abs(e.x - h.x) < 600) near++;
+    if (near >= 12) return;
     let nS = 0, nH = 0, nT = 0, nJ = 0;
     for (const e of this.enemies) { if (Math.abs(e.x - h.x) > 700) continue; if (e.kind === "soldier") nS++; else if (e.kind === "heli") nH++; else if (e.kind === "tank") nT++; else if (e.kind === "jet") nJ++; }
     const side = Math.random() < 0.5 ? -1 : 1, lv = Math.floor(this.heat);
-    if (lv >= 1 && nS < 2 + lv * 2) for (let i = 0; i < 1 + (lv >> 1); i++) this.enemies.push(new Soldier(this, h.x + side * rnd(120, 330) * (i & 1 ? -1 : 1), Math.min(h.y - 260, this.cam.y - H / 2 - 20), true));
-    if (lv >= 2 && nH < Math.ceil((lv - 1) / 1.5)) { this.enemies.push(new Heli(this, h.x + side * 460, h.y - 220)); this.say("GUNSHIP INBOUND", UI.red); }
-    if (lv >= 4 && nJ < (lv - 3) * 2) { this.enemies.push(new Jet(this, h.x - side * 600, side)); if (!nJ) this.say("JETS INBOUND", UI.red); }
+    if (lv >= 1 && nS < 2 + lv) for (let i = 0; i < 1 + (lv >> 2); i++) { const x = h.x + side * rnd(160, 330) * (i & 1 ? -1 : 1); this.enemies.push(new Soldier(this, x, this.paraY(x), true)); }
+    if (lv >= 2 && nH < Math.ceil((lv - 1) / 2)) { const x = h.x + side * 460; this.enemies.push(new Heli(this, x, w.groundPx(x) - 200)); this.say("GUNSHIP INBOUND", UI.red); }
+    if (lv >= 4 && nJ < lv - 3) { this.enemies.push(new Jet(this, h.x - side * 600, side)); if (!nJ) this.say("JETS INBOUND", UI.red); }
     if (lv >= 3 && nT < lv - 2) { const x = h.x - side * 430, y = w.surfaceY(x, 0); if (!w.wet(Math.floor(x / CELL)) && y < WORLD_PX_H - 40) this.enemies.push(new Tank(this, x, y)); }
   }
   stepEnemyShots(dt) {
@@ -280,7 +287,7 @@ class Game {
       if (wp.altHold) {
         if (I.alt) { this.altT = (this.altT || 0) + dt; wp.altHold(this, h, I.aimX, I.aimY, this.altT, dt); h.fireT = 0; }
         else if (this.altT) { if (this.altT > 0) wp.altRelease(this, h, I.aimX, I.aimY, this.altT); this.altT = 0; }
-      } else if (I.altP) { if (wp.alt) { if (this.altCd <= 0) { wp.alt(this, h, I.aimX, I.aimY); this.altCd = wp.altCd ?? 0.5; h.fireT = 0; } } else this.punch(); }
+      } else if (I.altP) { if (wp.alt) { const busy = this.spell && this.spell.some((s) => this.shots.includes(s)); if (this.altCd <= 0 && !busy) { const n0 = this.shots.length; wp.alt(this, h, I.aimX, I.aimY); this.spell = this.shots.slice(n0).filter((s) => s.alt !== false); this.altCd = wp.altCd ?? 0.5; h.fireT = 0; } } else this.punch(); }
       if (wp.empty) { /* free slot */ }
       else if (wp.tap || wp.hold) {
         // left click: a quick click taps, holding past HOLD_T holds
@@ -308,7 +315,7 @@ class Game {
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
       if (Math.abs(e.x - h.x) < 900) e.update(dt);
-      if (e.dead || Math.abs(e.x - h.x) > 2200) { if (e.dead && !e.wreck && e.kind !== "heli") this.addScore(e.score, e.x, e.y); this.enemies.splice(i, 1); }
+      if (e.dead || Math.abs(e.x - h.x) > 1400) { if (e.dead && !e.wreck && e.kind !== "heli") this.addScore(e.score, e.x, e.y); this.enemies.splice(i, 1); }
     }
     for (let i = this.shots.length - 1; i >= 0; i--) if (!this.shots[i].update(dt)) this.shots.splice(i, 1);
     this.stepEnemyShots(dt);

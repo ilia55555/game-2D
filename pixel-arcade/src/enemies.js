@@ -58,6 +58,8 @@ export class Soldier extends Enemy {
       if (sees) { this.face = dx > 0 ? 1 : -1; this.vx *= 1 - 10 * dt; this.aim = Math.atan2(dy, Math.abs(dx)); }
       else { this.vx = this.face * 22; if (boxHits(w, this.x + this.face * 6, this.y - CELL * 2, 2, 14) || !w.solidPx(this.x + this.face * 8, this.y + 10)) this.face *= -1; }
     }
+    // never stuck inside solid rock: climb out, or go if there's no way out
+    if (boxHits(w, this.x, this.y - 1, this.hw, this.h - 2)) { let up = 0; while (up < 12 && boxHits(w, this.x, this.y - 1, this.hw, this.h - 2)) { this.y -= CELL; up++; } if (up >= 12) { this.score = 0; this.dead = true; return; } }
     const was = this.onGround;
     moveBody(w, this, dt, 4);
     if (this.onGround && !was) { if (vy0 > 620) return this.hurt(99); this.para = false; this.vy = 0; }
@@ -167,11 +169,12 @@ export class Heli extends Enemy {
       return;
     }
     if ((this.sideT -= dt) < 0) { this.sideT = 4 + Math.random() * 4; this.side *= -1; }
-    const tx = h.x + this.side * 190, ty = Math.min(h.cy - 130, w.surfaceY(this.x, 0) - 110);
+    const gl = w.groundPx(this.x), tx = h.x + this.side * 190, ty = Math.max(gl - 300, Math.min(h.cy - 130, w.surfaceY(this.x, 0) - 110));
     this.vx += ((tx - this.x) * 1.2 - this.vx) * Math.min(1, 1.5 * dt); this.vy += ((ty - this.y) * 1.5 - this.vy) * Math.min(1, 2 * dt);
     this.vx = Math.max(-220, Math.min(220, this.vx)); this.vy = Math.max(-160, Math.min(160, this.vy));
     this.x += this.vx * dt; this.y += this.vy * dt + Math.sin(this.t * 3) * 0.2;
     if (boxHits(w, this.x, this.y, 30, 30)) this.y -= 3;
+    if (this.y > gl - 40) { this.y = gl - 40; this.vy = Math.min(0, this.vy); }
     const dx = h.x - this.x, dy = h.cy - this.y, dist = Math.hypot(dx, dy);
     this.face = dx > 0 ? 1 : -1;
     if (dist < 420 && h.dead <= 0) {
@@ -199,13 +202,15 @@ export class Heli extends Enemy {
 /** A fighter jet: screams across high up, looses missiles at the hero on each pass, turns and comes back. */
 const JET = 2.2;
 export class Jet extends Enemy {
-  constructor(g, x, dir) { super(g, x, g.cam.y - 150); Object.assign(this, { hw: 26, h: 14, hp: 26, mass: 8, dir, face: dir, passes: 0, rocketT: 0.6, score: 1200, kind: "jet", alt: 110 + Math.random() * 60 }); }
+  constructor(g, x, dir) { super(g, x, g.world.surfaceY(x, 0) - 200); Object.assign(this, { hw: 26, h: 14, hp: 26, mass: 8, dir, face: dir, passes: 0, rocketT: 0.6, score: 1200, kind: "jet", alt: 110 + Math.random() * 60 }); }
   update(dt) {
     const g = this.g, h = g.hero;
     this.t += dt; this.flash -= dt;
-    const ty = Math.min(h.cy - this.alt, g.world.surfaceY(this.x, 0) - 120);
+    const w = g.world, top = w.surfaceY(this.x, 0), ty = Math.max(w.groundPx(this.x) - 320, Math.min(h.cy - this.alt, top - 120));
     this.vx = this.dir * 380; this.vy += ((ty - this.y) * 2 - this.vy) * Math.min(1, 3 * dt);
     this.x += this.vx * dt; this.y += this.vy * dt; this.face = this.dir;
+    // never into the ground or a building: pull up hard
+    const lim = Math.min(w.surfaceY(this.x + this.dir * 60, 0), top) - 50; if (this.y > lim) { this.y = lim; this.vy = Math.min(0, this.vy); }
     if (Math.random() < 0.5) g.parts.spawn(PT.SMOKE, this.x - this.dir * 26, this.y - 6, -this.dir * 30, 0, 0.5, 0xffb0b0b8, 2);
     const ahead = (h.x - this.x) * this.dir;
     if (h.dead <= 0 && ahead > 40 && ahead < 380 && (this.rocketT -= dt) <= 0) {
