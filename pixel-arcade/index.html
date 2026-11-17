@@ -21,37 +21,45 @@
   kbd { display: inline-block; padding: 1px 6px; border: 1px solid #6a6078; border-bottom-width: 3px; border-radius: 3px; background: #221c2c; color: #fff8e8; font: inherit; font-size: 12px; }
   .go { margin-top: 16px; text-align: center; color: #ffc83c; font-size: 16px; letter-spacing: 2px; animation: blink 1s steps(2) infinite; }
   @keyframes blink { 50% { opacity: .25; } }
+  canvas { position: fixed; left: 0; top: 0; touch-action: none; }
   #pads { display: none; position: fixed; inset: 0; z-index: 4; pointer-events: none; }
-  .stick { position: absolute; bottom: 22px; width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(255, 248, 232, .35); background: rgba(23, 18, 31, .25); pointer-events: auto; }
+  .stick { position: absolute; left: calc(22px + env(safe-area-inset-left)); bottom: 22px; width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(255, 248, 232, .35); background: rgba(23, 18, 31, .25); pointer-events: auto; }
   .stick i { position: absolute; left: 36px; top: 36px; width: 48px; height: 48px; border-radius: 50%; background: rgba(255, 200, 60, .55); }
-  #stickL { left: 22px; } #stickR { right: 22px; } #stickR i { background: rgba(255, 74, 60, .6); }
-  .btn { position: absolute; width: 54px; height: 54px; border-radius: 50%; border: 2px solid rgba(255, 248, 232, .45); background: rgba(23, 18, 31, .4); color: #fff8e8; font: 700 11px ui-monospace, monospace; display: flex; align-items: center; justify-content: center; pointer-events: auto; }
+  .btn { position: absolute; width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(255, 248, 232, .45); background: rgba(23, 18, 31, .4); color: #fff8e8; font: 700 11px ui-monospace, monospace; display: flex; align-items: center; justify-content: center; text-align: center; pointer-events: auto; }
   .btn.on { background: rgba(255, 200, 60, .6); }
-  #bJump { right: 160px; bottom: 24px; } #bDash { right: 160px; bottom: 88px; } #bPound { right: 96px; bottom: 154px; } #bPunch { right: 30px; bottom: 154px; }
-  #bNext { left: 160px; bottom: 24px; } #bNuke { left: 160px; bottom: 88px; border-color: #ff4a3c; color: #ff8a7c; }
-  #pause { position: fixed; left: 10px; top: 10px; z-index: 4; width: 38px; height: 38px; border: 2px solid #fff6; border-radius: 6px; background: #0e0c14cc; color: #fff; font: bold 14px monospace; cursor: pointer; }
+  #bJump { right: calc(24px + env(safe-area-inset-right)); bottom: 24px; width: 72px; height: 72px; }
+  #bAlt { right: calc(110px + env(safe-area-inset-right)); bottom: 24px; }
+  #bC { right: calc(24px + env(safe-area-inset-right)); bottom: 110px; }
+  #bNuke { right: calc(24px + env(safe-area-inset-right)); bottom: 182px; border-color: #ff4a3c; color: #ff8a7c; }
+  #pause { position: fixed; left: calc(10px + env(safe-area-inset-left)); top: 64px; z-index: 6; width: 40px; height: 40px; border: 2px solid #fff6; border-radius: 6px; background: #0e0c14cc; color: #fff; font: bold 14px monospace; cursor: pointer; }
   #pause:hover { border-color: #fff; }
+  #pmenu { position: fixed; inset: 0; z-index: 5; display: none; align-items: center; justify-content: center; background: rgba(14, 12, 20, .72); }
+  #pmenu.show { display: flex; }
+  #pmenu .box { display: flex; flex-direction: column; gap: 12px; padding: 22px 28px; background: #17121f; border: 3px solid #ffc83c; box-shadow: 6px 6px 0 #000; min-width: 220px; }
+  #pmenu h2 { margin: 0 0 6px; text-align: center; color: #ffc83c; letter-spacing: 4px; }
+  #pmenu button { padding: 12px; font: 700 15px ui-monospace, monospace; letter-spacing: 2px; color: #fff8e8; background: #221c2c; border: 2px solid #6a6078; cursor: pointer; }
+  #pmenu button:hover { border-color: #ffc83c; color: #ffc83c; }
 </style>
 </head>
 <body>
 <canvas id="game"></canvas>
 <button id="pause" title="Pause (Esc)">&#10074;&#10074;</button>
+<div id="pmenu"><div class="box"><h2>PAUSED</h2><button id="pResume">RESUME</button><button id="pFull">FULLSCREEN</button><button id="pHelp">CONTROLS</button></div></div>
 <div id="pads">
-  <div class="stick" id="stickL"><i></i></div><div class="stick" id="stickR"><i></i></div>
-  <div class="btn" id="bJump">JUMP<br>FLY</div><div class="btn" id="bDash">DASH</div><div class="btn" id="bPound">POUND</div><div class="btn" id="bPunch">PUNCH</div>
-  <div class="btn" id="bNext">WPN</div><div class="btn" id="bNuke">NUKE</div>
+  <div class="stick" id="stickL"><i></i></div>
+  <div class="btn" id="bJump">JUMP<br>FLY</div><div class="btn" id="bAlt">ALT</div><div class="btn" id="bC">C<br>LAND</div><div class="btn" id="bNuke">NUKE</div>
 </div>
 <div id="help"><div id="card">
   <h1>NOVA<small>ENDLESS DEMOLITION</small></h1>
   <p class="fa">یک اَبَرقهرمان، یک شهرِ بی‌انتها، و هیچ چیزی که نشود خرابش کرد. ساختمان‌ها را از وسط ببُر تا فرو بریزند، با سرعتِ نور از دلِ دیوارها رد شو، از آسمان شهاب‌سنگ بیار و وقتی نوارِ هرج‌ومرج پُر شد، بمبِ اتمی را رها کن.</p>
   <table>
     <tr><td><kbd>A</kbd> <kbd>D</kbd> · <kbd>W</kbd> <kbd>S</kbd></td><td>حرکت · در پرواز: بالا و پایین</td></tr>
-    <tr><td><kbd>Space</kbd></td><td>پرش · دوباره در هوا: پرواز (و دوباره: فرود)</td></tr>
+    <tr><td><kbd>Space</kbd></td><td>پرش · نگه‌داشتن: پرواز رو به بالا</td></tr>
     <tr><td><kbd>S</kbd> + <kbd>Space</kbd></td><td>سوپر جامپ (سقف‌ها را می‌شکافد)</td></tr>
     <tr><td><kbd>Shift</kbd></td><td>سرعتِ فلش: از وسط دیوارها رد شو، روی آب بدو، در پرواز دیوار صوتی بشکن</td></tr>
-    <tr><td><kbd>C</kbd></td><td>کوبشِ زمین از هوا (گودالِ عظیم)</td></tr>
+    <tr><td><kbd>C</kbd></td><td>زدن: قطعِ پرواز · نگه‌داشتن در هوا: کوبشِ زمین</td></tr>
     <tr><td><kbd>F</kbd> / Right click</td><td>مشتِ ویرانگر</td></tr>
-    <tr><td>Mouse · Left click</td><td>نشانه‌گیری و شلیک</td></tr>
+    <tr><td>Mouse · Left click · Touch</td><td>نشانه‌گیری و شلیک (در موبایل: لمسِ صفحه) · کلیک روی ردیفِ سلاح‌ها برای انتخاب</td></tr>
     <tr><td><kbd>1</kbd>…<kbd>0</kbd> · <kbd>Q</kbd> <kbd>E</kbd> · Wheel</td><td>ده سلاح: بلستر، راکت، خوشه‌ای، نگاهِ لیزری، صاعقه، شهاب‌سنگ، سیاه‌چاله، گردباد، تیغه‌های یخ، پرتوِ آسمانی</td></tr>
     <tr><td><kbd>R</kbd></td><td>بمبِ اتمی (وقتی نوار پُر است)</td></tr>
   </table>

@@ -53,12 +53,14 @@ export function moveBody(w, b, dt, stepUp = 8) {
     if (!boxHits(w, b.x + s, b.y, b.hw, b.h)) { b.x += s; continue; }
     let ok = false;
     if (stepUp && (wasGround || b.vy >= 0)) for (let up = CELL; up <= stepUp; up += CELL) if (!boxHits(w, b.x + s, b.y - up, b.hw, b.h)) { b.x += s; b.y -= up; ok = true; break; }
+    if (!ok && b.slide) for (let o = 1; o <= b.slide && !ok; o++) for (const q of [-o, o]) if (!boxHits(w, b.x + s, b.y + q, b.hw, b.h)) { b.x += s; b.y += q; ok = true; break; }
     if (!ok) { b.hitX = true; break; }
   }
   while (Math.abs(dy) > 1e-4) {
     const s = Math.max(-3, Math.min(3, dy));
     dy -= s;
     if (!boxHits(w, b.x, b.y + s, b.hw, b.h)) { b.y += s; continue; }
+    if (b.slide && !(s > 0 && !b.fly)) { let ok = false; for (let o = 1; o <= b.slide && !ok; o++) for (const q of [-o, o]) if (!boxHits(w, b.x + q, b.y + s, b.hw, b.h)) { b.x += q; b.y += s; ok = true; break; } if (ok) continue; }
     if (s > 0) { b.y = Math.floor((b.y + s) / CELL) * CELL; b.onGround = true; }
     b.hitY = true;
     break;
@@ -116,18 +118,25 @@ export class Hero {
     const water = w.inWater(this.x, this.y - 14);
     const wasGround = this.onGround, vy0 = this.vy;
     this.dashing = I.dash && (I.mx !== 0 || (this.fly && I.my !== 0));
+    this.slide = 5;
+    // jump held: after a moment it becomes flight, straight up unless steered
+    this.jumpT = I.jump ? (this.jumpT || 0) + dt : 0;
+    if (!this.fly && !this.pounding && I.jump && this.jumpT > 0.22 && !this.onGround && this.superJ <= 0 && !water) { this.fly = true; this.vy *= 0.5; g.sfx("fly"); }
+    // C: a tap drops out of flight, held in the air it pounds the ground
+    this.cT = I.c ? (this.cT || 0) + dt : 0;
+    if (I.poundP && this.fly) { this.fly = false; this.cDropped = true; }
+    if (!I.c) this.cDropped = false;
     if (I.fire || this.fireT < 0.35) this.face = I.aimX >= this.x ? 1 : -1;
     else if (I.mx) this.face = I.mx > 0 ? 1 : -1;
 
-    if (I.poundP && !this.onGround && !this.pounding) { this.pounding = true; this.fly = false; this.vx = 0; this.vy = Math.max(this.vy, 300); g.sfx("dive"); }
+    if (I.c && this.cT > 0.2 && !this.onGround && !this.pounding) { this.pounding = true; this.fly = false; this.vx = 0; this.vy = Math.max(this.vy, 300); g.sfx("dive"); }
 
     if (this.pounding) {
       this.vy = Math.min(1000, this.vy + 3200 * dt);
     } else if (this.fly) {
-      let mx = I.mx, my = I.my; const m = Math.hypot(mx, my); if (m > 1) { mx /= m; my /= m; }
+      let mx = I.mx, my = I.my; if (I.jump && !mx && !my) my = -1; const m = Math.hypot(mx, my); if (m > 1) { mx /= m; my /= m; }
       const sp = this.dashing ? 600 : 240, k = Math.min(1, (this.dashing ? 5 : 7) * dt);
       this.vx += (mx * sp - this.vx) * k; this.vy += (my * sp - this.vy) * k;
-      if (I.jumpP) { this.fly = false; }
     } else {
       const sp = this.dashing ? 540 : 165, acc = this.onGround ? (this.dashing ? 2600 : 1800) : 900;
       const tv = I.mx * sp * (water ? 0.6 : 1);
@@ -147,15 +156,17 @@ export class Hero {
           if (I.my > 0.5) { this.vy = -900; this.superJ = 0.9; g.superJump(this.x, this.y); }
           else { this.vy = -350; g.sfx("jump"); }
           this.coyote = 0; this.onGround = false;
-        } else { this.fly = true; this.vy *= 0.3; this.superJ = 0; g.sfx("fly"); }
+        }
       }
     }
     if (this.superJ > 0) { this.superJ -= dt; if (this.vy > -200) this.superJ = 0; }
 
     // fast enough and nothing stops him: walls give way
-    const smash = this.pounding ? false : (this.dashing && this.speed > 300) || this.superJ > 0;
+    const smash = this.pounding ? false : this.dashing || this.superJ > 0;
     if (smash) {
-      const sp = this.speed || 1, nx = this.vx / sp, ny = this.vy / sp, look = Math.max(6, sp * dt * 1.6);
+      let sp = this.speed || 1, nx = this.vx / sp, ny = this.vy / sp;
+      if (sp < 200 && this.dashing) { const im = Math.hypot(I.mx, this.fly ? I.my : 0) || 1; nx = I.mx / im; ny = (this.fly ? I.my : 0) / im; sp = 200; }
+      const look = Math.max(6, sp * dt * 1.6);
       if (boxHits(w, this.x + nx * look, this.y + ny * look - (this.onGround && ny === 0 ? CELL * 2 : 0), this.hw + 1, this.h + 1)) g.smashThrough(this.x + nx * 12, this.y - 16 + ny * 14, nx, ny);
     }
     // the flash runs on water

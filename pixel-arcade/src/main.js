@@ -33,7 +33,7 @@ import { Moon } from "./powers2.js";
 import { drawSky } from "./sky.js";
 import { initAudio, sfx } from "./audio.js";
 
-const W = 640, H = 360;
+let W = 640, H = 360;
 const rnd = (a, b) => a + Math.random() * (b - a);
 const scaleC = (c, k) => 0xff000000 | (Math.min(255, ((c >> 16) & 255) * k) << 16) | (Math.min(255, ((c >> 8) & 255) * k) << 8) | Math.min(255, (c & 255) * k);
 const K = hex;
@@ -43,8 +43,7 @@ const RANKS = [[250, "DEMOLITION!"], [700, "RAMPAGE!"], [1500, "DEVASTATION!"], 
 class Game {
   constructor(canvas) {
     this.canvas = canvas; this.ctx = canvas.getContext("2d");
-    this.img = this.ctx.createImageData(W, H); this.out = new Uint32Array(this.img.data.buffer);
-    this.frame = createFrame(W, H);
+    this.resize();
     this.world = new World((Math.random() * 1e6) | 0);
     this.parts = new Parts(this.world); this.fx = new FxMan(); this.hero = new Hero(this);
     this.enemies = []; this.shots = []; this.eshots = []; this.lights = []; this.timers = []; this.critters = [];
@@ -248,6 +247,18 @@ class Game {
     }
   }
 
+  /** Match the picture to the screen: 360 pixels tall, as wide as the screen's shape asks. */
+  resize() {
+    this.canvas.width = W; this.canvas.height = H;
+    this.img = this.ctx.createImageData(W, H); this.out = new Uint32Array(this.img.data.buffer);
+    const old = this.frame; this.frame = createFrame(W, H); if (old) { this.frame.ox = old.ox; this.frame.oy = old.oy; }
+  }
+  /** Which hotbar slot is under a point on the screen, or -1. */
+  slotAt(x, y) {
+    const n = WEAPONS.length, bw = 30, x0 = (W - n * bw) / 2, y0 = H - 22;
+    if (y < y0 - 6 || y > y0 + 16 || x < x0 || x >= x0 + n * bw) return -1;
+    return Math.floor((x - x0) / bw);
+  }
   // ---- one step of the world
   update(dt) {
     const I = this.I, h = this.hero, w = this.world;
@@ -422,26 +433,29 @@ class Game {
     if (this.cd > 0.15 && WEAPONS[this.weapon].cd > 0.5) p.rect(W / 2 - 20, y0 - 6, 40 * (1 - this.cd / WEAPONS[this.weapon].cd), 2, UI.cyan);
     if (this.banner) { const b = this.banner, k = b.t < 0.12 ? 3 : 2, a = b.t > 1.5 ? 1 - (b.t - 1.5) / 0.5 : 1; t(b.text, W / 2, 70 - (k - 2) * 4, b.c, { align: "center", scale: k, a }); }
     if (!this.touch) { const mx = this.I.aimX - camX, my = this.I.aimY - camY; p.rect(mx - 5, my, 4, 1, UI.white); p.rect(mx + 2, my, 4, 1, UI.white); p.rect(mx, my - 5, 1, 4, UI.white); p.rect(mx, my + 2, 1, 4, UI.white); p.px(mx, my, UI.red); }
-    if (this.paused) { p.rect(0, H / 2 - 22, W, 40, UI.ink, 0.7); t("PAUSED", W / 2, H / 2 - 12, UI.white, { align: "center", scale: 2 }); t("ESC TO RESUME", W / 2, H / 2 + 8, UI.dim, { align: "center" }); }
     if (this.showFps) p.text(Math.round(this.fps) + " FPS  FX " + this.fx.list.length + " " + this.fx.ms.toFixed(1) + "MS  P " + this.parts.n, 8, 34, UI.dim, { outline: UI.ink });
   }
 }
 
 // ---- boot, input, loop
 const canvas = document.getElementById("game");
-canvas.width = W; canvas.height = H;
 const game = new Game(canvas);
 window.game = game;
+// fill the whole screen at any size: the picture is always 360 tall and as wide as the screen's shape
 function fit() {
-  const s = Math.min(innerWidth / W, innerHeight / H), k = s >= 1 ? Math.floor(s * (devicePixelRatio || 1)) / (devicePixelRatio || 1) : s;
-  canvas.style.width = W * k + "px"; canvas.style.height = H * k + "px";
+  const vw = innerWidth, vh = innerHeight, nw = Math.max(320, Math.min(1100, Math.round((H * vw) / vh / 2) * 2));
+  if (nw !== W) { W = nw; game.resize(); }
+  canvas.style.width = vw + "px"; canvas.style.height = vh + "px";
 }
-addEventListener("resize", fit); fit();
+addEventListener("resize", fit); addEventListener("orientationchange", () => setTimeout(fit, 200)); fit();
+const goFull = () => { const d = document.documentElement; if (document.fullscreenElement || !d.requestFullscreen) return; d.requestFullscreen({ navigationUI: "hide" }).then(() => { try { screen.orientation.lock("landscape").catch(() => {}); } catch (e) { /* not supported */ } }).catch(() => {}); };
 
 const keys = new Set(), I = game.I;
 let mouseX = W / 2 + 80, mouseY = H / 2, mouseFire = false, mouseAlt = false;
 const setWeapon = (i) => { const n = WEAPONS.length; game.weapon = ((i % n) + n) % n; game.chargeT = 0; game.holdT = 0; game.holding = false; game.altT = 0; game.cd = Math.min(game.cd, 0.2); sfx("swap"); };
 addEventListener("keydown", (e) => {
+  if (e.code === "Escape") { togglePause(); return; }
+  if (game.paused) return;
   if (e.repeat) { if (["Space", "ArrowUp", "ArrowDown", "Tab"].includes(e.code)) e.preventDefault(); return; }
   const c = e.code;
   keys.add(c);
@@ -453,74 +467,97 @@ addEventListener("keydown", (e) => {
   if (c === "KeyE" || c === "Tab") { setWeapon(game.weapon + 1); e.preventDefault(); }
   if (c.startsWith("Digit")) { const d = +c.slice(5); setWeapon(d === 0 ? 9 : d - 1); }
   if (c === "KeyP") game.showFps = !game.showFps;
-  if (c === "Escape") togglePause();
   start();
 });
 addEventListener("keyup", (e) => keys.delete(e.code));
-addEventListener("blur", () => { keys.clear(); mouseFire = false; mouseAlt = false; });
+addEventListener("blur", () => { keys.clear(); mouseFire = false; mouseAlt = false; T.fire = false; });
 const toCanvas = (e) => { const r = canvas.getBoundingClientRect(); return [((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * H]; };
+const onUi = (e) => e.target.closest && e.target.closest("#help, #pause, #pmenu, #pads .btn, #pads .stick");
 addEventListener("mousemove", (e) => { [mouseX, mouseY] = toCanvas(e); });
-addEventListener("mousedown", (e) => { if (e.target.closest && (e.target.closest("#help") || e.target.closest("#pause"))) return; if (game.paused) return; start(); [mouseX, mouseY] = toCanvas(e); if (e.button === 0) mouseFire = true; if (e.button === 2) { I.altP = true; mouseAlt = true; } });
+addEventListener("mousedown", (e) => {
+  if (onUi(e) || game.paused || game.touch) return;
+  start(); [mouseX, mouseY] = toCanvas(e);
+  const slot = game.slotAt(mouseX, mouseY);
+  if (slot >= 0) { setWeapon(slot); return; }
+  if (e.button === 0) mouseFire = true; if (e.button === 2) { I.altP = true; mouseAlt = true; }
+});
 addEventListener("mouseup", (e) => { if (e.button === 0) mouseFire = false; if (e.button === 2) mouseAlt = false; });
 addEventListener("contextmenu", (e) => e.preventDefault());
-addEventListener("wheel", (e) => { setWeapon(game.weapon + (e.deltaY > 0 ? 1 : -1)); }, { passive: true });
+addEventListener("wheel", (e) => { if (!game.paused) setWeapon(game.weapon + (e.deltaY > 0 ? 1 : -1)); }, { passive: true });
 
-// touch: left stick moves, right stick aims and fires, buttons for the rest
-const T = { move: null, aim: null, ax: 1, ay: 0, firing: false, dash: false };
+// touch: a stick to move; touching the screen aims there and fires (tap = click, hold = hold);
+// buttons for jump/fly (hold to fly up, with the stick to dash), the power's second move, C (land / pound) and the nuke
+const T = { move: { x: 0, y: 0, on: false }, fire: false, fid: null, jump: false, alt: false, c: false };
 const pads = document.getElementById("pads");
 function touchSetup() {
-  game.touch = true; pads.style.display = "block";
-  const stick = (el, st) => {
-    const knob = el.firstElementChild;
-    const set = (e) => { const r = el.getBoundingClientRect(), t = [...e.touches].find((q) => q.identifier === st.id); if (!t) return; let dx = (t.clientX - r.left - r.width / 2) / (r.width / 2), dy = (t.clientY - r.top - r.height / 2) / (r.height / 2); const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; } st.x = dx; st.y = dy; knob.style.transform = `translate(${dx * 34}px,${dy * 34}px)`; };
-    el.addEventListener("touchstart", (e) => { e.preventDefault(); start(); st.id = e.changedTouches[0].identifier; st.on = true; set(e); }, { passive: false });
-    el.addEventListener("touchmove", (e) => { e.preventDefault(); set(e); }, { passive: false });
-    const end = (e) => { e.preventDefault(); st.on = false; st.x = st.y = 0; knob.style.transform = ""; };
-    el.addEventListener("touchend", end, { passive: false }); el.addEventListener("touchcancel", end, { passive: false });
-  };
-  T.move = { x: 0, y: 0, on: false }; T.aim = { x: 0, y: 0, on: false };
-  stick(document.getElementById("stickL"), T.move); stick(document.getElementById("stickR"), T.aim);
-  const btn = (id, down, up) => { const el = document.getElementById(id); el.addEventListener("touchstart", (e) => { e.preventDefault(); start(); el.classList.add("on"); down(); }, { passive: false }); el.addEventListener("touchend", (e) => { e.preventDefault(); el.classList.remove("on"); up && up(); }, { passive: false }); };
+  if (game.touch) return;
+  game.touch = true; pads.style.display = "block"; mouseFire = false;
+  const el = document.getElementById("stickL"), knob = el.firstElementChild, st = T.move;
+  const set = (e) => { const r = el.getBoundingClientRect(), t = [...e.touches].find((q) => q.identifier === st.id); if (!t) return; let dx = (t.clientX - r.left - r.width / 2) / (r.width / 2), dy = (t.clientY - r.top - r.height / 2) / (r.height / 2); const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; } st.x = dx; st.y = dy; knob.style.transform = `translate(${dx * 34}px,${dy * 34}px)`; };
+  el.addEventListener("touchstart", (e) => { e.preventDefault(); start(); st.id = e.changedTouches[0].identifier; st.on = true; set(e); }, { passive: false });
+  el.addEventListener("touchmove", (e) => { e.preventDefault(); set(e); }, { passive: false });
+  const end = (e) => { e.preventDefault(); st.on = false; st.x = st.y = 0; knob.style.transform = ""; };
+  el.addEventListener("touchend", end, { passive: false }); el.addEventListener("touchcancel", end, { passive: false });
+  const btn = (id, down, up) => { const b = document.getElementById(id); const off = (e) => { e.preventDefault(); b.classList.remove("on"); up && up(); }; b.addEventListener("touchstart", (e) => { e.preventDefault(); if (game.paused) return; start(); b.classList.add("on"); down(); }, { passive: false }); b.addEventListener("touchend", off, { passive: false }); b.addEventListener("touchcancel", off, { passive: false }); };
   btn("bJump", () => { I.jumpP = true; T.jump = true; }, () => (T.jump = false));
-  btn("bDash", () => (T.dash = true), () => (T.dash = false));
-  btn("bPound", () => (I.poundP = true));
-  btn("bPunch", () => { I.altP = true; T.alt = true; }, () => (T.alt = false));
-  btn("bNext", () => setWeapon(game.weapon + 1));
+  btn("bAlt", () => { I.altP = true; T.alt = true; }, () => (T.alt = false));
+  btn("bC", () => { I.poundP = true; T.c = true; }, () => (T.c = false));
   btn("bNuke", () => (I.nukeP = true));
+  // the screen itself: aim and fire
+  canvas.addEventListener("touchstart", (e) => {
+    e.preventDefault(); if (game.paused) return; start();
+    if (T.fid !== null) return;
+    const t = e.changedTouches[0]; [mouseX, mouseY] = toCanvas(t);
+    const slot = game.slotAt(mouseX, mouseY);
+    if (slot >= 0) { setWeapon(slot); return; }
+    T.fid = t.identifier; T.fire = true;
+  }, { passive: false });
+  canvas.addEventListener("touchmove", (e) => { e.preventDefault(); const t = [...e.changedTouches].find((q) => q.identifier === T.fid); if (t) [mouseX, mouseY] = toCanvas(t); }, { passive: false });
+  const lift = (e) => { e.preventDefault(); if ([...e.changedTouches].some((q) => q.identifier === T.fid)) { T.fid = null; T.fire = false; } };
+  canvas.addEventListener("touchend", lift, { passive: false }); canvas.addEventListener("touchcancel", lift, { passive: false });
 }
-addEventListener("touchstart", () => { if (!game.touch) touchSetup(); }, { once: true, passive: true });
+addEventListener("touchstart", () => touchSetup(), { once: true, passive: true });
 
-function togglePause() {
+// pause menu
+const pauseBtn = document.getElementById("pause"), pmenu = document.getElementById("pmenu");
+function togglePause(on = !game.paused) {
   if (!game.started) return;
-  game.paused = !game.paused;
-  mouseFire = false; keys.clear();
-  pauseBtn.textContent = game.paused ? "\u25B6" : "\u275A\u275A";
+  game.paused = on;
+  mouseFire = false; mouseAlt = false; keys.clear(); T.fire = false; T.fid = null; T.jump = T.alt = T.c = false;
+  pmenu.classList.toggle("show", on);
+  pauseBtn.innerHTML = on ? "&#9654;" : "&#10074;&#10074;";
 }
-const pauseBtn = document.getElementById("pause");
-pauseBtn.addEventListener("click", (e) => { e.stopPropagation(); togglePause(); });
-pauseBtn.addEventListener("touchend", (e) => { e.preventDefault(); e.stopPropagation(); togglePause(); }, { passive: false });
+const tapBtn = (el, fn) => { el.addEventListener("click", (e) => { e.stopPropagation(); fn(); }); el.addEventListener("touchend", (e) => { e.preventDefault(); e.stopPropagation(); fn(); }, { passive: false }); el.addEventListener("mousedown", (e) => e.stopPropagation()); };
+tapBtn(pauseBtn, () => togglePause());
+tapBtn(document.getElementById("pResume"), () => togglePause(false));
+tapBtn(document.getElementById("pFull"), () => { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else goFull(); });
+tapBtn(document.getElementById("pHelp"), () => { togglePause(false); game.started = false; document.getElementById("help").classList.remove("hide"); });
+document.addEventListener("visibilitychange", () => { if (document.hidden && game.started && !game.paused) togglePause(true); });
 
 function start() {
   if (game.started) return;
   game.started = true; initAudio();
+  if (game.touch) goFull();
   document.getElementById("help").classList.add("hide");
 }
 document.getElementById("help").addEventListener("click", start);
-document.getElementById("help").addEventListener("touchend", (e) => { e.preventDefault(); if (!game.touch) touchSetup(); start(); }, { passive: false });
+document.getElementById("help").addEventListener("touchend", (e) => { e.preventDefault(); touchSetup(); start(); }, { passive: false });
 
 function readInput() {
   const h = game.hero, f = game.frame;
   if (game.touch) {
-    I.mx = Math.abs(T.move.x) > 0.25 ? Math.sign(T.move.x) * (h.fly ? Math.abs(T.move.x) : 1) : 0; I.my = Math.abs(T.move.y) > 0.3 ? T.move.y : 0;
-    if (T.aim.on && Math.hypot(T.aim.x, T.aim.y) > 0.25) { const m = Math.hypot(T.aim.x, T.aim.y); T.ax = T.aim.x / m; T.ay = T.aim.y / m; I.fire = true; } else I.fire = false;
-    I.aimX = h.x + T.ax * 170; I.aimY = h.cy + T.ay * 170;
-    I.jump = !!T.jump; I.dash = T.dash; I.alt = !!T.alt;
+    const m = T.move;
+    I.mx = Math.abs(m.x) > 0.25 ? Math.sign(m.x) * (h.fly ? Math.abs(m.x) : 1) : 0; I.my = Math.abs(m.y) > 0.3 ? m.y : 0;
+    I.fire = T.fire; I.alt = T.alt; I.jump = T.jump; I.c = T.c;
+    // the jump button doubles as the flash: held while steering
+    I.dash = T.jump && (I.mx !== 0 || (h.fly && I.my !== 0));
   } else {
     I.mx = (keys.has("KeyD") || keys.has("ArrowRight") ? 1 : 0) - (keys.has("KeyA") || keys.has("ArrowLeft") ? 1 : 0);
     I.my = (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0) - (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0);
-    I.jump = keys.has("Space"); I.dash = keys.has("ShiftLeft") || keys.has("ShiftRight");
-    I.fire = mouseFire; I.alt = mouseAlt; I.aimX = f.ox + mouseX; I.aimY = f.oy + mouseY;
+    I.jump = keys.has("Space"); I.dash = keys.has("ShiftLeft") || keys.has("ShiftRight"); I.c = keys.has("KeyC") || keys.has("ControlLeft");
+    I.fire = mouseFire; I.alt = mouseAlt;
   }
+  I.aimX = f.ox + mouseX; I.aimY = f.oy + mouseY;
 }
 
 let last = performance.now(), saveT = 0;
