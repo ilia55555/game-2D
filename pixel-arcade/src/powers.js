@@ -111,10 +111,11 @@ class Whirl extends Power {
 
 /** Hold: a bubble of water that starts small and swells while held. Anyone inside floats helpless and takes damage
  *  that climbs the longer they're in. Let go and it bursts. */
-const ORB_MIN = 8, ORB_MAX = 150, ORB_GROW = 62;
+const ORB_MIN = 8, ORB_MAX = 150, ORB_GROW = 62, ORB_DRAW = 50;
 class Bubble extends HeldPower {
   constructor(g, x, y) {
-    super(g, new ScaledFx(waterOrb, { radius: ORB_MIN, pad: ORB_MAX + 16 }));
+    // its glow reaches 3.2 radii: the orb is drawn at most ORB_DRAW big and scaled up past that, so the glow never hits the buffer's edge
+    super(g, new ScaledFx(waterOrb, { radius: ORB_MIN, pad: Math.ceil(ORB_DRAW * 3.2) + 16 }));
     Object.assign(this, { x, y, r: ORB_MIN, inside: new Map() });
     this.s.pin(0, -52, x, y);
   }
@@ -124,7 +125,7 @@ class Bubble extends HeldPower {
   }
   step(dt) {
     const g = this.g, R = this.r;
-    this.s.options.radius = R;
+    this.s.options.radius = Math.min(R, ORB_DRAW); this.s.sx = this.s.sy = Math.max(1, R / ORB_DRAW);
     this.s.pin(0, -52, this.x, this.y);
     for (const e of g.enemies) {
       if (!live(e)) continue;
