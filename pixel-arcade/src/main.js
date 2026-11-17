@@ -578,16 +578,17 @@ function touchSetup() {
   const set = (e) => { const r = el.getBoundingClientRect(), t = [...e.touches].find((q) => q.identifier === st.id); if (!t) return; let dx = (t.clientX - r.left - r.width / 2) / (r.width / 2), dy = (t.clientY - r.top - r.height / 2) / (r.height / 2); const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; } st.x = dx; st.y = dy; knob.style.transform = `translate(${dx * 34}px,${dy * 34}px)`; };
   el.addEventListener("touchstart", (e) => { e.preventDefault(); start(); st.id = e.changedTouches[0].identifier; st.on = true; set(e); }, { passive: false });
   el.addEventListener("touchmove", (e) => { e.preventDefault(); set(e); }, { passive: false });
-  const end = (e) => { e.preventDefault(); st.on = false; st.x = st.y = 0; knob.style.transform = ""; };
+  const still = (e, id) => [...e.touches].some((q) => q.identifier === id); // a finger that is really still down
+  const end = (e) => { e.preventDefault(); if (still(e, st.id)) return; st.on = false; st.x = st.y = 0; knob.style.transform = ""; };
   el.addEventListener("touchend", end, { passive: false }); el.addEventListener("touchcancel", end, { passive: false });
-  const btn = (id, down, up) => { const b = document.getElementById(id); const off = (e) => { e.preventDefault(); b.classList.remove("on"); up && up(); }; b.addEventListener("touchstart", (e) => { e.preventDefault(); if (game.paused) return; start(); b.classList.add("on"); down(); }, { passive: false }); b.addEventListener("touchend", off, { passive: false }); b.addEventListener("touchcancel", off, { passive: false }); };
+  const btn = (id, down, up) => { const b = document.getElementById(id); let tid = null; const off = (e) => { e.preventDefault(); if (still(e, tid)) return; b.classList.remove("on"); up && up(); }; b.addEventListener("touchstart", (e) => { e.preventDefault(); if (game.paused) return; tid = e.changedTouches[0].identifier; start(); b.classList.add("on"); down(); }, { passive: false }); b.addEventListener("touchend", off, { passive: false }); b.addEventListener("touchcancel", off, { passive: false }); };
   btn("bJump", () => { I.jumpP = true; T.jump = true; }, () => (T.jump = false));
   // ALT: a button that is also a quiet stick. Tap fires the second move at the aim; drag to point it from the hero.
   const alt = document.getElementById("bAlt");
   const altSet = (t) => { const r = alt.getBoundingClientRect(); let dx = (t.clientX - r.left - r.width / 2) / 50, dy = (t.clientY - r.top - r.height / 2) / 50; const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; } T.altDir = Math.hypot(dx, dy) > 0.3 ? [dx, dy] : null; alt.style.transform = T.altDir ? `translate(${dx * 14}px,${dy * 14}px)` : ""; };
   alt.addEventListener("touchstart", (e) => { e.preventDefault(); if (game.paused) return; start(); alt.classList.add("on"); T.altId = e.changedTouches[0].identifier; T.alt = true; T.altDir = null; if (WEAPONS[game.weapon].altHold) I.altP = true; }, { passive: false });
   alt.addEventListener("touchmove", (e) => { e.preventDefault(); const t = [...e.changedTouches].find((q) => q.identifier === T.altId); if (t) altSet(t); }, { passive: false });
-  const altEnd = (e) => { e.preventDefault(); alt.classList.remove("on"); alt.style.transform = ""; if (T.alt && !WEAPONS[game.weapon].altHold) { T.altFire = 2; } T.alt = false; };
+  const altEnd = (e) => { e.preventDefault(); if (still(e, T.altId)) return; alt.classList.remove("on"); alt.style.transform = ""; if (T.alt && !WEAPONS[game.weapon].altHold) { T.altFire = 2; } T.alt = false; };
   alt.addEventListener("touchend", altEnd, { passive: false }); alt.addEventListener("touchcancel", altEnd, { passive: false });
   btn("bC", () => { I.poundP = true; T.c = true; }, () => (T.c = false));
   btn("bNuke", () => (I.nukeP = true));
@@ -601,7 +602,7 @@ function touchSetup() {
     T.fid = t.identifier; T.fire = true;
   }, { passive: false });
   canvas.addEventListener("touchmove", (e) => { e.preventDefault(); const t = [...e.changedTouches].find((q) => q.identifier === T.fid); if (t) [mouseX, mouseY] = toCanvas(t); }, { passive: false });
-  const lift = (e) => { e.preventDefault(); if ([...e.changedTouches].some((q) => q.identifier === T.fid)) { T.fid = null; T.fire = false; } };
+  const lift = (e) => { e.preventDefault(); if (!still(e, T.fid) && [...e.changedTouches].some((q) => q.identifier === T.fid)) { T.fid = null; T.fire = false; } };
   canvas.addEventListener("touchend", lift, { passive: false }); canvas.addEventListener("touchcancel", lift, { passive: false });
 }
 addEventListener("touchstart", () => touchSetup(), { once: true, passive: true });
