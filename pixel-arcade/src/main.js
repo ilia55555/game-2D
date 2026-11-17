@@ -27,7 +27,7 @@ import { World, CELL, WORLD_PX_H, MAT_COLOR, M, SEA, BIOME_NAMES, WH, LAVA } fro
 import { Parts, PT } from "./particles.js";
 import { FxMan } from "./fxm.js";
 import { Hero } from "./hero.js";
-import { Soldier, Car, Tank, Heli, Jet } from "./enemies.js";
+import { Soldier, Car, Tank, Heli, Jet, Speedboat, Frigate, Destroyer } from "./enemies.js";
 import { WEAPONS, nuke } from "./weapons.js";
 import { Moon } from "./powers2.js";
 import { drawSky } from "./sky.js";
@@ -250,6 +250,19 @@ class Game {
       this.enemies.push(s.type === "soldier" ? new Soldier(this, s.x, s.y) : s.type === "car" ? new Car(this, s.x, s.y) : new Tank(this, s.x, s.y));
     }
     this.heat = Math.max(0, this.heat - 0.018 * dt);
+    // the navy: out on the water, boats keep coming at him whatever the heat
+    if ((this.navyT = (this.navyT || 3) - dt) <= 0 && h.dead <= 0) {
+      this.navyT = 5;
+      const side = Math.random() < 0.5 ? -1 : 1, x = h.x + side * rnd(420, 560), cx = Math.floor(x / CELL);
+      if (w.wet(cx) && w.wet(Math.floor(h.x / CELL)) && !w.solidPx(x, SEA * CELL - 2)) {
+        let nB = 0, nF = 0, nD = 0;
+        for (const e of this.enemies) { if (e.dead || Math.abs(e.x - h.x) > 1200) continue; if (e.kind === "boat") nB++; else if (e.kind === "frigate") nF++; else if (e.kind === "destroyer") nD++; }
+        const deep = w.groundPx(x) > (SEA + 60) * CELL;
+        if (nB < 3) { this.enemies.push(new Speedboat(this, x)); if (!nB) this.say("SPEEDBOATS", UI.red); }
+        else if (deep && nF < 1) { this.enemies.push(new Frigate(this, x)); this.say("FRIGATE INBOUND", UI.red); }
+        else if (deep && nD < 1) { this.enemies.push(new Destroyer(this, x)); this.say("DESTROYER INBOUND", UI.red); }
+      }
+    }
     if ((this.spawnT -= dt) > 0 || h.dead > 0) return;
     this.spawnT = 4.5;
     let near = 0; for (const e of this.enemies) if (!e.dead && Math.abs(e.x - h.x) < 600) near++;

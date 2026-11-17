@@ -24,6 +24,7 @@ const THEMES = [
   [[236, 206, 150], [226, 186, 120], [210, 168, 104], [212, 160, 96], [190, 140, 80], [230, 180, 110], [255, 200, 120, 0.3], 0],   // desert
   [[220, 230, 240], [196, 210, 228], [240, 246, 252], [168, 186, 210], [250, 252, 255], [210, 222, 238], [180, 210, 255, 0.4], 0], // snow peaks
   [[110, 70, 66], [80, 50, 52], [255, 120, 40], [56, 36, 40], [255, 90, 30], [70, 44, 46], [200, 70, 40, 0.45], 0],              // volcanoes
+  [[206, 220, 228], [184, 206, 220], [170, 196, 214], [160, 190, 210], [140, 176, 200], [180, 206, 222], [120, 180, 240, 0.35], 0], // open ocean
 ];
 const cur = THEMES[0].map((v) => (Array.isArray(v) ? v.slice() : v));
 const pk = (a) => col(a[0] | 0, a[1] | 0, a[2] | 0);
@@ -77,7 +78,7 @@ export function drawSky(frame, camX, camY, time, biome = 0, dt = 0.016) {
   // a far skyline, then a nearer one
   for (let x = 0; x < W; x++) {
     let wx = Math.floor(x + camX * 0.22), blk = Math.floor(wx / 26), u = wx - blk * 26;
-    const hill2 = biome === 5 || biome === 6 ? 20 + Math.max(0, 1 - Math.abs((wx % 300) - 150) / 110) * 110 + vn(wx / 9, 44) * 6 : 14 + vn(wx / 60, 43) * 40;
+    const hill2 = biome === 7 ? 3 + vn(wx / 80, 58) * 10 : biome === 5 || biome === 6 ? 20 + Math.max(0, 1 - Math.abs((wx % 300) - 150) / 110) * 110 + vn(wx / 9, 44) * 6 : 14 + vn(wx / 60, 43) * 40;
     let h = vn(blk / 6, 41) > 0.42 ? (u > 22 ? 8 : 20 + hash(blk, 42) * 90 * vn(blk / 6, 41)) : 10 + vn(wx / 60, 43) * 26;
     h = h * city + hill2 * (1 - city);
     let top = Math.max(0, (b2 - h) | 0);
@@ -85,7 +86,7 @@ export function drawSky(frame, camX, camY, time, biome = 0, dt = 0.016) {
     wx = Math.floor(x + camX * 0.4); blk = Math.floor(wx / 38); u = wx - blk * 38;
     const dense = vn(blk / 5, 51);
     h = dense > 0.38 ? (u > 33 ? 6 : 24 + hash(blk, 52) * 150 * dense) : 8 + vn(wx / 50, 53) * 30;
-    const hill3 = biome === 4 ? 16 + Math.abs(Math.sin(wx / 70)) * 34 : biome === 6 ? 20 + Math.max(0, 1 - Math.abs((wx % 420) - 210) / 150) * 150 : 12 + vn(wx / 40, 54) * 50 + vn(wx / 11, 55) * 8;
+    const hill3 = biome === 4 ? 16 + Math.abs(Math.sin(wx / 70)) * 34 : biome === 7 ? 4 + vn(wx / 30, 57) * 6 : biome === 6 ? 20 + Math.max(0, 1 - Math.abs((wx % 420) - 210) / 150) * 150 : 12 + vn(wx / 40, 54) * 50 + vn(wx / 11, 55) * 8;
     h = h * city + hill3 * (1 - city);
     top = Math.max(0, (b3 - h) | 0);
     if (city < 0.5) {

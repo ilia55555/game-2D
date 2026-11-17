@@ -1,7 +1,7 @@
 // The army that shows up when the city starts falling down: soldiers, tanks, helicopters. And parked cars.
 import { posed, hex, mix } from "../vendor/pixelfx/src/core/index.js";
 import { moveBody, boxHits, dressWith } from "./hero.js";
-import { CELL, WH, LAVA } from "./world.js";
+import { CELL, WH, LAVA, SEA } from "./world.js";
 import { PT } from "./particles.js";
 
 const INK = hex("#0e0c14");
@@ -243,5 +243,109 @@ export class Jet extends Enemy {
     R(-4, -4, 8, 1, d); R(s > 0 ? -6 : -2, -3, 8, 2, d);
     R(s > 0 ? -12 : 9, -10, 3, 4, b);
     R(s > 0 ? -14 : 12, -6, 2, 2, K("#ff8a2a"));
+  }
+}
+
+// ================================================================================================= THE NAVY
+// Boats ride the sea surface and only go where there is water. Each has its own way of fighting.
+const SEA_Y = SEA * CELL;
+class Ship extends Enemy {
+  constructor(g, x) { super(g, x, SEA_Y); this.face = 1; this.sink = 0; }
+  float(dt, want, sp, acc) {
+    const g = this.g, w = g.world;
+    const tv = Math.max(-sp, Math.min(sp, want));
+    this.vx += Math.max(-acc * dt, Math.min(acc * dt, tv - this.vx));
+    const nx = this.x + this.vx * dt, ahead = Math.floor((nx + Math.sign(this.vx) * this.hw) / CELL);
+    if (w.wet(ahead) && !w.solidPx(nx + Math.sign(this.vx) * this.hw, SEA_Y - 2)) this.x = nx; else this.vx = 0;
+    this.y = SEA_Y + 2 + Math.sin(this.t * 2) * 1.5;
+    if (Math.abs(this.vx) > 40 && Math.random() < 0.5) g.parts.spawn(PT.DROP, this.x - Math.sign(this.vx) * this.hw, SEA_Y, -this.vx * 0.3, -Math.random() * 120, 0.6, 0xfffff0d0, 1);
+  }
+  hurt(d, kx = 0, ky = 0) { super.hurt(d, kx * 0.2, 0); this.vy = 0; }
+  die() { this.g.blast(this.x, this.y - this.h / 2, this.hw * 1.2, 12, { kind: "big", owner: "enemy", metal: K("#5a6270") }); }
+  hull(f, S, len, hgt, col, dark) {
+    const { R } = kit(f, this.x, this.y, S);
+    for (let i = 0; i < hgt; i++) { const k = Math.round((hgt - i) * 0.8); R(-len / 2 + (this.face < 0 ? k : 0), -i - 1, len - k, 1, i < 2 ? dark : col); }
+    return R;
+  }
+}
+
+/** Fast and nimble: darts round you, strafing with a mounted machine gun. */
+export class Speedboat extends Ship {
+  constructor(g, x) { super(g, x); Object.assign(this, { hw: 20, h: 12, hp: 14, mass: 3, kind: "boat", score: 300, shootT: 1, burst: 0, side: Math.random() < 0.5 ? -1 : 1, sideT: 2 }); }
+  update(dt) {
+    const g = this.g, h = g.hero; this.t += dt; this.flash -= dt;
+    if ((this.sideT -= dt) < 0) { this.sideT = 1.5 + Math.random() * 2; this.side *= -1; }
+    this.float(dt, (h.x + this.side * 140 - this.x) * 3, 300, 500);
+    this.face = this.vx >= 0 ? 1 : -1;
+    const dx = h.x - this.x, dy = h.cy - (this.y - 10);
+    if (h.dead <= 0 && Math.hypot(dx, dy) < 380 && (this.shootT -= dt) <= 0) {
+      this.burst = (this.burst + 1) % 6; this.shootT = this.burst ? 0.08 : 1.2;
+      const a = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.15;
+      g.enemyShot("bullet", this.x, this.y - 10, Math.cos(a) * 340, Math.sin(a) * 340);
+    }
+  }
+  draw(f) {
+    const fl = this.flash > 0, R = this.hull(f, 1, 40, 6, fl ? 0xffffffff : K("#e8e2d0"), fl ? 0xffffffff : K("#d03a2c"));
+    const s = this.face; R(s * 2 - 5, -10, 10, 4, K("#3a4254")); R(s * 4 - 1, -9, 4, 2, COL.glass); R(-s * 6 - 1, -12, 2, 6, K("#2a2a30")); R(-s * 6 - 1 + s * 2, -12, 6 * s || 1, 1, K("#2a2a30"));
+  }
+}
+
+/** Keeps its distance and fires volleys of homing missiles, with a flak gun for anything that comes close. */
+export class Frigate extends Ship {
+  constructor(g, x) { super(g, x); Object.assign(this, { hw: 54, h: 30, hp: 140, mass: 20, kind: "frigate", score: 1500, volleyT: 2.5, shots: 0, flakT: 0.5 }); }
+  update(dt) {
+    const g = this.g, h = g.hero; this.t += dt; this.flash -= dt;
+    const side = this.x < h.x ? -1 : 1; this.face = -side;
+    this.float(dt, (h.x + side * 330 - this.x) * 1.2, 110, 80);
+    const dx = h.x - this.x, dy = h.cy - (this.y - 30), d = Math.hypot(dx, dy);
+    if (h.dead <= 0 && d < 650) {
+      if ((this.volleyT -= dt) <= 0) {
+        this.shots++; this.volleyT = this.shots % 4 ? 0.25 : 3.2;
+        g.enemyShot("rocket", this.x - this.face * 10, this.y - 30, (Math.random() - 0.5) * 60, -260); g.sfx("rocket");
+      }
+      if (d < 260 && (this.flakT -= dt) <= 0) {
+        this.flakT = 0.12; const a = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.3;
+        g.enemyShot("pellet", this.x + this.face * 30, this.y - 24, Math.cos(a) * 420, Math.sin(a) * 420);
+      }
+    }
+  }
+  draw(f) {
+    const fl = this.flash > 0, b = fl ? 0xffffffff : K("#7a8494"), d = fl ? 0xffffffff : K("#4a5260");
+    const R = this.hull(f, 1, 108, 10, b, d), s = this.face;
+    R(-24, -20, 36, 10, b); R(-16, -28, 18, 8, d); R(-12, -26, 10, 2, COL.glass); R(-6, -40, 2, 12, d); R(-12, -38, 14, 1, d);
+    R(-s * 36 - 6, -16, 12, 6, d); for (let i = 0; i < 4; i++) R(-s * 36 - 5 + i * 3, -18, 2, 2, COL.red);
+    R(s * 34 - 4, -14, 8, 4, d); R(s * 34, -15, s * 12 || 1, 2, d);
+  }
+}
+
+/** Big and slow: lobs heavy shells from its twin turrets and sweeps the sky with its deck guns. */
+export class Destroyer extends Ship {
+  constructor(g, x) { super(g, x); Object.assign(this, { hw: 90, h: 44, hp: 360, mass: 60, kind: "destroyer", score: 3000, shellT: 2, gunT: 1, burst: 0 }); }
+  update(dt) {
+    const g = this.g, h = g.hero; this.t += dt; this.flash -= dt;
+    const side = this.x < h.x ? -1 : 1; this.face = -side;
+    this.float(dt, (h.x + side * 480 - this.x) * 0.8, 60, 30);
+    const dx = h.x - this.x, dy = h.cy - (this.y - 40);
+    if (h.dead <= 0 && Math.abs(dx) < 900) {
+      if ((this.shellT -= dt) <= 0) {
+        // artillery: aim the arc so it lands on him (shells fall at 500 px/s²)
+        this.shellT = 1.6; const T = Math.max(0.8, Math.abs(dx) / 420);
+        for (const off of [-20, 20]) { const sx = this.x + off - this.face * 10; g.enemyShot("shell", sx, this.y - 34, (h.x - sx) / T, (h.cy - (this.y - 34)) / T - 250 * T); }
+        g.sfx("boom", 0.6); g.shake(1.5);
+      }
+      if ((this.gunT -= dt) <= 0) {
+        this.burst = (this.burst + 1) % 8; this.gunT = this.burst ? 0.07 : 1.4;
+        const a = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.1;
+        g.enemyShot("bullet", this.x + this.face * 40, this.y - 30, Math.cos(a) * 380, Math.sin(a) * 380);
+      }
+    }
+  }
+  draw(f) {
+    const fl = this.flash > 0, b = fl ? 0xffffffff : K("#5e6878"), d = fl ? 0xffffffff : K("#383e4a");
+    const R = this.hull(f, 1, 180, 14, b, d), s = this.face;
+    R(-30, -28, 50, 14, b); R(-20, -40, 26, 12, d); R(-14, -38, 16, 2, COL.glass); R(-8, -60, 3, 20, d); R(-18, -56, 22, 1, d); R(4, -46, 8, 6, d);
+    for (const tx of [44, 64]) { R(s * tx - 7, -20, 14, 6, d); R(s * tx + (s > 0 ? 6 : -18), -19, 12, 2, d); }
+    R(-s * 60 - 7, -20, 14, 6, d); R(-s * 60 + (s > 0 ? -18 : 6), -19, 12, 2, d);
+    R(-90, -8, 180, 1, COL.red);
   }
 }

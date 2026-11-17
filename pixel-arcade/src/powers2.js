@@ -330,25 +330,39 @@ class Spike extends Power {
  *  crashing down onto it. Its size and side are random. */
 class Vine extends Power {
   constructor(g, ax, ay) {
-    const w = g.world, side = Math.random() < 0.5 ? -1 : 1, k = rnd(1.6, 2.6);
-    const ty = w.solidPx(ax, ay) ? w.surfaceY(ax, ay - 400) : w.surfaceY(ax, ay);
-    const bx = ax + side * rnd(40, 70) * k, by = w.surfaceY(bx, ty - 200);
-    // the lash goes from the root (local 60,114) to the right; mirror it so it falls towards the target
-    super(g, new ScaledFx(vineWhip, { x: bx, y: by, sx: k, flip: side > 0, seed: (Math.random() * 999) | 0 }));
-    Object.assign(this, { x: bx, y: by, tx: ax, ty, k, hit: false });
-    g.sfx("rumble");
+    const w = g.world, side = Math.random() < 0.5 ? -1 : 1;
+    // it grows from the surface under the aim exactly up to the aim (the vine stands 79 px tall at scale 1)
+    const by = w.solidPx(ax, ay) ? w.surfaceY(ax, ay - 600) : w.surfaceY(ax, ay);
+    const top = Math.min(ay, by - 30), k = Math.max(0.6, Math.min(9, (by - top) / 79));
+    super(g, new ScaledFx(vineWhip, { x: ax, y: by, sx: k, flip: side < 0, seed: (Math.random() * 999) | 0, pad: 4 }));
+    Object.assign(this, { x: ax, y: by, top, k, side, row: by, hit: new Set(), lashed: false });
+    g.sfx("rumble"); g.sfx("crash", 0.6);
   }
-  step() {
-    if (this.hit || this.t < 0.62) return;
-    this.hit = true;
-    const g = this.g, w = g.world, n = 7;
-    for (let i = 1; i <= n; i++) {
-      const u = i / n, x = this.x + (this.tx - this.x) * u, y = this.y - 30 * this.k * Math.sin(u * Math.PI) * 0.4 + (this.ty - this.y) * u;
-      g.addScore(w.explode(x, y, 8 + 6 * u * this.k, 7, { fire: 0, debris: 8, kick: 1.4 }));
+  step(dt) {
+    const g = this.g, w = g.world, k = this.k, half = Math.max(6, 4 * k);
+    // growing: everything in its column, from the ground up to the aim, is torn apart
+    const goal = this.y - (this.y - this.top) * Math.min(1, this.t / 0.16);
+    ticks(this, dt, () => {
+      for (; this.row > goal; this.row -= CELL) {
+        const cy = Math.floor(this.row / CELL);
+        for (let cx = Math.floor((this.x - half) / CELL); cx <= Math.floor((this.x + half) / CELL); cx++) {
+          if (w.get(cx, cy)) g.addScore(w.destroyCell(cx, cy, rnd(-200, 200), -rnd(200, 500)));
+          else if (w.getBg(cx, cy)) w.destroyBg(cx, cy);
+        }
+      }
+    });
+    for (const e of g.enemies) if (live(e) && !this.hit.has(e) && Math.abs(e.x - this.x) < half + e.hw && e.y > goal && e.y - e.h < this.y) { this.hit.add(e); e.hurt(80, rnd(-200, 200), -700); }
+    // the lash: it comes crashing down to one side
+    if (!this.lashed && this.t > 0.62) {
+      this.lashed = true;
+      const L = 79 * k * 0.9;
+      for (let i = 1; i <= 8; i++) {
+        const a = -Math.PI / 2 + this.side * (i / 8) * 1.4, x = this.x + Math.cos(a) * L * (0.5 + i / 16), y = this.y + Math.sin(a) * L * (0.5 + i / 16);
+        g.addScore(w.explode(x, y, 6 + 2 * k, 8, { fire: 0, debris: 10, kick: 1.5 }));
+        g.eachEnemy(x, y, 10 + 3 * k, (e) => e.hurt(60, this.side * 500, -300));
+      }
+      g.shake(4 + k); g.sfx("crash", 1); g.sfx("boom", 0.8);
     }
-    g.addScore(w.explode(this.tx, this.ty, 18 * this.k, 9, { fire: 0, debris: 30, kick: 1.6 }));
-    g.eachEnemy(this.tx, this.ty - 10, 26 * this.k, (e) => e.hurt(70, (e.x - this.x) * 4, -500));
-    g.shake(7); g.sfx("crash", 1); g.sfx("boom", 0.8);
   }
 }
 

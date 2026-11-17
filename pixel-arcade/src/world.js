@@ -5,7 +5,7 @@ import { rgb } from "../vendor/pixelfx/src/core/index.js";
 
 // WH: the world goes deep; the bottom LAVA rows are molten rock nothing can dig through
 // UP: rows of open air added over the old ground line, so towers have room to rise
-export const CELL = 4, CW = 64, UP = 200, WH = 640 + UP, SEA = 146 + UP, ZONE = 4, LAVA = 28;
+export const CELL = 4, CW = 64, UP = 200, WH = 640 + UP, SEA = 146 + UP, ZONE = 10, LAVA = 28;
 export const WORLD_PX_H = WH * CELL;
 export const M = {
   AIR: 0, DIRT: 1, GRASS: 2, STONE: 3, SAND: 4, SNOW: 5, ROAD: 6, BEDROCK: 7,
@@ -83,9 +83,9 @@ const CAVE = new Uint32Array(256);
 for (let i = 0; i < 256; i++) { const n = hash(i % 16, (i >> 4) + 99); CAVE[i] = n < 0.15 ? rgb(34, 26, 30) : rgb(42, 33, 36); }
 
 // ---- zones and terrain height
-const CITY = 0, FOREST = 1, MOUNT = 2, SEAB = 3, DESERT = 4, SNOWY = 5, VOLCANO = 6;
-export const BIOMES = { CITY, FOREST, MOUNT, SEAB, DESERT, SNOWY, VOLCANO };
-export const BIOME_NAMES = ["CITY", "FOREST", "MOUNTAINS", "SEA", "DESERT", "SNOW PEAKS", "VOLCANOES"];
+const CITY = 0, FOREST = 1, MOUNT = 2, SEAB = 3, DESERT = 4, SNOWY = 5, VOLCANO = 6, OCEAN = 7;
+export const BIOMES = { CITY, FOREST, MOUNT, SEAB, DESERT, SNOWY, VOLCANO, OCEAN };
+export const BIOME_NAMES = ["CITY", "FOREST", "MOUNTAINS", "SEA", "DESERT", "SNOW PEAKS", "VOLCANOES", "OPEN OCEAN"];
 export class World {
   constructor(seed = 1337) {
     this.seed = seed;
@@ -103,6 +103,8 @@ export class World {
   }
   zoneBiome(z) {
     if (z === 0) return CITY;
+    // west of the start: open ocean, as far as you can fly
+    if (z < 0) return OCEAN;
     const r = hash(z * 7919, this.seed);
     const prev = z > 0 ? hash((z - 1) * 7919, this.seed) : 0;
     if (r < 0.28) return CITY;
@@ -119,6 +121,7 @@ export class World {
     if (b === CITY) return 140 + UP;
     if (b === FOREST) return UP + Math.round(138 - (fbm(cx / 26, s + 5) - 0.5) * 16);
     if (b === MOUNT) { const r = 1 - Math.abs(fbm(cx / 70, s + 9) * 2 - 1); return UP + Math.round(134 - Math.pow(r, 1.6) * 70 - fbm(cx / 9, s + 12) * 7); }
+    if (b === OCEAN) return UP + Math.round(300 - (fbm(cx / 30, s + 41) - 0.5) * 30);
     if (b === DESERT) return UP + Math.round(140 - Math.abs(Math.sin(cx / 23 + fbm(cx / 40, s + 21) * 4)) * 12 - fbm(cx / 60, s + 22) * 6);
     if (b === SNOWY) { const r = 1 - Math.abs(fbm(cx / 55, s + 25) * 2 - 1); return UP + Math.round(130 - Math.pow(r, 1.4) * 95 - fbm(cx / 8, s + 26) * 6); }
     if (b === VOLCANO) {
@@ -440,7 +443,7 @@ export class World {
     const DECK = 132 + UP, TH = 8, SPAN = 96, TOW = 70;
     for (let lx = 0; lx < CW; lx++) {
       const cx = x0 + lx, h = c.hgt[lx];
-      if (h <= DECK + TH) continue;
+      if (h <= DECK + TH || this.biomeAt(cx) === OCEAN) continue;
       F(lx, DECK - 1, M.STEEL);
       for (let k = 0; k < 3; k++) F(lx, DECK + k, M.CONCRETE);
       F(lx, DECK + TH, M.STEEL);
