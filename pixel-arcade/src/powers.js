@@ -190,7 +190,7 @@ class Tsunami extends Power {
     const v = view(g), dir = ax >= g.cam.x ? 1 : -1, edge = dir > 0 ? v.l - 10 : v.r + 10, gy = ground(g, ax, ay);
     const sx = Math.max(1.5, Math.abs(ax - edge) / 132), sy = (v.H * 0.8) / 48;
     const w = g.world, floor = (wx) => { const cx = Math.floor(wx / CELL), y = w.surfaceY(wx, gy - 160); return w.wet(cx) ? Math.min(SEA * CELL, y) : y; };
-    super(g, new ScaledFx(waveCrash, { x: ax - dir * 22 * sx, y: gy, sx, sy, flip: dir < 0, clipY: 0.5, ground: floor }));
+    super(g, new ScaledFx(waveCrash, { x: ax - dir * 22 * sx, y: gy, sx, sy, flip: dir < 0, clipY: 0.5 }));
     this.floor = floor;
     Object.assign(this, { dir, ax, gy, sx, sy, crashed: false });
     g.sfx("wind"); g.sfx("rumble");
@@ -208,8 +208,10 @@ class Tsunami extends Power {
       e.vx = dir * rnd(600, 900); e.vy = -rnd(150, 350); e.hurt(30 * dt);
     }
     ticks(this, dt, () => {
-      for (let k = 0; k < 12; k++) {
-        const px = fx - dir * rnd(0, 30 * this.sx), py = this.floor(px) - rnd(0, hgt), cx = Math.floor(px / CELL), cy = Math.floor(py / CELL);
+      // a flat wall of water: everything above its level line in front of it is torn away
+      const c0 = Math.floor(Math.min(fx, fx - dir * 12 * this.sx) / CELL), c1 = Math.floor(Math.max(fx, fx - dir * 12 * this.sx) / CELL);
+      const r0 = Math.floor(top / CELL), r1 = Math.floor((this.gy - 1) / CELL);
+      for (let cx = c0; cx <= c1; cx++) for (let cy = r0; cy <= r1; cy++) {
         if (w.get(cx, cy)) g.addScore(w.destroyCell(cx, cy, dir * rnd(200, 600), -rnd(50, 300)));
         else if (w.getBg(cx, cy)) w.destroyBg(cx, cy);
       }
