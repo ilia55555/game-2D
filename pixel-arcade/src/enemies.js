@@ -169,12 +169,14 @@ export class Heli extends Enemy {
       return;
     }
     if ((this.sideT -= dt) < 0) { this.sideT = 4 + Math.random() * 4; this.side *= -1; }
-    const gl = w.groundPx(this.x), tx = h.x + this.side * 190, ty = Math.max(gl - 300, Math.min(h.cy - 130, w.surfaceY(this.x, 0) - 110));
+    const gl = w.groundPx(this.x), tx = h.x + this.side * 190;
+    let roof = Infinity; for (let ox = -60; ox <= 60 + Math.abs(this.vx) * 0.8; ox += 12) roof = Math.min(roof, w.surfaceY(this.x + ox * Math.sign(this.vx || 1), 0));
+    const ty = Math.min(roof - 60, Math.max(gl - 300, Math.min(h.cy - 130, gl - 150)));
     this.vx += ((tx - this.x) * 1.2 - this.vx) * Math.min(1, 1.5 * dt); this.vy += ((ty - this.y) * 1.5 - this.vy) * Math.min(1, 2 * dt);
     this.vx = Math.max(-220, Math.min(220, this.vx)); this.vy = Math.max(-160, Math.min(160, this.vy));
     this.x += this.vx * dt; this.y += this.vy * dt + Math.sin(this.t * 3) * 0.2;
     if (boxHits(w, this.x, this.y, 30, 30)) this.y -= 3;
-    if (this.y > gl - 40) { this.y = gl - 40; this.vy = Math.min(0, this.vy); }
+    if (this.y > roof - 30) { this.y = roof - 30; this.vy = Math.min(0, this.vy); }
     const dx = h.x - this.x, dy = h.cy - this.y, dist = Math.hypot(dx, dy);
     this.face = dx > 0 ? 1 : -1;
     if (dist < 420 && h.dead <= 0) {
@@ -206,11 +208,12 @@ export class Jet extends Enemy {
   update(dt) {
     const g = this.g, h = g.hero;
     this.t += dt; this.flash -= dt;
-    const w = g.world, top = w.surfaceY(this.x, 0), ty = Math.max(w.groundPx(this.x) - 320, Math.min(h.cy - this.alt, top - 120));
-    this.vx = this.dir * 380 * (this.boost || 1); this.vy += ((ty - this.y) * 2 - this.vy) * Math.min(1, 3 * dt);
+    const w = g.world; let top = Infinity; for (let ox = -30; ox <= 420; ox += 14) top = Math.min(top, w.surfaceY(this.x + ox * this.dir, 0));
+    const gl = w.groundPx(this.x), ty = Math.min(top - 70, Math.max(gl - 340, Math.min(h.cy - this.alt, gl - 180)));
+    this.vx = this.dir * 380 * (this.boost || 1); this.vy += ((ty - this.y) * 3 - this.vy) * Math.min(1, 4 * dt);
     this.x += this.vx * dt; this.y += this.vy * dt; this.face = this.dir;
     // never into the ground or a building: pull up hard
-    const lim = Math.min(w.surfaceY(this.x + this.dir * 60, 0), top) - 50; if (this.y > lim) { this.y = lim; this.vy = Math.min(0, this.vy); }
+    const lim = top - 40; if (this.y > lim) { this.y = lim; this.vy = Math.min(0, this.vy); }
     if (Math.random() < 0.5) g.parts.spawn(PT.SMOKE, this.x - this.dir * 26, this.y - 6, -this.dir * 30, 0, 0.5, 0xffb0b0b8, 2);
     const ahead = (h.x - this.x) * this.dir;
     if (h.dead <= 0 && ahead > 40 && ahead < 380 && (this.rocketT -= dt) <= 0) {

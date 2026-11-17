@@ -336,7 +336,9 @@ class Game {
       if (wp.altHold) {
         if (I.alt) { this.altT = (this.altT || 0) + dt; wp.altHold(this, h, I.aimX, I.aimY, this.altT, dt); h.fireT = 0; }
         else if (this.altT) { if (this.altT > 0) wp.altRelease(this, h, I.aimX, I.aimY, this.altT); this.altT = 0; }
-      } else if (I.altP) { if (wp.alt) { const busy = this.spell && this.spell.some((s) => this.shots.includes(s)); if (this.altCd <= 0 && !busy) { const n0 = this.shots.length; wp.alt(this, h, I.aimX, I.aimY); this.spell = this.shots.slice(n0).filter((s) => s.alt !== false); this.altCd = wp.altCd ?? 0.5; h.fireT = 0; } } else this.punch(); }
+      } else if (I.altP) { if (wp.alt) { if (this.altCd <= 0) { this.altQ = { wp, x: I.aimX, y: I.aimY }; this.altCd = wp.altCd ?? 0.5; } } else this.punch(); }
+      // big moves go one after another: a queued one waits for the last to finish
+      if (this.altQ && !(this.spell && this.spell.some((s) => this.shots.includes(s)))) { const q = this.altQ; this.altQ = null; const n0 = this.shots.length; q.wp.alt(this, h, q.x, q.y); this.spell = this.shots.slice(n0); h.fireT = 0; }
       if (wp.empty) { /* free slot */ }
       else if (wp.tap || wp.hold) {
         // left click: a quick click taps, holding past HOLD_T holds
@@ -534,7 +536,7 @@ const toCanvas = (e) => { const r = canvas.getBoundingClientRect(); return [((e.
 const onUi = (e) => e.target.closest && e.target.closest("#help, #pause, #pmenu, #pads .btn, #pads .stick");
 addEventListener("mousemove", (e) => { [mouseX, mouseY] = toCanvas(e); });
 addEventListener("mousedown", (e) => {
-  if (onUi(e) || game.paused || game.touch) return;
+  if (onUi(e) || game.paused || performance.now() - lastTouch < 800) return;
   start(); [mouseX, mouseY] = toCanvas(e);
   const slot = game.slotAt(mouseX, mouseY);
   if (slot >= 0) { setWeapon(slot); return; }
@@ -546,6 +548,8 @@ addEventListener("wheel", (e) => { if (!game.paused) setWeapon(game.weapon + (e.
 
 // touch: a stick to move; touching the screen aims there and fires (tap = click, hold = hold);
 // buttons for jump/fly (hold to fly up, with the stick to dash), the power's second move, C (land / pound) and the nuke
+let lastTouch = -1e9;
+addEventListener("touchstart", () => (lastTouch = performance.now()), { capture: true, passive: true });
 const T = { move: { x: 0, y: 0, on: false }, fire: false, fid: null, jump: false, alt: false, c: false };
 const pads = document.getElementById("pads");
 function touchSetup() {
@@ -618,7 +622,7 @@ document.getElementById("help").addEventListener("touchend", (e) => { e.preventD
 
 function readInput() {
   const h = game.hero, f = game.frame;
-  if (game.touch) {
+  if (game.touch && performance.now() - lastTouch < 4000) {
     const m = T.move;
     I.mx = Math.abs(m.x) > 0.25 ? Math.sign(m.x) * (h.fly ? Math.abs(m.x) : 1) : 0; I.my = Math.abs(m.y) > 0.3 ? m.y : 0;
     I.fire = T.fire; I.alt = WEAPONS[game.weapon].altHold ? T.alt : false; I.jump = T.jump; I.c = T.c;

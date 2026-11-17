@@ -53,7 +53,7 @@ export function moveBody(w, b, dt, stepUp = 8) {
     if (!boxHits(w, b.x + s, b.y, b.hw, b.h)) { b.x += s; continue; }
     let ok = false;
     if (stepUp && (wasGround || b.vy >= 0)) for (let up = CELL; up <= stepUp; up += CELL) if (!boxHits(w, b.x + s, b.y - up, b.hw, b.h)) { b.x += s; b.y -= up; ok = true; break; }
-    if (!ok && b.slide) for (let o = 1; o <= b.slide && !ok; o++) for (const q of [-o, o]) if (!boxHits(w, b.x + s, b.y + q, b.hw, b.h)) { b.x += s; b.y += q; ok = true; break; }
+    if (!ok && b.slide) for (let o = 1; o <= b.slide && !ok; o++) for (const q of b.fly ? [-o, o] : [-o]) if (!boxHits(w, b.x + s, b.y + q, b.hw, b.h)) { b.x += s; b.y += q; ok = true; break; }
     if (!ok) { b.hitX = true; break; }
   }
   while (Math.abs(dy) > 1e-4) {
@@ -165,9 +165,10 @@ export class Hero {
     const smash = this.pounding ? false : this.dashing || this.superJ > 0;
     if (smash) {
       let sp = this.speed || 1, nx = this.vx / sp, ny = this.vy / sp;
+      if (this.onGround && !this.fly && this.superJ <= 0) { nx = Math.sign(this.vx || I.mx || this.face); ny = 0; }
       if (sp < 200 && this.dashing) { const im = Math.hypot(I.mx, this.fly ? I.my : 0) || 1; nx = I.mx / im; ny = (this.fly ? I.my : 0) / im; sp = 200; }
       const look = Math.max(6, sp * dt * 1.6);
-      if (boxHits(w, this.x + nx * look, this.y + ny * look - (this.onGround && ny === 0 ? CELL * 2 : 0), this.hw + 1, this.h + 1)) g.smashThrough(this.x + nx * 12, this.y - 16 + ny * 14, nx, ny);
+      if (boxHits(w, this.x + nx * look, this.y + ny * look - (this.onGround && ny === 0 ? CELL * 2 : 0), this.hw + 1, this.h + 1)) g.smashThrough(this.x + nx * 12, this.y - (this.onGround && ny === 0 ? 27 : 16) + ny * 14, nx, ny);
     }
     // the flash runs on water
     if (!this.fly && this.dashing && Math.abs(this.vx) > 300 && this.vy >= 0 && this.y >= SEA * CELL - 2 && this.y < SEA * CELL + 8 && w.wet(Math.floor(this.x / CELL)) && !w.solidPx(this.x, SEA * CELL + 1)) {
