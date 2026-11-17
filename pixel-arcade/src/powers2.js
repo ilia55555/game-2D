@@ -14,6 +14,7 @@ import * as plasmaShot from "../vendor/pixelfx/src/fx/projectiles/plasma-shot.js
 import * as chargeUp from "../vendor/pixelfx/src/fx/lightning/charge-up.js";
 import * as fireball from "../vendor/pixelfx/src/fx/fire/fireball.js";
 
+const RED = ["#1c0606", "#3c0b0b", "#6a0f0f", "#a01818", "#d43f3f", "#f57e7e", "#ffd6d6", "#ffffff"];
 const rnd = (a, b) => a + Math.random() * (b - a);
 const clamp01 = (v) => Math.max(0, Math.min(1, v));
 const TAU = Math.PI * 2;
@@ -51,7 +52,7 @@ function held(g, key, make) {
 class PlasmaBall {
   constructor(g, x, y, a) {
     Object.assign(this, { g, x, y, vx: Math.cos(a) * 400, vy: Math.sin(a) * 400, life: 1.5 });
-    this.s = new ScaledFx(plasmaShot, { sx: 1.5, size: 7 }); this.s.aim(a);
+    this.s = new ScaledFx(plasmaShot, { sx: 1.5, size: 7, palette: RED }); this.s.aim(a);
     g.sfx("beam");
   }
   update(dt) {
@@ -61,12 +62,12 @@ class PlasmaBall {
     for (let i = 0; i < n; i++) {
       this.x += (this.vx * dt) / n; this.y += (this.vy * dt) / n;
       if (w.solidPx(this.x, this.y) || g.enemyAt(this.x, this.y, 4) || (this.life -= dt / n) <= 0) {
-        g.blast(this.x, this.y, 30, 9, { kind: "plasma" });
+        g.blast(this.x, this.y, 30, 9, { kind: "plasma", palette: RED });
         return false;
       }
     }
     this.s.x = this.x; this.s.y = this.y;
-    g.flashLight(this.x, this.y, 26, 0xff60ff60, 0.6, 0.05);
+    g.flashLight(this.x, this.y, 26, 0xff3040ff, 0.6, 0.05);
     return true;
   }
   draw(f) { this.s.draw(f); }
@@ -83,7 +84,7 @@ class Sonic {
   update(dt) {
     const g = this.g, w = g.world;
     this.t += dt;
-    if (this.waves.length < 7 && this.t >= this.waves.length * 0.06) this.waves.push({ r: 6, hit: new Set() });
+    if (this.waves.length < 4 && this.t >= this.waves.length * 0.09) this.waves.push({ r: 6, hit: new Set() });
     for (const v of this.waves) {
       v.r += 480 * dt;
       const half = 0.22 + v.r / 1100;
@@ -106,8 +107,11 @@ class Sonic {
     const p = painterFor(f); p.place(0, 0);
     for (const v of this.waves) {
       const half = 0.22 + v.r / 1100, k = 1 - v.r / 430;
-      p.arc(this.x, this.y, v.r, 3, this.a - half, this.a + half, 0xfffff0d0, k);
-      p.arc(this.x, this.y, v.r - 3, 1, this.a - half, this.a + half, 0xffffffff, k);
+      const n = Math.max(4, Math.ceil(v.r * half / 3));
+      for (let i = 0; i < n; i++) {
+        const b0 = this.a - half + (2 * half * i) / n, b1 = b0 + (2 * half) / n, c0 = Math.cos(b0), s0 = Math.sin(b0), c1 = Math.cos(b1), s1 = Math.sin(b1);
+        for (let d = 0; d < 3; d++) { const r = v.r - d; p.line(this.x + c0 * r, this.y + s0 * r, this.x + c1 * r, this.y + s1 * r, d === 2 ? 0xffffffff : 0xfffff0d0, k); }
+      }
       p.glow(this.x + Math.cos(this.a) * v.r, this.y + Math.sin(this.a) * v.r, 14 + v.r * 0.1, 0xffffe0a0, 0.25 * k);
     }
   }
@@ -252,12 +256,23 @@ export function upgradeBlackHole(BH) {
 
 /** Hold: a storm of leaves and wind winds up round the hero; held long it towers the full height of the screen. */
 class LeafStorm extends Power {
-  constructor(g, h) { super(g, new ScaledFx(leafStorm, {})); this.h = h; this.k = 1; this.snd = 0; }
+  constructor(g, h) { super(g, new ScaledFx(leafStorm, {})); this.h = h; this.k = 1; this.snd = 0; this.more = []; }
   grow(t) { this.k = Math.min(view(this.g).H / 64, 1 + t * 1.1); }
+  update(dt) {
+    const alive = super.update(dt);
+    for (const m of this.more) { if (this.ending) m.s.stop(); m.s.update(dt); }
+    this.more = this.more.filter((m) => !m.s.done());
+    return alive || this.more.length > 0;
+  }
+  draw(f) { super.draw(f); for (const m of this.more) m.s.draw(f); }
   step(dt) {
     const g = this.g, h = this.h, w = g.world, k = this.k, s = this.s;
-    s.sx = k * 0.9 + 0.1; s.sy = k; s.x = h.x; s.y = h.y;
-    const R = 26 * s.sx + 10, top = h.y - 66 * k;
+    s.x = h.x; s.y = h.y;
+    // more wind and more leaves as it grows: extra copies of the storm stacked up and out, leaves never resized
+    const want = Math.min(10, Math.floor((k - 1) * 2));
+    while (this.more.length < want) { const i = this.more.length; this.more.push({ s: new ScaledFx(leafStorm, {}), dx: (i % 3 === 0 ? 0 : i % 3 === 1 ? -1 : 1) * (10 + i * 3), dy: 40 + Math.floor(i / 1) * 26 }); }
+    for (const m of this.more) { m.s.x = h.x + m.dx; m.s.y = h.y - Math.min(m.dy, 66 * k - 60); }
+    const R = 26 * (1 + (k - 1) * 0.5) + 10, top = h.y - 66 * k;
     for (const e of g.enemies) {
       if (!live(e) || Math.abs(e.x - h.x) > R + e.hw || e.y < top || mid(e) > h.y + 8) continue;
       const side = e.x >= h.x ? 1 : -1;
@@ -287,7 +302,7 @@ class Spike extends Power {
   constructor(g, ax, ay) {
     const w = g.world, gy = w.solidPx(ax, ay) ? w.surfaceY(ax, ay - 400) : w.surfaceY(ax, ay);
     const H = Math.max(SPIKE_MIN, Math.min(SPIKE_MAX, gy - ay));
-    super(g, new ScaledFx(earthSpike, { x: ax, y: gy, height: H, pad: Math.max(0, H - 50) }));
+    super(g, new ScaledFx(earthSpike, { x: ax, y: gy, height: H, padTop: Math.max(0, H - 50) }));
     Object.assign(this, { x: ax, y: gy, H, hit: false });
     g.sfx("rumble"); g.sfx("crash", 0.5);
   }
@@ -357,53 +372,52 @@ export function addThorAlt(M) {
 
 // ================================================================================================= THE MOON
 
-/** The ultimate: the hero rises, pulls a burning moon down out of the sky, holds it over his head with both
- *  hands, and hurls it at the aim. The circle on the ground shows where it will land and how far it will reach. */
+/** The ultimate: the hero rises a little and, arms raised, drags a burning moon down out of space onto the aim.
+ *  It comes in slantwise from either side; the camera rides along with it. The ring on the ground marks the blast. */
 export const MOON_R = 280;
 export class Moon {
   constructor(g, h, tx, ty) {
-    const v = view(g);
-    Object.assign(this, { g, h, tx, ty, t: 0, phase: 0, x: h.x + rnd(-40, 40), y: v.t - 120, vx: 0, vy: 0, k: 2.2 });
+    const v = view(g), dir = Math.random() < 0.5 ? 1 : -1;
+    Object.assign(this, { g, h, tx, ty, t: 0, phase: 0, x: tx - dir * rnd(260, 420), y: v.t - 520, vx: 0, vy: 0, k: 3.2 });
     this.s = new ScaledFx(fireball, { radius: 9, sx: this.k, speed: 160, pad: 20 });
-    if (h.onGround) { h.vy = -420; h.onGround = false; }
+    this.s.aim(Math.atan2(ty - this.y, tx - this.x));
+    if (h.onGround) { h.vy = -260; h.onGround = false; }
     h.fly = true;
     g.sfx("void"); g.sfx("rumble"); g.say("MOONFALL!", 0xff3c8cff);
   }
-  hands() { return [this.h.x, this.h.y - 62 - 7 * this.k]; }
   update(dt) {
     const g = this.g, h = this.h;
     this.t += dt; this.s.update(dt);
-    if (this.phase < 2) { h.lift = 0.1; h.vx *= 0.9; if (this.t > 0.25) { h.vy *= 0.85; } }
+    h.inv = Math.max(h.inv, 0.5);
     if (this.phase === 0) {
-      // pulled down out of the sky into his hands
-      const [hx, hy] = this.hands(), u = clamp01(this.t / 1.4), e = u * u * (3 - 2 * u);
-      this.x += (hx - this.x) * Math.min(1, dt * (2 + e * 10)); this.y += (hy - this.y) * Math.min(1, dt * (2 + e * 10));
-      this.k = 2.2 + u * 1.6;
-      this.s.aim(Math.PI / 2);
-      g.shake(1 + u * 2);
-      if (u >= 1) { this.phase = 1; this.t = 0; g.sfx("thud"); }
-    } else if (this.phase === 1) {
-      const [hx, hy] = this.hands();
-      this.x = hx; this.y = hy;
-      this.s.aim(Math.atan2(this.ty - this.y, this.tx - this.x));
-      if (this.t > 0.5) { this.phase = 2; this.t = 0; const a = Math.atan2(this.ty - this.y, this.tx - this.x); this.vx = Math.cos(a) * 200; this.vy = Math.sin(a) * 200; g.sfx("dive"); h.vy = -150; }
+      // a short lift: the hero reaches up and starts pulling
+      h.lift = 0.1; h.vx *= 0.9; if (this.t > 0.2) h.vy *= 0.85;
+      g.camFocus = { x: h.x, y: h.cy - 40, t: 0.2 };
+      if (this.t > 0.5) { this.phase = 1; this.t = 0; g.sfx("dive"); }
     } else {
-      // thrown: it accelerates down onto the mark like a meteor
-      const a = Math.atan2(this.ty - this.y, this.tx - this.x), sp = Math.hypot(this.vx, this.vy) + 1800 * dt;
+      // dragged down out of space, gathering speed, the camera following it
+      h.lift = 0.1; h.vx *= 0.9; h.vy *= 0.85;
+      const a = Math.atan2(this.ty - this.y, this.tx - this.x), sp = Math.min(1500, 260 + this.t * 900);
       this.vx = Math.cos(a) * sp; this.vy = Math.sin(a) * sp;
       const step = sp * dt, d = Math.hypot(this.tx - this.x, this.ty - this.y);
       this.s.aim(a);
-      if (d <= step + 6 || (this.t > 0.1 && g.world.solidPx(this.x, this.y))) { this.impact(); return false; }
+      g.camFocus = { x: this.x + (this.tx - this.x) * 0.35, y: this.y + (this.ty - this.y) * 0.35, t: 0.2 };
+      if (d <= step + 6 || (this.t > 0.3 && g.world.solidPx(this.x, this.y))) { g.camFocus = { x: this.tx, y: this.ty - 80, t: 1.6 }; this.impact(); return false; }
       this.x += this.vx * dt; this.y += this.vy * dt;
-      for (let i = 0; i < 3; i++) g.parts.spawn(i ? PT.FLAME : PT.SMOKE, this.x + rnd(-8, 8), this.y + rnd(-8, 8), -this.vx * 0.1, -this.vy * 0.1, rnd(0.4, 0.9), 0xff383038, i ? 4 : 7);
-      g.shake(3);
+      for (let i = 0; i < 3; i++) g.parts.spawn(i ? PT.FLAME : PT.SMOKE, this.x + rnd(-10, 10), this.y + rnd(-10, 10), -this.vx * 0.1, -this.vy * 0.1, rnd(0.4, 0.9), 0xff383038, i ? 5 : 8);
+      g.shake(2 + this.t * 2);
     }
     this.s.sx = this.s.sy = this.k; this.s.x = this.x; this.s.y = this.y;
     g.flashLight(this.x, this.y, 60 + this.k * 20, 0xff2080ff, 0.8, 0.06);
     return true;
   }
-  impact() { this.g.moonImpact(this.tx, this.ty); }
   draw(f) {
+    // the pull: a line of force from the hero's raised hands up to the moon
+    if (this.phase === 1) { const p = painterFor(f); p.place(0, 0); const hx = this.h.x, hy = this.h.y - 40; for (let i = 0; i < 3; i++) p.line(hx + i - 1, hy, this.x + i - 1, this.y, i === 1 ? 0xffd0f0ff : 0xff2080ff, 0.5); }
+    this.drawMoon(f);
+  }
+  impact() { this.g.moonImpact(this.tx, this.ty); }
+  drawMoon(f) {
     this.s.draw(f);
     // the mark: a pulsing ring the size of the blast, on the ground under the aim
     const p = painterFor(f); p.place(0, 0);

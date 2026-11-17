@@ -100,7 +100,7 @@ class Game {
       case "spark": case "muzzle": this.fx.spawn(hitSpark, { x, y: y + 20, angle: 0, flip: Math.cos(o.angle ?? 0) < 0 }); break;
       case "small": this.fx.spawn(smallExplosion, { x, y: snap(), size: o.size ?? 1 }); break;
       case "big": if (this.fx.ms < 5) this.fx.spawn(bigExplosion, { x, y: snap() }); else this.fx.spawn(smallExplosion, { x, y: snap(), size: 1.5 }); break;
-      case "plasma": this.fx.spawn(plasmaExplosion, { x, y }); break;
+      case "plasma": this.fx.spawn(plasmaExplosion, o.palette ? { x, y, palette: o.palette } : { x, y }); break;
       case "dark": this.fx.spawn(darkExplosion, { x, y: y + 30 }); break;
       case "slam": this.fx.spawn(groundSlam, { x, y }); this.fx.spawn(thunderclap, { x, y }); break;
       case "land": this.fx.spawn(heavyLanding, { x, y }); break;
@@ -285,9 +285,13 @@ class Game {
   // ---- the picture
   render(dt) {
     const f = this.frame, h = this.hero, I = this.I;
-    const lookX = h.vx * 0.22 + (I.aimX - h.x) * 0.12, lookY = h.vy * 0.12 + (I.aimY - h.cy) * 0.1 - 30;
-    this.cam.x += (h.x + lookX - this.cam.x) * Math.min(1, 6 * dt);
-    this.cam.y += (h.cy + lookY - this.cam.y) * Math.min(1, 6 * dt);
+    const lookX = h.vx * 0.22 + (I.aimX - h.x) * 0.12, lookY = h.vy * 0.12 + (I.aimY - h.cy) * 0.1 - 30, F = this.camFocus;
+    if (F && (F.t -= dt) > 0) { this.cam.x += (F.x - this.cam.x) * Math.min(1, 5 * dt); this.cam.y += (F.y - this.cam.y) * Math.min(1, 5 * dt); }
+    else {
+      this.camFocus = null;
+      this.cam.x += (h.x + lookX - this.cam.x) * Math.min(1, 6 * dt);
+      this.cam.y += (h.cy + lookY - this.cam.y) * Math.min(1, 6 * dt);
+    }
     this.cam.y = Math.min(this.cam.y, WORLD_PX_H - H / 2 - 8);
     this.shakeAmp *= Math.max(0, 1 - 7 * dt);
     const sx = this.shakeAmp > 0.3 ? Math.round(rnd(-1, 1) * this.shakeAmp) : 0, sy = this.shakeAmp > 0.3 ? Math.round(rnd(-1, 1) * this.shakeAmp) : 0;

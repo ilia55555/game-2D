@@ -5,9 +5,9 @@ import { createFx, createFrame } from "../vendor/pixelfx/src/core/index.js";
 export class ScaledFx {
   /** o: { x, y (where the effect's origin lands), sx, sy, angle, flip, pad (extra buffer room), ...effect options } */
   constructor(mod, o = {}) {
-    const m = mod.meta, { x = 0, y = 0, sx = 1, sy, angle = 0, flip = false, pad = 0, clipY = Infinity, ground = null, ...rest } = o;
-    this.buf = createFrame(m.size[0] + pad * 2, m.size[1] + pad * 2);
-    this.ox = m.origin[0] + pad; this.oy = m.origin[1] + pad;
+    const m = mod.meta, { x = 0, y = 0, sx = 1, sy, angle = 0, flip = false, pad = 0, padTop = 0, clipY = Infinity, ground = null, ...rest } = o;
+    this.buf = createFrame(m.size[0] + pad * 2, m.size[1] + pad * 2 + padTop);
+    this.ox = m.origin[0] + pad; this.oy = m.origin[1] + pad + padTop;
     this.fx = createFx(mod, { seed: (Math.random() * 1e6) | 0, ...rest, x: this.ox, y: this.oy });
     Object.assign(this, { x, y, sx, sy: sy ?? sx, angle, flip, clipY, ground });
   }
