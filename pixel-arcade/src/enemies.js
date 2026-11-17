@@ -47,7 +47,7 @@ class Enemy {
 }
 
 export class Soldier extends Enemy {
-  constructor(g, x, y, para) { super(g, x, y); Object.assign(this, { hw: 4, h: 22, hp: 3, face: Math.random() < 0.5 ? -1 : 1, shootT: 1 + Math.random() * 2, ph: 0, para: !!para, score: 60, kind: "soldier", aim: 0 }); }
+  constructor(g, x, y, para) { super(g, x, y); Object.assign(this, { hw: 4, h: 22, hp: 3, face: Math.random() < 0.5 ? -1 : 1, shootT: 1 + Math.random() * 2, ph: 0, para: !!para, score: 60, kind: "soldier", aim: 0, burst: 0 }); const r = Math.random(); this.gun = r < 0.35 ? "pistol" : r < 0.6 ? "smg" : r < 0.85 ? "shotgun" : "rpg"; if (this.gun === "rpg") this.score = 90; }
   update(dt) {
     const g = this.g, h = g.hero, w = g.world;
     this.t += dt; this.flash -= dt;
@@ -58,14 +58,25 @@ export class Soldier extends Enemy {
       if (sees) { this.face = dx > 0 ? 1 : -1; this.vx *= 1 - 10 * dt; this.aim = Math.atan2(dy, Math.abs(dx)); }
       else { this.vx = this.face * 22; if (boxHits(w, this.x + this.face * 6, this.y - CELL * 2, 2, 14) || !w.solidPx(this.x + this.face * 8, this.y + 10)) this.face *= -1; }
     }
+    // never stuck inside solid rock: climb out, or go if there's no way out
+    if (boxHits(w, this.x, this.y - 1, this.hw, this.h - 2)) { let up = 0; while (up < 12 && boxHits(w, this.x, this.y - 1, this.hw, this.h - 2)) { this.y -= CELL; up++; } if (up >= 12) { this.score = 0; this.dead = true; return; } }
     const was = this.onGround;
     moveBody(w, this, dt, 4);
     if (this.onGround && !was) { if (vy0 > 620) return this.hurt(99); this.para = false; this.vy = 0; }
     if (this.onGround) this.vy = 0;
-    if (sees && (this.shootT -= dt) <= 0) {
-      this.shootT = 1.3 + Math.random() * 1.4;
-      const a = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.16;
-      g.enemyShot("bullet", this.x + Math.cos(a) * 10, this.y - 17 + Math.sin(a) * 10, Math.cos(a) * 250, Math.sin(a) * 250);
+    // few of them about and they've seen him: call it in with a flare
+    if (sees && this.onGround && Math.random() < dt * 0.5) {
+      let n = 0; for (const e of g.enemies) if (e.kind === "soldier" && !e.dead && Math.abs(e.x - this.x) < 320) n++;
+      if (n < 3) g.callFlare(this.x, this.y);
+    }
+    const gun = this.gun, inRange = gun === "shotgun" ? dist < 210 : true;
+    if (sees && inRange && (this.shootT -= dt) <= 0) {
+      const a0 = Math.atan2(dy, dx), mx = this.x + Math.cos(a0) * 10, my = this.y - 17 + Math.sin(a0) * 10;
+      if (gun === "pistol") { this.shootT = 1.2 + Math.random() * 1.2; const a = a0 + (Math.random() - 0.5) * 0.14; g.enemyShot("bullet", mx, my, Math.cos(a) * 280, Math.sin(a) * 280); }
+      else if (gun === "smg") { this.burst = (this.burst + 1) % 6; this.shootT = this.burst ? 0.08 : 1.6 + Math.random(); const a = a0 + (Math.random() - 0.5) * 0.3; g.enemyShot("bullet", mx, my, Math.cos(a) * 300, Math.sin(a) * 300); }
+      else if (gun === "shotgun") { this.shootT = 1.8 + Math.random(); for (let i = 0; i < 5; i++) { const a = a0 + (i - 2) * 0.09 + (Math.random() - 0.5) * 0.05, v = 300 + Math.random() * 60; g.enemyShot("pellet", mx, my, Math.cos(a) * v, Math.sin(a) * v); } this.vx -= this.face * 40; }
+      else { this.shootT = 4 + Math.random() * 2; g.enemyShot("rpg", mx, my, Math.cos(a0) * 230, Math.sin(a0) * 230); g.sfx("rocket"); }
+      if (gun !== "rpg" && (gun !== "smg" || this.burst === 1)) g.muzzle(gun, mx, my, this.face);
     }
     if (this.y > (WH - LAVA) * CELL - 3) this.dead = true;
   }
@@ -114,7 +125,10 @@ export class Tank extends Enemy {
     this.face = dx > 0 ? 1 : -1;
     this.vy = Math.min(900, this.vy + 900 * dt);
     if (this.onGround) this.vx += ((sees && Math.abs(dx) > 170 ? this.face * 34 : 0) - this.vx) * Math.min(1, 4 * dt);
-    moveBody(g.world, this, dt, 8);
+    // tanks keep to the streets: they won't climb onto anything above the ground line
+    const gl = g.world.groundPx(this.x + this.face * 50);
+    if (this.vx * this.face > 0 && g.world.surfaceY(this.x + this.face * 50, 0) < gl - 8) this.vx = 0;
+    moveBody(g.world, this, dt, this.y > g.world.groundPx(this.x) - 12 ? 8 : 0);
     if (this.onGround) this.vy = 0;
     if (sees) {
       // lob it: pick the angle that carries the shell to him
@@ -158,21 +172,17 @@ export class Heli extends Enemy {
       return;
     }
     if ((this.sideT -= dt) < 0) { this.sideT = 4 + Math.random() * 4; this.side *= -1; }
-    const tx = h.x + this.side * 190;
-    // plan ahead: the highest ground/rooftop between here and a bit past where we're heading
-    let roof = Infinity;
-    const dir = Math.sign(tx - this.x) || 1, reach = Math.max(80, Math.abs(this.vx) * 1.4 + 70);
-    for (let ox = -40; ox <= reach; ox += CELL * 2) roof = Math.min(roof, w.surfaceY(this.x + dir * ox, 0));
-    const safeY = roof - 60;
-    const ty = Math.min(h.cy - 130, safeY);
+    const gl = w.groundPx(this.x), tx = h.x + this.side * 190;
+    let roof = Infinity; for (let ox = -60; ox <= 60 + Math.abs(this.vx) * 0.8; ox += 12) roof = Math.min(roof, w.surfaceY(this.x + ox * Math.sign(this.vx || 1), 0));
+    const ty = Math.min(roof - 60, Math.max(gl - 300, Math.min(h.cy - 130, gl - 150)));
     this.vx += ((tx - this.x) * 1.2 - this.vx) * Math.min(1, 1.5 * dt); this.vy += ((ty - this.y) * 1.5 - this.vy) * Math.min(1, 2 * dt);
-    // too low to clear what's ahead: hold back horizontally until it has climbed
-    if (this.y > safeY + 10 && Math.sign(this.vx) === dir) this.vx *= Math.max(0, 1 - 6 * dt);
     this.vx = Math.max(-220, Math.min(220, this.vx)); this.vy = Math.max(-160, Math.min(160, this.vy));
+    // too low to clear what's ahead: hold back horizontally until it has climbed (no snapping)
+    if (this.y > roof - 50 && this.vx) { this.vx *= Math.max(0, 1 - 6 * dt); this.vy = Math.min(this.vy, -120); }
     const nx = this.x + this.vx * dt, ny = this.y + this.vy * dt + Math.sin(this.t * 3) * 0.2;
     if (!boxHits(w, nx, ny, 30, 30)) { this.x = nx; this.y = ny; }
     else if (!boxHits(w, this.x, ny, 30, 30)) { this.y = ny; this.vx *= 0.5; }
-    else { this.vy = Math.min(this.vy, -60); this.y += this.vy * dt; }
+    else { this.vy = Math.min(this.vy, -60); if (!boxHits(w, this.x, this.y - 2, 30, 30)) this.y -= 2; }
     const dx = h.x - this.x, dy = h.cy - this.y, dist = Math.hypot(dx, dy);
     this.face = dx > 0 ? 1 : -1;
     if (dist < 420 && h.dead <= 0) {
@@ -194,5 +204,44 @@ export class Heli extends Enemy {
     const rw = Math.floor(this.t * 30) % 3; R(-(rw === 0 ? 22 : rw === 1 ? 12 : 5), -16, rw === 0 ? 44 : rw === 1 ? 24 : 10, 0.5, COL.track);
     R(-8, 0, 16, 0.5, d); R(-5, -2, 0.5, 2, d); R(4, -2, 0.5, 2, d);
     R(s > 0 ? -24 : 23, -9, 1, 1, COL.red);
+  }
+}
+
+/** A fighter jet: screams across high up, looses missiles at the hero on each pass, turns and comes back. */
+const JET = 2.2;
+export class Jet extends Enemy {
+  constructor(g, x, dir) { super(g, x, g.world.surfaceY(x, 0) - 200); Object.assign(this, { hw: 26, h: 14, hp: 26, mass: 8, dir, face: dir, passes: 0, rocketT: 0.6, score: 1200, kind: "jet", alt: 110 + Math.random() * 60 }); }
+  update(dt) {
+    const g = this.g, h = g.hero;
+    this.t += dt; this.flash -= dt;
+    const w = g.world; let top = Infinity; for (let ox = -30; ox <= 420; ox += 14) top = Math.min(top, w.surfaceY(this.x + ox * this.dir, 0));
+    const gl = w.groundPx(this.x), ty = Math.min(top - 70, Math.max(gl - 340, Math.min(h.cy - this.alt, gl - 180)));
+    let spd = 380 * (this.boost || 1); this.vy += ((ty - this.y) * 3 - this.vy) * Math.min(1, 4 * dt);
+    // plan the climb before moving: for every rooftop ahead, the climb rate needed to clear it in time
+    let need = Infinity;
+    for (let ox = 14; ox <= 420; ox += 14) { const sy = w.surfaceY(this.x + ox * this.dir, 0) - 50; if (sy < this.y) need = Math.min(need, (sy - this.y) / (ox / spd)); }
+    const MAXC = 420;
+    if (need < this.vy) this.vy += (Math.max(need, -MAXC) - this.vy) * Math.min(1, 10 * dt);
+    if (need < -MAXC) spd *= Math.max(0.25, MAXC / -need); // too steep to climb at full speed: slow down
+    this.vx = this.dir * spd;
+    this.x += this.vx * dt; this.y += this.vy * dt; this.face = this.dir;
+    if (Math.random() < 0.5) g.parts.spawn(PT.SMOKE, this.x - this.dir * 26, this.y - 6, -this.dir * 30, 0, 0.5, 0xffb0b0b8, 2);
+    const ahead = (h.x - this.x) * this.dir;
+    if (h.dead <= 0 && ahead > 40 && ahead < 380 && (this.rocketT -= dt) <= 0) {
+      this.rocketT = 0.7;
+      const a = Math.atan2(h.cy - this.y, h.x - this.x);
+      g.enemyShot("rocket", this.x, this.y - 2, Math.cos(a) * 220 + this.vx * 0.3, Math.sin(a) * 220); g.sfx("rocket");
+    }
+    if (ahead < -650) { this.dir *= -1; this.rocketT = 0.6; if (++this.passes >= 3) { this.score = 0; this.dead = true; } }
+  }
+  die() { this.g.blast(this.x, this.y - 6, 56, 10, { kind: "big", owner: "enemy", metal: COL.heli }); }
+  draw(f) {
+    const s = this.face, fl = this.flash > 0, b = fl ? 0xffffffff : K("#6a7488"), d = fl ? 0xffffffff : K("#3a4254"), { R } = kit(f, this.x, this.y, JET);
+    R(-12, -6, 24, 3, b); R(-12, -3, 24, 1, d);
+    R(s > 0 ? 12 : -15, -5, 3, 2, b); R(s > 0 ? 15 : -16, -5, 1, 1, d);
+    R(s > 0 ? 5 : -9, -7, 4, 1, COL.glass);
+    R(-4, -4, 8, 1, d); R(s > 0 ? -6 : -2, -3, 8, 2, d);
+    R(s > 0 ? -12 : 9, -10, 3, 4, b);
+    R(s > 0 ? -14 : 12, -6, 2, 2, K("#ff8a2a"));
   }
 }

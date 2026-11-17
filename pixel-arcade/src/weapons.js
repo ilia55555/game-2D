@@ -5,6 +5,7 @@ import * as voidOrb from "../vendor/pixelfx/src/fx/shadow/void-orb.js";
 import * as implosion from "../vendor/pixelfx/src/fx/explosions/implosion.js";
 import * as tornadoFx from "../vendor/pixelfx/src/fx/nature/tornado.js";
 import * as nukeFx from "../vendor/pixelfx/src/fx/explosions/nuke.js";
+import { ScaledFx } from "./scaled.js";
 import { CELL, SEA } from "./world.js";
 import { PT } from "./particles.js";
 import { MJOLNIR } from "./thor.js";
@@ -120,11 +121,13 @@ export const WEAPONS = [
 /** The ultimate. */
 export function nuke(g, x, y) {
   const w = g.world;
-  g.fx.spawn(nukeFx, { x, y, keep: true, cost: 4 });
+  const s = new ScaledFx(nukeFx, { x, y, sx: 2.4 });
+  g.shots.push({ update(dt) { s.update(dt); return !s.done(); }, draw(f) { s.draw(f); } });
+  g.hero.inv = Math.max(g.hero.inv, 3);
   g.sfx("nuke");
   g.flash = 1.2; g.freeze = 0.12;
   for (let k = 0; k < 16; k++) g.later(0.06 + k * 0.08, () => {
-    const r = 50 + k * 15;
+    const r = 70 + k * 22;
     g.addScore(w.explode(x, y - 24, r, 24, { fire: 0.6, debris: 160, kick: 1.9 }));
     g.eachEnemy(x, y - 24, r + 20, (e, d) => e.hurt(200, (e.x - x) * 4, -300));
     g.shake(18 - k * 0.7);

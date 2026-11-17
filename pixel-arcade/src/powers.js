@@ -21,6 +21,7 @@ import * as spellCharge from "../vendor/pixelfx/src/fx/arcane/spell-charge.js";
 import * as arcaneBeam from "../vendor/pixelfx/src/fx/arcane/arcane-beam.js";
 import * as arcaneMissiles from "../vendor/pixelfx/src/fx/arcane/arcane-missiles.js";
 import * as fireBreath from "../vendor/pixelfx/src/fx/fire/fire-breath.js";
+import * as fireball from "../vendor/pixelfx/src/fx/fire/fireball.js";
 import * as fireTornado from "../vendor/pixelfx/src/fx/fire/fire-tornado.js";
 import * as healFx from "../vendor/pixelfx/src/fx/holy/heal-aoe.js";
 import * as sunburst from "../vendor/pixelfx/src/fx/holy/sunburst.js";
@@ -201,7 +202,9 @@ class Tsunami extends Power {
     const lo = Math.min(fx, bx), hi = Math.max(fx, bx), fy = this.floor(fx);
     // everything the water reaches is swept along with it
     for (const e of g.enemies) {
-      if (!live(e) || e.x < lo || e.x > hi || e.y < this.floor(e.x) - hgt) continue;
+      if (!live(e) || e.x < lo - e.hw || e.x > hi + e.hw || e.y - e.h > this.floor(e.x) + 6 || e.y < this.floor(e.x) - hgt - 20) continue;
+      this.hitSet = this.hitSet || new Set();
+      if (!this.hitSet.has(e)) { this.hitSet.add(e); e.hurt(e.kind === "soldier" ? 99 : 22, dir * 500, -250); g.fxKind("spark", e.x, mid(e)); }
       e.vx = dir * rnd(600, 900); e.vy = -rnd(150, 350); e.hurt(30 * dt);
     }
     ticks(this, dt, () => {
@@ -405,13 +408,21 @@ class ArcBeam extends Power {
 
 /** Right click: a long rain of stars over a wide area round the aim: several showers one after another. */
 class StarFall extends Power {
-  constructor(g, x, y) { super(g, new ScaledFx(starFall, { x, y, sx: 1.7, sy: 1.5 })); this.x = x; this.y = y; this.n = 0; }
+  constructor(g, x, y) {
+    // tall enough that the stars start above the top of the screen; either way across
+    const top = view(g).t - 40, sy = Math.max(1.5, (y - top) / 150), flip = Math.random() < 0.5;
+    super(g, new ScaledFx(starFall, { x, y, sx: 1.7, sy, flip, pad: 4 }));
+    this.x = x; this.y = y; this.n = 0; this.top = top; this.flip = flip;
+  }
   step() {
     const g = this.g;
     while (this.n < 11 && this.t >= 0.42 + this.n * 0.105) {
       const x = this.x + rnd(-46, 46) * 1.7, y = g.world.surfaceY(x, this.y - 80);
       g.addScore(g.world.explode(x, y - 4, 20, 10, { fire: 0.3, debris: 14, kick: 1.3 }));
       g.eachEnemy(x, y - 10, 32, (e) => e.hurt(30, (e.x - x) * 6, -260));
+      // the star came down from above the screen: whatever was in the air on its way down is hit too
+      const sx0 = x + (this.flip ? 1 : -1) * (y - this.top) * 0.35, a = Math.atan2(y - this.top, x - sx0), len = Math.hypot(y - this.top, x - sx0);
+      g.eachEnemyOnRay(sx0, this.top, Math.cos(a), Math.sin(a), len - 30, 10, (e) => { if (live(e)) { e.hurt(24, Math.cos(a) * 200, 200); g.fxKind("spark", e.x, mid(e)); } });
       g.flashLight(x, y, 40, 0xffff60c0, 0.9, 0.25);
       g.shake(2.5); g.sfx("boom", 0.5);
       this.n++;
@@ -425,10 +436,10 @@ class StarRain {
     this.t += dt;
     while (this.n < 7 && this.t >= this.n * 0.38) {
       const x = this.ax + (this.n === 0 ? 0 : rnd(-140, 140));
-      g.shots.push(new StarFall(g, x, g.world.surfaceY(x, this.ay - 120)));
+      const sf = new StarFall(g, x, g.world.surfaceY(x, this.ay - 120)); (this.falls = this.falls || []).push(sf); g.shots.push(sf);
       this.n++;
     }
-    return this.n < 7;
+    return this.n < 7 || this.falls.some((f) => g.shots.includes(f));
   }
   draw() {}
 }
@@ -439,9 +450,10 @@ class StarRain {
  *  until it hits the ground, a wall or an enemy. */
 class Meteorite {
   constructor(g, h, ax, ay) {
-    const v = view(g), dir = ax >= h.x ? 1 : -1, sx = ax - dir * rnd(150, 230), sy = v.t - 16;
+    const v = view(g), dir = Math.random() < 0.5 ? 1 : -1, sx = ax - dir * rnd(150, 260), sy = v.t - 30;
     const a = Math.atan2(ay - sy, ax - sx);
-    Object.assign(this, { g, x: sx, y: sy, vx: Math.cos(a) * 560, vy: Math.sin(a) * 560, life: 3, t: 0 });
+    Object.assign(this, { g, x: sx, y: sy, vx: Math.cos(a) * 520, vy: Math.sin(a) * 520, life: 3, t: 0, k: rnd(1.6, 4.2) });
+    this.s = new ScaledFx(fireball, { radius: 5, sx: this.k * 0.6, speed: 160, pad: 10 }); this.s.aim(a);
     g.sfx("dive");
   }
   update(dt) {
@@ -451,25 +463,19 @@ class Meteorite {
     let hit = false;
     for (let i = 0; i < n && !hit; i++) {
       this.x += (this.vx * dt) / n; this.y += (this.vy * dt) / n;
-      if (this.t > 0.05 && (w.solidPx(this.x, this.y) || g.enemyAt(this.x, this.y, 3))) hit = true;
+      if (this.t > 0.05 && (w.solidPx(this.x, this.y) || g.enemyAt(this.x, this.y, 3 + this.k * 2))) hit = true;
     }
-    for (let i = 0; i < 2; i++) g.parts.spawn(PT.FLAME, this.x + rnd(-2, 2), this.y + rnd(-2, 2), -this.vx * 0.15 + rnd(-20, 20), -this.vy * 0.15 + rnd(-20, 20), rnd(0.2, 0.4), 0, 3);
+    this.s.update(dt); this.s.x = this.x; this.s.y = this.y;
+    for (let i = 0; i < 2; i++) g.parts.spawn(PT.FLAME, this.x + rnd(-2, 2) * this.k, this.y + rnd(-2, 2) * this.k, -this.vx * 0.15 + rnd(-20, 20), -this.vy * 0.15 + rnd(-20, 20), rnd(0.2, 0.4), 0, 3);
     if (Math.random() < 0.4) g.parts.spawn(PT.SMOKE, this.x, this.y, -this.vx * 0.05, -this.vy * 0.05 - 10, 0.6, 0xff504850, 3);
-    g.flashLight(this.x, this.y, 18, 0xff2080ff, 0.6, 0.06);
+    g.flashLight(this.x, this.y, 12 + this.k * 8, 0xff2080ff, 0.6, 0.06);
     if (hit || (this.life -= dt) <= 0 || this.y > g.cam.y + 400) {
-      if (hit) g.blast(this.x, this.y, 26, 8, { kind: "small", size: 0.8, fire: 0.9 });
+      if (hit) { const k = this.k; g.blast(this.x, this.y, 12 + k * 10, 6 + k * 2, { kind: k > 3 ? "big" : "small", size: 0.5 + k * 0.3, fire: 0.9 }); g.shake(2 + k * 2); }
       return false;
     }
     return true;
   }
-  draw(f) {
-    const x = Math.round(this.x) - f.ox, y = Math.round(this.y) - f.oy, W = f.w, H = f.h;
-    for (let b = -2; b <= 2; b++) for (let a = -2; a <= 2; a++) {
-      if (a * a + b * b > 5) continue;
-      const px = x + a, py = y + b;
-      if (px >= 0 && py >= 0 && px < W && py < H) f.color[py * W + px] = a * a + b * b < 2 ? 0xff80e0ff : a + b > 1 ? 0xff1a2a4a : 0xff2a6aff;
-    }
-  }
+  draw(f) { this.s.draw(f); }
 }
 
 /** Tap: a big fire tornado that walks off the way you aimed, burning and tearing up what it crosses. */

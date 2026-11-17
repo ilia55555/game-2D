@@ -14,17 +14,26 @@ import * as splashFx from "../vendor/pixelfx/src/fx/water/splash.js";
 import * as manaBurst from "../vendor/pixelfx/src/fx/arcane/mana-burst.js";
 import * as thunderclap from "../vendor/pixelfx/src/fx/lightning/thunderclap.js";
 import * as birdFx from "../vendor/pixelfx/src/fx/critters/bird.js";
+import * as fishFx from "../vendor/pixelfx/src/fx/critters/fish-school.js";
+import * as tracerFx from "../vendor/pixelfx/src/fx/projectiles/bullet-tracer.js";
+import * as rocketFx from "../vendor/pixelfx/src/fx/projectiles/rocket.js";
+import * as flareFx from "../vendor/pixelfx/src/fx/projectiles/flare.js";
+import * as muzzlePistol from "../vendor/pixelfx/src/fx/projectiles/muzzle-pistol.js";
+import * as muzzleShotgun from "../vendor/pixelfx/src/fx/projectiles/muzzle-shotgun.js";
+import * as muzzleSmg from "../vendor/pixelfx/src/fx/projectiles/muzzle-smg.js";
+import { ScaledFx } from "./scaled.js";
+const MUZZLE = { pistol: muzzlePistol, shotgun: muzzleShotgun, smg: muzzleSmg };
 import { World, CELL, WORLD_PX_H, MAT_COLOR, M, SEA, BIOME_NAMES, WH, LAVA } from "./world.js";
 import { Parts, PT } from "./particles.js";
 import { FxMan } from "./fxm.js";
 import { Hero } from "./hero.js";
-import { Soldier, Car, Tank, Heli } from "./enemies.js";
+import { Soldier, Car, Tank, Heli, Jet } from "./enemies.js";
 import { WEAPONS, nuke } from "./weapons.js";
 import { Moon } from "./powers2.js";
 import { drawSky } from "./sky.js";
 import { initAudio, sfx } from "./audio.js";
 
-const W = 640, H = 360;
+let W = 640, H = 360;
 const rnd = (a, b) => a + Math.random() * (b - a);
 const scaleC = (c, k) => 0xff000000 | (Math.min(255, ((c >> 16) & 255) * k) << 16) | (Math.min(255, ((c >> 8) & 255) * k) << 8) | Math.min(255, (c & 255) * k);
 const K = hex;
@@ -34,8 +43,7 @@ const RANKS = [[250, "DEMOLITION!"], [700, "RAMPAGE!"], [1500, "DEVASTATION!"], 
 class Game {
   constructor(canvas) {
     this.canvas = canvas; this.ctx = canvas.getContext("2d");
-    this.img = this.ctx.createImageData(W, H); this.out = new Uint32Array(this.img.data.buffer);
-    this.frame = createFrame(W, H);
+    this.resize();
     this.world = new World((Math.random() * 1e6) | 0);
     this.parts = new Parts(this.world); this.fx = new FxMan(); this.hero = new Hero(this);
     this.enemies = []; this.shots = []; this.eshots = []; this.lights = []; this.timers = []; this.critters = [];
@@ -100,7 +108,7 @@ class Game {
       case "spark": case "muzzle": this.fx.spawn(hitSpark, { x, y: y + 20, angle: 0, flip: Math.cos(o.angle ?? 0) < 0 }); break;
       case "small": this.fx.spawn(smallExplosion, { x, y: snap(), size: o.size ?? 1 }); break;
       case "big": if (this.fx.ms < 5) this.fx.spawn(bigExplosion, { x, y: snap() }); else this.fx.spawn(smallExplosion, { x, y: snap(), size: 1.5 }); break;
-      case "plasma": this.fx.spawn(plasmaExplosion, { x, y }); break;
+      case "plasma": this.fx.spawn(plasmaExplosion, o.palette ? { x, y, palette: o.palette } : { x, y }); break;
       case "dark": this.fx.spawn(darkExplosion, { x, y: y + 30 }); break;
       case "slam": this.fx.spawn(groundSlam, { x, y }); this.fx.spawn(thunderclap, { x, y }); break;
       case "land": this.fx.spawn(heavyLanding, { x, y }); break;
@@ -159,6 +167,38 @@ class Game {
       h.vx += f * 180; this.freeze = 0.045; sfx("punch");
     });
   }
+  /** Bodies colliding: the hero at speed rams through soldiers, batters vehicles over a few hits, and can't pass
+   *  through them; every knock costs him a little too, a tank most. */
+  ram(dt) {
+    const h = this.hero;
+    if (h.dead > 0) return;
+    const HITS = { soldier: 1, car: 2, jet: 2, heli: 3, tank: 4 }, HURT = { soldier: 1, car: 3, jet: 4, heli: 4, tank: 9 };
+    for (const e of this.enemies) {
+      if (e.dead || e.wreck || !HITS[e.kind]) continue;
+      if ((e.bumpT = (e.bumpT || 0) - dt) > 0) continue;
+      const ox = h.hw + e.hw - Math.abs(h.x - e.x), oy = Math.min(h.y, e.y) - Math.max(h.y - h.h, e.y - e.h);
+      if (ox <= 0 || oy <= 0) continue;
+      const rel = Math.hypot(h.vx - (e.vx || 0), h.vy - (e.vy || 0)), fast = rel > 150 || h.dashing || h.pounding;
+      const side = h.x < e.x ? -1 : 1, cx = (h.x + e.x) / 2, cy = Math.max(h.y - h.h, e.y - e.h) + oy / 2;
+      if (e.kind === "soldier" && !fast) continue;
+      e.bumpT = 0.45;
+      if (fast) {
+        e.ramHp = e.ramHp || e.hp;
+        const n = HITS[e.kind];
+        e.hurt(e.kind === "soldier" ? 99 : Math.ceil(e.ramHp / n) + 0.01, -side * 260, -140);
+        if (e.kind === "jet" && !e.dead) e.boost = 1.7;
+        this.fxKind("spark", cx, cy, { angle: side > 0 ? Math.PI : 0 });
+        sfx("punch"); this.shake(e.kind === "tank" ? 5 : 2);
+        this.hurtHero(HURT[e.kind]);
+      }
+      // no passing through anything bigger than a man
+      if (e.kind !== "soldier") {
+        h.x += side * (ox + 1);
+        h.vx = side * Math.max(120, Math.abs(h.vx) * 0.35);
+        if (h.fly) h.vy *= 0.4;
+      }
+    }
+  }
   hurtHero(d) {
     const h = this.hero;
     if (h.inv > 0 || h.dead > 0) return;
@@ -173,45 +213,109 @@ class Game {
   enemyAt(x, y, r) { for (const e of this.enemies) if (!e.dead && !e.wreck && e.hits(x, y, r)) return e; return null; }
   eachEnemy(x, y, r, fn) { for (const e of this.enemies) { if (e.dead) continue; const d = Math.hypot(e.x - x, e.y - e.h / 2 - y); if (d < r + e.hw) fn(e, d); } }
   eachEnemyOnRay(x, y, c, s, len, rad, fn) { for (const e of this.enemies) { if (e.dead) continue; const dx = e.x - x, dy = e.y - e.h / 2 - y, u = dx * c + dy * s; if (u < 0 || u > len) continue; if (Math.abs(dx * s - dy * c) < rad + e.hw) fn(e, u); } }
-  enemyShot(type, x, y, vx, vy) { this.eshots.push({ type, x, y, vx, vy, life: 3.5 }); if (type === "bullet") sfx("shot"); }
+  enemyShot(type, x, y, vx, vy) {
+    const s = { type, x, y, vx, vy, life: type === "pellet" ? 0.55 : 3.5 };
+    if ((type === "bullet" || type === "pellet") && this.eshots.length < 60) s.fx = new ScaledFx(tracerFx, { length: type === "pellet" ? 24 : 44, sx: 0.4, sy: 0.5 });
+    else if (type === "rocket" || type === "rpg") s.fx = new ScaledFx(rocketFx, { sx: type === "rpg" ? 0.16 : 0.22 });
+    if (s.fx) { s.fx.aim(Math.atan2(vy, vx)); s.fx.x = x; s.fx.y = y; }
+    this.eshots.push(s);
+    if (type === "bullet" || type === "pellet") sfx("shot");
+  }
+  /** A short-lived scaled effect in the world (muzzle flashes, flares), capped so a crowd can't flood the frame. */
+  vfx(mod, o) {
+    this.vfxN = this.vfxN || 0;
+    if (this.vfxN > 24) return;
+    const s = new ScaledFx(mod, o), g = this; this.vfxN++;
+    this.shots.push({ update(dt) { s.update(dt); if (s.done()) { g.vfxN--; return false; } return true; }, draw(f) { s.draw(f); } });
+  }
+  muzzle(gun, x, y, face) { if (Math.abs(x - this.cam.x) < W && MUZZLE[gun]) this.vfx(MUZZLE[gun], { x, y: y + 9, sx: 0.35, flip: face < 0 }); }
+  callFlare(x, y) {
+    if ((this.flareCd || 0) > this.time) return false;
+    this.flareCd = this.time + 16;
+    this.vfx(flareFx, { x, y, sx: 0.6 });
+    this.say("FLARE! REINFORCEMENTS", UI.red); sfx("rocket");
+    this.later(2, () => { const h = this.hero; for (let i = 0; i < 2; i++) { const px = x + rnd(-120, 120); this.enemies.push(new Soldier(this, px, this.paraY(px), true)); } });
+    return true;
+  }
+  /** Where a paratrooper starts: in the air above the open ground, never inside rock and never up in space. */
+  paraY(x) { return this.world.surfaceY(x, 0) - rnd(180, 240); }
   spawnWave(dt) {
     const w = this.world, h = this.hero;
+    let close = 0; for (const e of this.enemies) if (!e.dead && Math.abs(e.x - h.x) < 700) close++;
     for (const s of w.spawns.splice(0)) {
-      if (this.enemies.length > 44) break;
+      if (this.enemies.length > 22 || close >= 12) break;
+      if (s.type === "soldier" && Math.random() < 0.5) continue;
+      if (s.type === "tank" && s.y < w.groundPx(s.x) - 8) continue;
+      close++;
       this.enemies.push(s.type === "soldier" ? new Soldier(this, s.x, s.y) : s.type === "car" ? new Car(this, s.x, s.y) : new Tank(this, s.x, s.y));
     }
     this.heat = Math.max(0, this.heat - 0.018 * dt);
     if ((this.spawnT -= dt) > 0 || h.dead > 0) return;
-    this.spawnT = 3.2;
-    let nS = 0, nH = 0, nT = 0;
-    for (const e of this.enemies) { if (Math.abs(e.x - h.x) > 700) continue; if (e.kind === "soldier") nS++; else if (e.kind === "heli") nH++; else if (e.kind === "tank") nT++; }
+    this.spawnT = 4.5;
+    let near = 0; for (const e of this.enemies) if (!e.dead && Math.abs(e.x - h.x) < 600) near++;
+    if (near >= 12) return;
+    let nS = 0, nH = 0, nT = 0, nJ = 0;
+    for (const e of this.enemies) { if (Math.abs(e.x - h.x) > 700) continue; if (e.kind === "soldier") nS++; else if (e.kind === "heli") nH++; else if (e.kind === "tank") nT++; else if (e.kind === "jet") nJ++; }
     const side = Math.random() < 0.5 ? -1 : 1, lv = Math.floor(this.heat);
-    if (lv >= 1 && nS < 2 + lv * 2) for (let i = 0; i < 1 + (lv >> 1); i++) this.enemies.push(new Soldier(this, h.x + side * rnd(120, 330) * (i & 1 ? -1 : 1), Math.min(h.y - 260, this.cam.y - H / 2 - 20), true));
-    if (lv >= 2 && nH < Math.ceil((lv - 1) / 1.5)) { this.enemies.push(new Heli(this, h.x + side * 460, h.y - 220)); this.say("GUNSHIP INBOUND", UI.red); }
-    if (lv >= 3 && nT < lv - 2) { const x = h.x - side * 430, y = w.surfaceY(x, 0); if (!w.wet(Math.floor(x / CELL)) && y < WORLD_PX_H - 40) this.enemies.push(new Tank(this, x, y)); }
+    if (lv >= 1 && nS < 2 + lv) for (let i = 0; i < 1 + (lv >> 2); i++) { const x = h.x + side * rnd(160, 330) * (i & 1 ? -1 : 1); this.enemies.push(new Soldier(this, x, this.paraY(x), true)); }
+    if (lv >= 2 && nH < Math.ceil((lv - 1) / 2)) { const x = h.x + side * 460; this.enemies.push(new Heli(this, x, w.groundPx(x) - 200)); this.say("GUNSHIP INBOUND", UI.red); }
+    if (lv >= 4 && nJ < lv - 3) { this.enemies.push(new Jet(this, h.x - side * 600, side)); if (!nJ) this.say("JETS INBOUND", UI.red); }
+    if (lv >= 3 && nT < lv - 2) { const x = h.x - side * 430, y = w.surfaceY(x, 0); if (!w.wet(Math.floor(x / CELL)) && y < WORLD_PX_H - 40 && y >= w.groundPx(x) - 8 && w.surfaceY(x - 40, 0) >= w.groundPx(x - 40) - 8 && w.surfaceY(x + 40, 0) >= w.groundPx(x + 40) - 8) this.enemies.push(new Tank(this, x, y)); }
   }
   stepEnemyShots(dt) {
     const w = this.world, h = this.hero;
     for (let i = this.eshots.length - 1; i >= 0; i--) {
       const s = this.eshots[i];
       if (s.type === "shell") s.vy += 500 * dt;
+      if (s.fx) { s.fx.update(dt); s.fx.aim(Math.atan2(s.vy, s.vx)); }
       if (s.type === "rocket") { const a = Math.atan2(h.cy - s.y, h.x - s.x), sp = Math.min(330, Math.hypot(s.vx, s.vy) + 200 * dt); const ca = Math.atan2(s.vy, s.vx); let d = a - ca; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283; const na = ca + Math.max(-1.6 * dt, Math.min(1.6 * dt, d)); s.vx = Math.cos(na) * sp; s.vy = Math.sin(na) * sp; this.parts.spawn(PT.SMOKE, s.x, s.y, 0, 0, 0.5, 0xffa09ca0, 3); }
       let hit = false;
       const n = Math.max(1, Math.ceil(Math.hypot(s.vx, s.vy) * dt / 3));
       for (let k = 0; k < n && !hit; k++) {
         s.x += s.vx * dt / n; s.y += s.vy * dt / n;
         if (w.solidPx(s.x, s.y)) hit = true;
-        else if (h.dead <= 0 && Math.abs(s.x - h.x) < 7 && s.y > h.y - 34 && s.y < h.y) { hit = true; if (s.type === "bullet") this.hurtHero(3); }
-        else if (this.pets) { const p = this.pets.find((q) => q.hits(s.x, s.y, 2)); if (p) { hit = true; if (s.type === "bullet") p.hurt(3); } }
+        else if (h.dead <= 0 && Math.abs(s.x - h.x) < 7 && s.y > h.y - 34 && s.y < h.y) { hit = true; if (s.type === "bullet" || s.type === "pellet") this.hurtHero(s.type === "pellet" ? 2 : 3); }
+        else if (this.pets) { const p = this.pets.find((q) => q.hits(s.x, s.y, 2)); if (p) { hit = true; if (s.type === "bullet" || s.type === "pellet") p.hurt(3); } }
       }
       if ((s.life -= dt) <= 0) hit = true;
       if (!hit) continue;
       this.eshots.splice(i, 1);
+      if (s.fx) { s.fx.x = s.x; s.fx.y = s.y; }
+      if (s.type === "pellet") continue;
       if (s.type === "bullet") { this.addScore(w.explode(s.x, s.y, 6, 2, { debris: 3, fire: 0 })); this.parts.spawn(PT.SPARK, s.x, s.y, -s.vx * 0.3 + rnd(-60, 60), -s.vy * 0.3 - 40, 0.3, 0xff80e0ff); }
       else this.blast(s.x, s.y, s.type === "shell" ? 28 : 30, 7, { owner: "enemy", kind: "small", size: 0.8 });
     }
   }
 
+  /** Match the picture to the screen: 360 pixels tall, as wide as the screen's shape asks. */
+  resize() {
+    this.canvas.width = W; this.canvas.height = H;
+    this.img = this.ctx.createImageData(W, H); this.out = new Uint32Array(this.img.data.buffer);
+    const old = this.frame; this.frame = createFrame(W, H); if (old) { this.frame.ox = old.ox; this.frame.oy = old.oy; }
+  }
+  /** The aim mark, in the shape and size picked in the settings. */
+  drawReticle(p, mx, my) {
+    const o = this.reticle || { shape: "cross", size: 2 }, k = o.size, c = UI.white, ink = UI.ink;
+    const dot = (x, y, w, h, col) => { p.rect(x - 1, y - 1, w + 2, h + 2, ink, 0.6); p.rect(x, y, w, h, col); };
+    if (o.shape === "cross" || o.shape === "plus") {
+      const g = o.shape === "cross" ? 1 + k : 0, L = 2 + k * 2;
+      dot(mx - g - L, my, L, 1, c); dot(mx + g + 1, my, L, 1, c); dot(mx, my - g - L, 1, L, c); dot(mx, my + g + 1, 1, L, c);
+      if (g) p.px(mx, my, UI.red); else p.px(mx, my, UI.red);
+    } else if (o.shape === "circle") {
+      const R = 3 + k * 2; p.ring(mx, my, R + 1, 3, ink, 0.6); p.ring(mx, my, R, 1, c); p.px(mx, my, UI.red);
+    } else if (o.shape === "x") {
+      const L = 2 + k * 2;
+      for (let i = 2; i < L + 2; i++) for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { p.rect(mx + sx * i - 1, my + sy * i - 1, 3, 3, ink, 0.5); }
+      for (let i = 2; i < L + 2; i++) for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) p.px(mx + sx * i, my + sy * i, c);
+      p.px(mx, my, UI.red);
+    } else { const r = k; p.rect(mx - r - 1, my - r - 1, r * 2 + 3, r * 2 + 3, ink, 0.6); p.rect(mx - r, my - r, r * 2 + 1, r * 2 + 1, UI.red); }
+  }
+  /** Which hotbar slot is under a point on the screen, or -1. */
+  slotAt(x, y) {
+    const n = WEAPONS.length, bw = 30, x0 = (W - n * bw) / 2, y0 = H - 22;
+    if (y < y0 - 6 || y > y0 + 16 || x < x0 || x >= x0 + n * bw) return -1;
+    return Math.floor((x - x0) / bw);
+  }
   // ---- one step of the world
   update(dt) {
     const I = this.I, h = this.hero, w = this.world;
@@ -233,7 +337,9 @@ class Game {
       if (wp.altHold) {
         if (I.alt) { this.altT = (this.altT || 0) + dt; wp.altHold(this, h, I.aimX, I.aimY, this.altT, dt); h.fireT = 0; }
         else if (this.altT) { if (this.altT > 0) wp.altRelease(this, h, I.aimX, I.aimY, this.altT); this.altT = 0; }
-      } else if (I.altP) { if (wp.alt) { if (this.altCd <= 0) { wp.alt(this, h, I.aimX, I.aimY); this.altCd = wp.altCd ?? 0.5; h.fireT = 0; } } else this.punch(); }
+      } else if (I.altP) { if (wp.alt) { if (this.altCd <= 0) { this.altQ = { wp, x: I.aimX, y: I.aimY }; this.altCd = wp.altCd ?? 0.5; } } else this.punch(); }
+      // big moves go one after another: a queued one waits for the last to finish
+      if (this.altQ && !(this.spell && this.spell.some((s) => this.shots.includes(s)))) { const q = this.altQ; this.altQ = null; const n0 = this.shots.length; q.wp.alt(this, h, q.x, q.y); this.spell = this.shots.slice(n0); h.fireT = 0; }
       if (wp.empty) { /* free slot */ }
       else if (wp.tap || wp.hold) {
         // left click: a quick click taps, holding past HOLD_T holds
@@ -256,12 +362,13 @@ class Game {
       if (h.dashing && h.onGround && Math.abs(h.vx) > 300 && Math.random() < 0.5) this.parts.spawn(PT.SMOKE, h.x - h.face * 8, h.y - 2, -h.vx * 0.1, -10, 0.5, 0xffb0c4d0, 4);
       if (h.fly && h.dashing && !wasDash && h.speed > 100) { this.fx.spawn(manaBurst, { x: h.x, y: h.cy + 30 }); sfx("fly"); }
     }
+    this.ram(dt);
     w.update(dt);
     this.spawnWave(dt);
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
       if (Math.abs(e.x - h.x) < 900) e.update(dt);
-      if (e.dead || Math.abs(e.x - h.x) > 2200) { if (e.dead && !e.wreck && e.kind !== "heli") this.addScore(e.score, e.x, e.y); this.enemies.splice(i, 1); }
+      if (e.dead || Math.abs(e.x - h.x) > 1400) { if (e.dead && !e.wreck && e.kind !== "heli") this.addScore(e.score, e.x, e.y); this.enemies.splice(i, 1); }
     }
     for (let i = this.shots.length - 1; i >= 0; i--) if (!this.shots[i].update(dt)) this.shots.splice(i, 1);
     this.stepEnemyShots(dt);
@@ -273,8 +380,19 @@ class Game {
     if (this.comboT > 0 && (this.comboT -= dt) <= 0) { this.comboN = 0; this.combo = 1; this.rank = 0; }
     if (this.banner && (this.banner.t += dt) > 2) this.banner = null;
     // birds drift across now and then
-    if (this.critters.length < 3 && Math.random() < dt * 0.25) { const dir = Math.random() < 0.5 ? -1 : 1; this.critters.push({ fx: this.fx.spawn(birdFx, { x: h.x - dir * 420, y: h.y - rnd(120, 260), flip: dir < 0, keep: true }), dir, t: 0 }); }
-    for (let i = this.critters.length - 1; i >= 0; i--) { const c = this.critters[i]; c.fx.fx.options.x += c.dir * 70 * dt; if ((c.t += dt) > 14) { c.fx.dead = true; this.critters.splice(i, 1); } }
+    const nb = this.critters.filter((c) => !c.fish).length, nf = this.critters.length - nb;
+    if (nb < 3 && Math.random() < dt * 0.25) { const dir = Math.random() < 0.5 ? -1 : 1; this.critters.push({ s: new ScaledFx(birdFx, { x: h.x - dir * 420, y: h.y - rnd(120, 260), sx: 0.32, flip: dir < 0 }), dir, sp: 70, t: 0 }); }
+    if (nf < 4 && Math.random() < dt * 0.6) {
+      // a little school of fish somewhere in the water near the hero
+      const x = h.x + rnd(-320, 320), cx = Math.floor(x / CELL);
+      if (w.wet(cx)) { const top = SEA * CELL + 16, bot = w.surfaceY(x, SEA * CELL) - 10; if (bot > top + 6) { const dir = Math.random() < 0.5 ? -1 : 1; this.critters.push({ fish: true, s: new ScaledFx(fishFx, { x, y: rnd(top, bot), sx: 0.35, flip: dir < 0 }), dir, sp: 14, t: 0 }); } }
+    }
+    for (let i = this.critters.length - 1; i >= 0; i--) {
+      const c = this.critters[i]; c.s.update(dt);
+      const nx = c.s.x + c.dir * c.sp * dt;
+      if (c.fish && !w.wet(Math.floor((nx + c.dir * 20) / CELL))) { c.dir *= -1; c.s.flip = c.dir < 0; } else c.s.x = nx;
+      if ((c.t += dt) > (c.fish ? 20 : 14) || Math.abs(c.s.x - h.x) > 900) this.critters.splice(i, 1);
+    }
     const z = w.biomeAt(Math.floor(h.x / CELL));
     if (z !== this.zone) { if (this.zone !== null) this.say(BIOME_NAMES[z], UI.white); this.zone = z; }
     this.maxX = Math.max(this.maxX, Math.abs(h.x));
@@ -285,9 +403,13 @@ class Game {
   // ---- the picture
   render(dt) {
     const f = this.frame, h = this.hero, I = this.I;
-    const lookX = h.vx * 0.22 + (I.aimX - h.x) * 0.12, lookY = h.vy * 0.12 + (I.aimY - h.cy) * 0.1 - 30;
-    this.cam.x += (h.x + lookX - this.cam.x) * Math.min(1, 6 * dt);
-    this.cam.y += (h.cy + lookY - this.cam.y) * Math.min(1, 6 * dt);
+    const lookX = h.vx * 0.22 + (I.aimX - h.x) * 0.12, lookY = h.vy * 0.12 + (I.aimY - h.cy) * 0.1 - 30, F = this.camFocus;
+    if (F && (F.t -= dt) > 0) { this.cam.x += (F.x - this.cam.x) * Math.min(1, 5 * dt); this.cam.y += (F.y - this.cam.y) * Math.min(1, 5 * dt); }
+    else {
+      this.camFocus = null;
+      this.cam.x += (h.x + lookX - this.cam.x) * Math.min(1, 6 * dt);
+      this.cam.y += (h.cy + lookY - this.cam.y) * Math.min(1, 6 * dt);
+    }
     this.cam.y = Math.min(this.cam.y, WORLD_PX_H - H / 2 - 8);
     this.shakeAmp *= Math.max(0, 1 - 7 * dt);
     const sx = this.shakeAmp > 0.3 ? Math.round(rnd(-1, 1) * this.shakeAmp) : 0, sy = this.shakeAmp > 0.3 ? Math.round(rnd(-1, 1) * this.shakeAmp) : 0;
@@ -298,6 +420,7 @@ class Game {
     this.world.render(f, camX, camY, this.time);
     this.world.renderIslands(f, camX, camY);
     this.fx.draw(f, true);
+    for (const c of this.critters) if (Math.abs(c.s.x - this.cam.x) < W) c.s.draw(f);
     for (const e of this.enemies) if (e.x > camX - 60 && e.x < camX + W + 60) e.draw(f);
     for (const s of this.eshots) this.drawShot(f, s);
     h.draw(f);
@@ -332,6 +455,7 @@ class Game {
     this.ctx.putImageData(this.img, 0, 0);
   }
   drawShot(f, s) {
+    if (s.fx) { s.fx.x = s.x; s.fx.y = s.y; s.fx.draw(f); return; }
     const x = Math.round(s.x) - f.ox, y = Math.round(s.y) - f.oy, C = f.color, L = f.light;
     if (x < 3 || y < 3 || x >= W - 3 || y >= H - 3) return;
     if (s.type === "bullet") { const sp = Math.hypot(s.vx, s.vy), ux = s.vx / sp, uy = s.vy / sp; for (let k = 0; k < 5; k++) { const i = Math.round(y - uy * k) * W + Math.round(x - ux * k); C[i] = k < 2 ? 0xffe0ffff : 0xff40a0ff; L[i] = 0xff205080; } }
@@ -352,9 +476,10 @@ class Game {
     p.text(this.nuke >= 1 ? "NUKE READY - R" : "NUKE", 136, 23, this.nuke >= 1 ? UI.cyan : UI.dim, { outline: UI.ink });
     p.text("NOVA", 136, 11, UI.white, { outline: UI.ink });
     // score, combo, heat
-    t(String(this.score).padStart(8, "0"), W - 8, 8, UI.white, { align: "right" });
-    p.text("BEST " + this.best, W - 8, 19, UI.dim, { align: "right", outline: UI.ink });
-    if (this.combo > 1) { const pulse = this.comboT > 2.4 ? 2 : 1; t("x" + this.combo, W - 8, 30, this.combo > 12 ? UI.red : this.combo > 5 ? UI.orange : UI.gold, { align: "right", scale: pulse + 1 }); p.rect(W - 68, 30 + 8 * (pulse + 1) + 2, 60 * (this.comboT / 2.6), 2, UI.gold); }
+    const R = this.hudR || W - 8;
+    t(String(this.score).padStart(8, "0"), R, 8, UI.white, { align: "right" });
+    p.text("BEST " + this.best, R, 19, UI.dim, { align: "right", outline: UI.ink });
+    if (this.combo > 1) { const pulse = this.comboT > 2.4 ? 2 : 1; t("x" + this.combo, R, 30, this.combo > 12 ? UI.red : this.combo > 5 ? UI.orange : UI.gold, { align: "right", scale: pulse + 1 }); p.rect(R - 60, 30 + 8 * (pulse + 1) + 2, 60 * (this.comboT / 2.6), 2, UI.gold); }
     for (let i = 0; i < 5; i++) { const on = this.heat >= i + 1, x = W / 2 - 34 + i * 14; p.text("*", x, 8, on ? UI.red : UI.panel, { font: "big", scale: 2, outline: UI.ink }); }
     p.text(Math.round(this.maxX / 10) + " M", W / 2, 26, UI.dim, { align: "center", outline: UI.ink });
     // weapons
@@ -368,27 +493,31 @@ class Game {
     t(WEAPONS[this.weapon].name, W / 2, y0 - 16, UI.white, { align: "center" });
     if (this.cd > 0.15 && WEAPONS[this.weapon].cd > 0.5) p.rect(W / 2 - 20, y0 - 6, 40 * (1 - this.cd / WEAPONS[this.weapon].cd), 2, UI.cyan);
     if (this.banner) { const b = this.banner, k = b.t < 0.12 ? 3 : 2, a = b.t > 1.5 ? 1 - (b.t - 1.5) / 0.5 : 1; t(b.text, W / 2, 70 - (k - 2) * 4, b.c, { align: "center", scale: k, a }); }
-    if (!this.touch) { const mx = this.I.aimX - camX, my = this.I.aimY - camY; p.rect(mx - 5, my, 4, 1, UI.white); p.rect(mx + 2, my, 4, 1, UI.white); p.rect(mx, my - 5, 1, 4, UI.white); p.rect(mx, my + 2, 1, 4, UI.white); p.px(mx, my, UI.red); }
-    if (this.paused) { p.rect(0, H / 2 - 22, W, 40, UI.ink, 0.7); t("PAUSED", W / 2, H / 2 - 12, UI.white, { align: "center", scale: 2 }); t("ESC TO RESUME", W / 2, H / 2 + 8, UI.dim, { align: "center" }); }
+    this.drawReticle(p, Math.round(this.I.aimX - camX), Math.round(this.I.aimY - camY));
     if (this.showFps) p.text(Math.round(this.fps) + " FPS  FX " + this.fx.list.length + " " + this.fx.ms.toFixed(1) + "MS  P " + this.parts.n, 8, 34, UI.dim, { outline: UI.ink });
   }
 }
 
 // ---- boot, input, loop
 const canvas = document.getElementById("game");
-canvas.width = W; canvas.height = H;
 const game = new Game(canvas);
 window.game = game;
+// fill the whole screen at any size: the picture is always 360 tall and as wide as the screen's shape
 function fit() {
-  const s = Math.min(innerWidth / W, innerHeight / H), k = s >= 1 ? Math.floor(s * (devicePixelRatio || 1)) / (devicePixelRatio || 1) : s;
-  canvas.style.width = W * k + "px"; canvas.style.height = H * k + "px";
+  const vw = innerWidth, vh = innerHeight, nw = Math.max(320, Math.min(1100, Math.round((H * vw) / vh / 2) * 2));
+  if (nw !== W) { W = nw; game.resize(); }
+  game.hudR = W - 10 - Math.ceil((58 * H) / vh);
+  canvas.style.width = vw + "px"; canvas.style.height = vh + "px";
 }
-addEventListener("resize", fit); fit();
+addEventListener("resize", fit); addEventListener("orientationchange", () => setTimeout(fit, 200)); fit();
+const goFull = () => { const d = document.documentElement; if (document.fullscreenElement || !d.requestFullscreen) return; d.requestFullscreen({ navigationUI: "hide" }).then(() => { try { screen.orientation.lock("landscape").catch(() => {}); } catch (e) { /* not supported */ } }).catch(() => {}); };
 
 const keys = new Set(), I = game.I;
 let mouseX = W / 2 + 80, mouseY = H / 2, mouseFire = false, mouseAlt = false;
 const setWeapon = (i) => { const n = WEAPONS.length; game.weapon = ((i % n) + n) % n; game.chargeT = 0; game.holdT = 0; game.holding = false; game.altT = 0; game.cd = Math.min(game.cd, 0.2); sfx("swap"); };
 addEventListener("keydown", (e) => {
+  if (e.code === "Escape") { togglePause(); return; }
+  if (game.paused) return;
   if (e.repeat) { if (["Space", "ArrowUp", "ArrowDown", "Tab"].includes(e.code)) e.preventDefault(); return; }
   const c = e.code;
   keys.add(c);
@@ -400,74 +529,118 @@ addEventListener("keydown", (e) => {
   if (c === "KeyE" || c === "Tab") { setWeapon(game.weapon + 1); e.preventDefault(); }
   if (c.startsWith("Digit")) { const d = +c.slice(5); setWeapon(d === 0 ? 9 : d - 1); }
   if (c === "KeyP") game.showFps = !game.showFps;
-  if (c === "Escape") togglePause();
   start();
 });
 addEventListener("keyup", (e) => keys.delete(e.code));
-addEventListener("blur", () => { keys.clear(); mouseFire = false; mouseAlt = false; });
+addEventListener("blur", () => { keys.clear(); mouseFire = false; mouseAlt = false; T.fire = false; });
 const toCanvas = (e) => { const r = canvas.getBoundingClientRect(); return [((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * H]; };
+const onUi = (e) => e.target.closest && e.target.closest("#help, #pause, #pmenu, #pads .btn, #pads .stick");
 addEventListener("mousemove", (e) => { [mouseX, mouseY] = toCanvas(e); });
-addEventListener("mousedown", (e) => { if (e.target.closest && (e.target.closest("#help") || e.target.closest("#pause"))) return; if (game.paused) return; start(); [mouseX, mouseY] = toCanvas(e); if (e.button === 0) mouseFire = true; if (e.button === 2) { I.altP = true; mouseAlt = true; } });
+addEventListener("mousedown", (e) => {
+  if (onUi(e) || game.paused || performance.now() - lastTouch < 800) return;
+  start(); [mouseX, mouseY] = toCanvas(e);
+  const slot = game.slotAt(mouseX, mouseY);
+  if (slot >= 0) { setWeapon(slot); return; }
+  if (e.button === 0) mouseFire = true; if (e.button === 2) { I.altP = true; mouseAlt = true; }
+});
 addEventListener("mouseup", (e) => { if (e.button === 0) mouseFire = false; if (e.button === 2) mouseAlt = false; });
 addEventListener("contextmenu", (e) => e.preventDefault());
-addEventListener("wheel", (e) => { setWeapon(game.weapon + (e.deltaY > 0 ? 1 : -1)); }, { passive: true });
+addEventListener("wheel", (e) => { if (!game.paused) setWeapon(game.weapon + (e.deltaY > 0 ? 1 : -1)); }, { passive: true });
 
-// touch: left stick moves, right stick aims and fires, buttons for the rest
-const T = { move: null, aim: null, ax: 1, ay: 0, firing: false, dash: false };
+// touch: a stick to move; touching the screen aims there and fires (tap = click, hold = hold);
+// buttons for jump/fly (hold to fly up, with the stick to dash), the power's second move, C (land / pound) and the nuke
+let lastTouch = -1e9;
+addEventListener("touchstart", () => (lastTouch = performance.now()), { capture: true, passive: true });
+const T = { move: { x: 0, y: 0, on: false }, fire: false, fid: null, jump: false, alt: false, c: false };
 const pads = document.getElementById("pads");
 function touchSetup() {
-  game.touch = true; pads.style.display = "block";
-  const stick = (el, st) => {
-    const knob = el.firstElementChild;
-    const set = (e) => { const r = el.getBoundingClientRect(), t = [...e.touches].find((q) => q.identifier === st.id); if (!t) return; let dx = (t.clientX - r.left - r.width / 2) / (r.width / 2), dy = (t.clientY - r.top - r.height / 2) / (r.height / 2); const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; } st.x = dx; st.y = dy; knob.style.transform = `translate(${dx * 34}px,${dy * 34}px)`; };
-    el.addEventListener("touchstart", (e) => { e.preventDefault(); start(); st.id = e.changedTouches[0].identifier; st.on = true; set(e); }, { passive: false });
-    el.addEventListener("touchmove", (e) => { e.preventDefault(); set(e); }, { passive: false });
-    const end = (e) => { e.preventDefault(); st.on = false; st.x = st.y = 0; knob.style.transform = ""; };
-    el.addEventListener("touchend", end, { passive: false }); el.addEventListener("touchcancel", end, { passive: false });
-  };
-  T.move = { x: 0, y: 0, on: false }; T.aim = { x: 0, y: 0, on: false };
-  stick(document.getElementById("stickL"), T.move); stick(document.getElementById("stickR"), T.aim);
-  const btn = (id, down, up) => { const el = document.getElementById(id); el.addEventListener("touchstart", (e) => { e.preventDefault(); start(); el.classList.add("on"); down(); }, { passive: false }); el.addEventListener("touchend", (e) => { e.preventDefault(); el.classList.remove("on"); up && up(); }, { passive: false }); };
+  if (game.touch) return;
+  game.touch = true; pads.style.display = "block"; mouseFire = false;
+  const el = document.getElementById("stickL"), knob = el.firstElementChild, st = T.move;
+  const set = (e) => { const r = el.getBoundingClientRect(), t = [...e.touches].find((q) => q.identifier === st.id); if (!t) return; let dx = (t.clientX - r.left - r.width / 2) / (r.width / 2), dy = (t.clientY - r.top - r.height / 2) / (r.height / 2); const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; } st.x = dx; st.y = dy; knob.style.transform = `translate(${dx * 34}px,${dy * 34}px)`; };
+  el.addEventListener("touchstart", (e) => { e.preventDefault(); start(); st.id = e.changedTouches[0].identifier; st.on = true; set(e); }, { passive: false });
+  el.addEventListener("touchmove", (e) => { e.preventDefault(); set(e); }, { passive: false });
+  const end = (e) => { e.preventDefault(); st.on = false; st.x = st.y = 0; knob.style.transform = ""; };
+  el.addEventListener("touchend", end, { passive: false }); el.addEventListener("touchcancel", end, { passive: false });
+  const btn = (id, down, up) => { const b = document.getElementById(id); const off = (e) => { e.preventDefault(); b.classList.remove("on"); up && up(); }; b.addEventListener("touchstart", (e) => { e.preventDefault(); if (game.paused) return; start(); b.classList.add("on"); down(); }, { passive: false }); b.addEventListener("touchend", off, { passive: false }); b.addEventListener("touchcancel", off, { passive: false }); };
   btn("bJump", () => { I.jumpP = true; T.jump = true; }, () => (T.jump = false));
-  btn("bDash", () => (T.dash = true), () => (T.dash = false));
-  btn("bPound", () => (I.poundP = true));
-  btn("bPunch", () => { I.altP = true; T.alt = true; }, () => (T.alt = false));
-  btn("bNext", () => setWeapon(game.weapon + 1));
+  // ALT: a button that is also a quiet stick. Tap fires the second move at the aim; drag to point it from the hero.
+  const alt = document.getElementById("bAlt");
+  const altSet = (t) => { const r = alt.getBoundingClientRect(); let dx = (t.clientX - r.left - r.width / 2) / 50, dy = (t.clientY - r.top - r.height / 2) / 50; const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; } T.altDir = Math.hypot(dx, dy) > 0.3 ? [dx, dy] : null; alt.style.transform = T.altDir ? `translate(${dx * 14}px,${dy * 14}px)` : ""; };
+  alt.addEventListener("touchstart", (e) => { e.preventDefault(); if (game.paused) return; start(); alt.classList.add("on"); T.altId = e.changedTouches[0].identifier; T.alt = true; T.altDir = null; if (WEAPONS[game.weapon].altHold) I.altP = true; }, { passive: false });
+  alt.addEventListener("touchmove", (e) => { e.preventDefault(); const t = [...e.changedTouches].find((q) => q.identifier === T.altId); if (t) altSet(t); }, { passive: false });
+  const altEnd = (e) => { e.preventDefault(); alt.classList.remove("on"); alt.style.transform = ""; if (T.alt && !WEAPONS[game.weapon].altHold) { T.altFire = 2; } T.alt = false; };
+  alt.addEventListener("touchend", altEnd, { passive: false }); alt.addEventListener("touchcancel", altEnd, { passive: false });
+  btn("bC", () => { I.poundP = true; T.c = true; }, () => (T.c = false));
   btn("bNuke", () => (I.nukeP = true));
+  // the screen itself: aim and fire
+  canvas.addEventListener("touchstart", (e) => {
+    e.preventDefault(); if (game.paused) return; start();
+    if (T.fid !== null) return;
+    const t = e.changedTouches[0]; [mouseX, mouseY] = toCanvas(t);
+    const slot = game.slotAt(mouseX, mouseY);
+    if (slot >= 0) { setWeapon(slot); return; }
+    T.fid = t.identifier; T.fire = true;
+  }, { passive: false });
+  canvas.addEventListener("touchmove", (e) => { e.preventDefault(); const t = [...e.changedTouches].find((q) => q.identifier === T.fid); if (t) [mouseX, mouseY] = toCanvas(t); }, { passive: false });
+  const lift = (e) => { e.preventDefault(); if ([...e.changedTouches].some((q) => q.identifier === T.fid)) { T.fid = null; T.fire = false; } };
+  canvas.addEventListener("touchend", lift, { passive: false }); canvas.addEventListener("touchcancel", lift, { passive: false });
 }
-addEventListener("touchstart", () => { if (!game.touch) touchSetup(); }, { once: true, passive: true });
+addEventListener("touchstart", () => touchSetup(), { once: true, passive: true });
 
-function togglePause() {
+// pause menu
+const pauseBtn = document.getElementById("pause"), pmenu = document.getElementById("pmenu");
+function togglePause(on = !game.paused) {
   if (!game.started) return;
-  game.paused = !game.paused;
-  mouseFire = false; keys.clear();
-  pauseBtn.textContent = game.paused ? "\u25B6" : "\u275A\u275A";
+  game.paused = on;
+  mouseFire = false; mouseAlt = false; keys.clear(); T.fire = false; T.fid = null; T.jump = T.alt = T.c = false;
+  pmenu.classList.toggle("show", on);
+  pauseBtn.innerHTML = on ? "&#9654;" : "&#10074;&#10074;";
 }
-const pauseBtn = document.getElementById("pause");
-pauseBtn.addEventListener("click", (e) => { e.stopPropagation(); togglePause(); });
-pauseBtn.addEventListener("touchend", (e) => { e.preventDefault(); e.stopPropagation(); togglePause(); }, { passive: false });
+const tapBtn = (el, fn) => { el.addEventListener("click", (e) => { e.stopPropagation(); fn(); }); el.addEventListener("touchend", (e) => { e.preventDefault(); e.stopPropagation(); fn(); }, { passive: false }); el.addEventListener("mousedown", (e) => e.stopPropagation()); };
+tapBtn(pauseBtn, () => togglePause());
+tapBtn(document.getElementById("pResume"), () => togglePause(false));
+tapBtn(document.getElementById("pFull"), () => { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else goFull(); });
+// settings: the aim mark's shape and size, remembered
+try { const r = JSON.parse(localStorage.getItem("nova-reticle")); if (r && r.shape) game.reticle = r; } catch (e) { /* none saved */ }
+game.reticle = game.reticle || { shape: "cross", size: 2 };
+const SHAPES = ["cross", "plus", "circle", "x", "dot"], rShape = document.getElementById("rShape"), rSize = document.getElementById("rSize");
+const showR = () => { rShape.textContent = "AIM: " + game.reticle.shape.toUpperCase(); rSize.textContent = "AIM SIZE: " + game.reticle.size; try { localStorage.setItem("nova-reticle", JSON.stringify(game.reticle)); } catch (e) { /* private */ } };
+tapBtn(rShape, () => { game.reticle.shape = SHAPES[(SHAPES.indexOf(game.reticle.shape) + 1) % SHAPES.length]; showR(); });
+tapBtn(rSize, () => { game.reticle.size = game.reticle.size % 5 + 1; showR(); });
+showR();
+tapBtn(document.getElementById("pHelp"), () => { togglePause(false); game.started = false; document.getElementById("help").classList.remove("hide"); });
+document.addEventListener("visibilitychange", () => { if (document.hidden && game.started && !game.paused) togglePause(true); });
 
 function start() {
   if (game.started) return;
   game.started = true; initAudio();
+  if (game.touch) goFull();
   document.getElementById("help").classList.add("hide");
 }
 document.getElementById("help").addEventListener("click", start);
-document.getElementById("help").addEventListener("touchend", (e) => { e.preventDefault(); if (!game.touch) touchSetup(); start(); }, { passive: false });
+document.getElementById("help").addEventListener("touchend", (e) => { e.preventDefault(); touchSetup(); start(); }, { passive: false });
 
 function readInput() {
   const h = game.hero, f = game.frame;
-  if (game.touch) {
-    I.mx = Math.abs(T.move.x) > 0.25 ? Math.sign(T.move.x) * (h.fly ? Math.abs(T.move.x) : 1) : 0; I.my = Math.abs(T.move.y) > 0.3 ? T.move.y : 0;
-    if (T.aim.on && Math.hypot(T.aim.x, T.aim.y) > 0.25) { const m = Math.hypot(T.aim.x, T.aim.y); T.ax = T.aim.x / m; T.ay = T.aim.y / m; I.fire = true; } else I.fire = false;
-    I.aimX = h.x + T.ax * 170; I.aimY = h.cy + T.ay * 170;
-    I.jump = !!T.jump; I.dash = T.dash; I.alt = !!T.alt;
+  if (game.touch && performance.now() - lastTouch < 4000) {
+    const m = T.move;
+    I.mx = Math.abs(m.x) > 0.25 ? Math.sign(m.x) * (h.fly ? Math.abs(m.x) : 1) : 0; I.my = Math.abs(m.y) > 0.3 ? m.y : 0;
+    I.fire = T.fire; I.alt = WEAPONS[game.weapon].altHold ? T.alt : false; I.jump = T.jump; I.c = T.c;
+    if (T.altFire && --T.altFire === 0) { I.altP = true; }
+    // the jump button doubles as the flash: held while steering
+    I.dash = T.jump && (I.mx !== 0 || (h.fly && I.my !== 0));
   } else {
     I.mx = (keys.has("KeyD") || keys.has("ArrowRight") ? 1 : 0) - (keys.has("KeyA") || keys.has("ArrowLeft") ? 1 : 0);
     I.my = (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0) - (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0);
-    I.jump = keys.has("Space"); I.dash = keys.has("ShiftLeft") || keys.has("ShiftRight");
-    I.fire = mouseFire; I.alt = mouseAlt; I.aimX = f.ox + mouseX; I.aimY = f.oy + mouseY;
+    I.jump = keys.has("Space"); I.dash = keys.has("ShiftLeft") || keys.has("ShiftRight"); I.c = keys.has("KeyC") || keys.has("ControlLeft");
+    I.fire = mouseFire; I.alt = mouseAlt;
   }
+  I.aimX = f.ox + mouseX; I.aimY = f.oy + mouseY;
+  // dragging the ALT button points from the hero; the aim stays there for the shot on release
+  if (game.touch && T.altDir) { const [dx, dy] = T.altDir, m = Math.hypot(dx, dy); T.altAim = [h.x + (dx / m) * (60 + 200 * m), h.cy + (dy / m) * (60 + 200 * m)]; }
+  if (game.touch && T.altAim && (T.alt || T.altFire)) { I.aimX = T.altAim[0]; I.aimY = T.altAim[1]; }
+  else if (game.touch && T.altAim && !T.alt) { [mouseX, mouseY] = [T.altAim[0] - f.ox, T.altAim[1] - f.oy]; T.altAim = null; }
 }
 
 let last = performance.now(), saveT = 0;

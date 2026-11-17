@@ -53,12 +53,14 @@ export function moveBody(w, b, dt, stepUp = 8) {
     if (!boxHits(w, b.x + s, b.y, b.hw, b.h)) { b.x += s; continue; }
     let ok = false;
     if (stepUp && (wasGround || b.vy >= 0)) for (let up = CELL; up <= stepUp; up += CELL) if (!boxHits(w, b.x + s, b.y - up, b.hw, b.h)) { b.x += s; b.y -= up; ok = true; break; }
+    if (!ok && b.slide) for (let o = 1; o <= b.slide && !ok; o++) for (const q of b.fly ? [-o, o] : [-o]) if (!boxHits(w, b.x + s, b.y + q, b.hw, b.h)) { b.x += s; b.y += q; ok = true; break; }
     if (!ok) { b.hitX = true; break; }
   }
   while (Math.abs(dy) > 1e-4) {
     const s = Math.max(-3, Math.min(3, dy));
     dy -= s;
     if (!boxHits(w, b.x, b.y + s, b.hw, b.h)) { b.y += s; continue; }
+    if (b.slide && !(s > 0 && !b.fly)) { let ok = false; for (let o = 1; o <= b.slide && !ok; o++) for (const q of [-o, o]) if (!boxHits(w, b.x + q, b.y + s, b.hw, b.h)) { b.x += q; b.y += s; ok = true; break; } if (ok) continue; }
     if (s > 0) { b.y = Math.floor((b.y + s) / CELL) * CELL; b.onGround = true; }
     b.hitY = true;
     break;
@@ -116,18 +118,25 @@ export class Hero {
     const water = w.inWater(this.x, this.y - 14);
     const wasGround = this.onGround, vy0 = this.vy;
     this.dashing = I.dash && (I.mx !== 0 || (this.fly && I.my !== 0));
+    this.slide = this.dashing && !this.fly && !(I.my < -0.3) ? 0 : 5;
+    // jump held: after a moment it becomes flight, straight up unless steered
+    this.jumpT = I.jump ? (this.jumpT || 0) + dt : 0;
+    if (!this.fly && !this.pounding && I.jump && this.jumpT > 0.22 && !this.onGround && this.superJ <= 0 && !water) { this.fly = true; this.vy *= 0.5; g.sfx("fly"); }
+    // C: a tap drops out of flight, held in the air it pounds the ground
+    this.cT = I.c ? (this.cT || 0) + dt : 0;
+    if (I.poundP && this.fly) { this.fly = false; this.cDropped = true; }
+    if (!I.c) { this.cDropped = false; this.cUsed = false; }
     if (I.fire || this.fireT < 0.35) this.face = I.aimX >= this.x ? 1 : -1;
     else if (I.mx) this.face = I.mx > 0 ? 1 : -1;
 
-    if (I.poundP && !this.onGround && !this.pounding) { this.pounding = true; this.fly = false; this.vx = 0; this.vy = Math.max(this.vy, 300); g.sfx("dive"); }
+    if (I.c && this.cT > 0.2 && !this.cUsed && !this.onGround && !this.pounding) { this.cUsed = true; this.pounding = true; this.fly = false; this.vx = 0; this.vy = Math.max(this.vy, 300); g.sfx("dive"); }
 
     if (this.pounding) {
       this.vy = Math.min(1000, this.vy + 3200 * dt);
     } else if (this.fly) {
-      let mx = I.mx, my = I.my; const m = Math.hypot(mx, my); if (m > 1) { mx /= m; my /= m; }
+      let mx = I.mx, my = I.my; if (I.jump && !mx && !my) my = -1; const m = Math.hypot(mx, my); if (m > 1) { mx /= m; my /= m; }
       const sp = this.dashing ? 600 : 240, k = Math.min(1, (this.dashing ? 5 : 7) * dt);
       this.vx += (mx * sp - this.vx) * k; this.vy += (my * sp - this.vy) * k;
-      if (I.jumpP) { this.fly = false; }
     } else {
       const sp = this.dashing ? 540 : 165, acc = this.onGround ? (this.dashing ? 2600 : 1800) : 900;
       const tv = I.mx * sp * (water ? 0.6 : 1);
@@ -147,22 +156,23 @@ export class Hero {
           if (I.my > 0.5) { this.vy = -900; this.superJ = 0.9; g.superJump(this.x, this.y); }
           else { this.vy = -350; g.sfx("jump"); }
           this.coyote = 0; this.onGround = false;
-        } else { this.fly = true; this.vy *= 0.3; this.superJ = 0; g.sfx("fly"); }
+        }
       }
     }
     if (this.superJ > 0) { this.superJ -= dt; if (this.vy > -200) this.superJ = 0; }
 
     // fast enough and nothing stops him: walls give way
-    // running into the ground (not flying): keep digging even when the dirt has slowed him down
-    const digRun = !this.fly && this.dashing && I.mx !== 0;
-    const smash = this.pounding ? false : (this.dashing && this.speed > 300) || this.superJ > 0 || digRun;
+    const smash = this.pounding ? false : this.dashing || this.superJ > 0;
     if (smash) {
       let sp = this.speed || 1, nx = this.vx / sp, ny = this.vy / sp;
-      if (digRun && sp < 300) { nx = I.mx > 0 ? 1 : -1; ny = 0; sp = 300; }
+      if (this.onGround && !this.fly && this.superJ <= 0) { nx = Math.sign(this.vx || I.mx || this.face); ny = this.dashing ? I.my * 0.7 : 0; const m = Math.hypot(nx, ny); nx /= m; ny /= m; }
+      if (sp < 200 && this.dashing) { const im = Math.hypot(I.mx, this.fly ? I.my : 0) || 1; nx = I.mx / im; ny = (this.fly ? I.my : 0) / im; sp = 200; }
       const look = Math.max(6, sp * dt * 1.6);
       if (boxHits(w, this.x + nx * look, this.y + ny * look - (this.onGround && ny === 0 ? CELL * 2 : 0), this.hw + 1, this.h + 1)) {
-        g.smashThrough(this.x + nx * 12, this.y - 16 + ny * 14, nx, ny);
-        if (digRun) { g.smashThrough(this.x + nx * 30, this.y - 16 + ny * 14, nx, ny); if (Math.abs(this.vx) < 260) this.vx = nx * 260; }
+        const oy = this.y - (this.onGround && ny === 0 ? 27 : 16) + ny * 14;
+        g.smashThrough(this.x + nx * 12, oy, nx, ny);
+        // running through the ground: dig twice as fast
+        if (this.dashing && !this.fly) { g.smashThrough(this.x + nx * 30, oy + ny * 18, nx, ny); if (Math.abs(this.vx) < 300 && nx) this.vx = Math.sign(nx) * 300; }
       }
     }
     // the flash runs on water
@@ -170,8 +180,20 @@ export class Hero {
       this.y = SEA * CELL; this.vy = 0;
       moveBody(w, this, dt, 8); this.vy = 0; this.onGround = true;
       if (Math.random() < 0.7) g.spray(this.x - this.face * 6, this.y, -this.face);
-    } else moveBody(w, this, dt, this.fly ? 0 : 8);
+    } else {
+      // flash on the ground: dead level unless steered; S digs down, W climbs
+      const run = this.dashing && !this.fly && this.onGround;
+      if (run && I.my > 0.3) this.vy = Math.max(this.vy, 260);
+      if (run && I.my < -0.3) this.vy = Math.min(this.vy, -220);
+      moveBody(w, this, dt, this.fly ? 0 : this.dashing && !(I.my < -0.3) ? 0 : 8);
+    }
     if (this.hitX && !smash) this.vx = 0;
+    // blocked mid-flash by something the blast didn't break: knock out just the cells in the way, so he slows but never jams
+    if (this.hitX && this.dashing) {
+      const dir = Math.sign(this.vx || I.mx || this.face), cx = Math.floor((this.x + dir * (this.hw + 2)) / CELL);
+      for (let cy = Math.floor((this.y - this.h) / CELL); cy <= Math.floor((this.y - 1) / CELL); cy++) if (w.get(cx, cy)) g.addScore(w.destroyCell(cx, cy, dir * 160, -60));
+      this.vx *= 0.6;
+    }
     if (this.hitY) {
       if (this.pounding && this.onGround) { this.pounding = false; g.poundImpact(this.x, this.y, vy0); this.vy = 0; }
       else if (this.onGround && !wasGround && vy0 > 560) { g.heavyLanding(this.x, this.y, vy0); this.vy = 0; }

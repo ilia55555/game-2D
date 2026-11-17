@@ -155,6 +155,8 @@ export class World {
     const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
     return cy >= SEA && this.wet(cx) && !SOLID[this.get(cx, cy)];
   }
+  /** The natural ground line (ignoring buildings) under pixel x, as a pixel y. */
+  groundPx(x) { const cx = Math.floor(x / CELL); return this.chunk(cx >> 6).hgt[cx & 63] * CELL; }
   /** The first solid row at or below row `from` in the column of pixel x, as a pixel y. */
   surfaceY(x, from = 0) {
     const cx = Math.floor(x / CELL);
