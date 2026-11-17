@@ -568,6 +568,7 @@ addEventListener("wheel", (e) => { if (!game.paused) setWeapon(game.weapon + (e.
 // buttons for jump/fly (hold to fly up, with the stick to dash), the power's second move, C (land / pound) and the nuke
 let lastTouch = -1e9;
 addEventListener("touchstart", () => (lastTouch = performance.now()), { capture: true, passive: true });
+addEventListener("touchmove", () => (lastTouch = performance.now()), { capture: true, passive: true });
 const T = { move: { x: 0, y: 0, on: false }, fire: false, fid: null, jump: false, alt: false, c: false };
 const pads = document.getElementById("pads");
 function touchSetup() {
@@ -640,7 +641,9 @@ document.getElementById("help").addEventListener("touchend", (e) => { e.preventD
 
 function readInput() {
   const h = game.hero, f = game.frame;
-  if (game.touch && performance.now() - lastTouch < 4000) {
+  // touch mode while any finger is down (a held stick + jump sends no new touch events), or touched lately
+  const held = T.move.on || T.jump || T.fire || T.alt || T.c;
+  if (game.touch && (held || performance.now() - lastTouch < 4000)) {
     const m = T.move;
     I.mx = Math.abs(m.x) > 0.25 ? Math.sign(m.x) * (h.fly ? Math.abs(m.x) : 1) : 0; I.my = Math.abs(m.y) > 0.3 ? m.y : 0;
     I.fire = T.fire; I.alt = WEAPONS[game.weapon].altHold ? T.alt : false; I.jump = T.jump; I.c = T.c;
