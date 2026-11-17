@@ -9,17 +9,17 @@ export const CELL = 4, CW = 64, UP = 200, WH = 640 + UP, SEA = 146 + UP, ZONE = 
 export const WORLD_PX_H = WH * CELL;
 export const M = {
   AIR: 0, DIRT: 1, GRASS: 2, STONE: 3, SAND: 4, SNOW: 5, ROAD: 6, BEDROCK: 7,
-  CONCRETE: 8, BRICK: 9, GLASS: 10, STEEL: 11, WOOD: 12, LEAVES: 13, ROOF: 14, FUEL: 15, SIGN: 16, LAMP: 17, PINE: 18,
+  CONCRETE: 8, BRICK: 9, GLASS: 10, STEEL: 11, WOOD: 12, LEAVES: 13, ROOF: 14, FUEL: 15, SIGN: 16, LAMP: 17, PINE: 18, BASALT: 19, MAGMA: 20, CACTUS: 21,
 };
-const NM = 19;
+const NM = 22;
 //                 air dirt grass stone sand snow road bedrock conc brick glass steel wood leaves roof fuel sign lamp pine
-export const HP = [0, 2, 2, 5, 1, 1, 3, 255, 4, 3, 1, 7, 2, 1, 2, 1, 1, 1, 1];
-export const SOLID = [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0];
-export const FLAM = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1];
-export const isStruct = (m) => m >= 8;
+export const HP = [0, 2, 2, 5, 1, 1, 3, 255, 4, 3, 1, 7, 2, 1, 2, 1, 1, 1, 1, 5, 1, 1];
+export const SOLID = [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1];
+export const FLAM = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1];
+export const isStruct = (m) => (m >= 8 && m <= 18) || m === 21;
 const BASE = [
   0, 0x6b4a32, 0x5a9a3a, 0x7c7a84, 0xd9c07a, 0xf2f6fa, 0x4b4a55, 0xe8501a,
-  0xb9b0a0, 0xa65a3c, 0x86cfe0, 0x5c6676, 0x8a5a34, 0x3f8a3a, 0x8a3434, 0xd03a2c, 0xe8dcc0, 0xffe27a, 0x2c6a4a,
+  0xb9b0a0, 0xa65a3c, 0x86cfe0, 0x5c6676, 0x8a5a34, 0x3f8a3a, 0x8a3434, 0xd03a2c, 0xe8dcc0, 0xffe27a, 0x2c6a4a, 0x3a3238, 0xff7a1a, 0x4a8a3a,
 ];
 export const MAT_COLOR = BASE.map((c) => rgb(c >> 16, (c >> 8) & 255, c & 255));
 
@@ -61,6 +61,9 @@ function texel(m, x, y) {
     case M.ROOF: return sh(b, y % 4 === 3 ? 0.65 : (x + (y >> 2 & 1) * 2) % 4 === 0 ? 0.8 : 1);
     case M.FUEL: return y % 8 < 2 ? ((x + y) % 4 < 2 ? sh(0xffd23c, 1) : sh(0x221c1c, 1)) : sh(b, x % 4 === 0 ? 0.75 : x % 4 === 1 ? 1.2 : 1);
     case M.SIGN: return y % 8 < 4 ? sh(0xd8402c, x % 4 === 3 ? 0.85 : 1) : sh(b, x % 4 === 3 ? 0.9 : 1);
+    case M.BASALT: return sh(b, (x * 3 + y) % 11 === 0 || n < 0.1 ? 0.65 : n > 0.88 ? 1.25 : 1);
+    case M.MAGMA: return n < 0.2 ? sh(0xfff07a, 1) : n < 0.55 ? sh(0xffa030, 1) : n > 0.9 ? sh(0x8a1a10, 1) : sh(b, 1);
+    case M.CACTUS: return sh(b, x % 4 === 0 ? 0.75 : x % 4 === 2 ? 1.18 : 1);
     case M.LAMP: return sh(b, (x % 4 === 0 || y % 4 === 0) ? 0.85 : 1.1);
   }
   return 0;
@@ -80,8 +83,9 @@ const CAVE = new Uint32Array(256);
 for (let i = 0; i < 256; i++) { const n = hash(i % 16, (i >> 4) + 99); CAVE[i] = n < 0.15 ? rgb(34, 26, 30) : rgb(42, 33, 36); }
 
 // ---- zones and terrain height
-const CITY = 0, FOREST = 1, MOUNT = 2, SEAB = 3;
-export const BIOME_NAMES = ["CITY", "FOREST", "MOUNTAINS", "SEA"];
+const CITY = 0, FOREST = 1, MOUNT = 2, SEAB = 3, DESERT = 4, SNOWY = 5, VOLCANO = 6;
+export const BIOMES = { CITY, FOREST, MOUNT, SEAB, DESERT, SNOWY, VOLCANO };
+export const BIOME_NAMES = ["CITY", "FOREST", "MOUNTAINS", "SEA", "DESERT", "SNOW PEAKS", "VOLCANOES"];
 export class World {
   constructor(seed = 1337) {
     this.seed = seed;
@@ -101,10 +105,13 @@ export class World {
     if (z === 0) return CITY;
     const r = hash(z * 7919, this.seed);
     const prev = z > 0 ? hash((z - 1) * 7919, this.seed) : 0;
-    if (r < 0.42) return CITY;
-    if (r < 0.62) return FOREST;
-    if (r < 0.8) return prev >= 0.62 && prev < 0.8 ? CITY : MOUNT;
-    return prev >= 0.8 ? FOREST : SEAB;
+    if (r < 0.28) return CITY;
+    if (r < 0.43) return FOREST;
+    if (r < 0.55) return prev >= 0.43 && prev < 0.55 ? CITY : MOUNT;
+    if (r < 0.68) return DESERT;
+    if (r < 0.79) return prev >= 0.68 && prev < 0.79 ? FOREST : SNOWY;
+    if (r < 0.89) return prev >= 0.79 && prev < 0.89 ? DESERT : VOLCANO;
+    return prev >= 0.89 ? FOREST : SEAB;
   }
   biomeAt(cx) { return this.zoneBiome(Math.floor(cx / (ZONE * CW))); }
   hBiome(b, cx) {
@@ -112,6 +119,15 @@ export class World {
     if (b === CITY) return 140 + UP;
     if (b === FOREST) return UP + Math.round(138 - (fbm(cx / 26, s + 5) - 0.5) * 16);
     if (b === MOUNT) { const r = 1 - Math.abs(fbm(cx / 70, s + 9) * 2 - 1); return UP + Math.round(134 - Math.pow(r, 1.6) * 70 - fbm(cx / 9, s + 12) * 7); }
+    if (b === DESERT) return UP + Math.round(140 - Math.abs(Math.sin(cx / 23 + fbm(cx / 40, s + 21) * 4)) * 12 - fbm(cx / 60, s + 22) * 6);
+    if (b === SNOWY) { const r = 1 - Math.abs(fbm(cx / 55, s + 25) * 2 - 1); return UP + Math.round(130 - Math.pow(r, 1.4) * 95 - fbm(cx / 8, s + 26) * 6); }
+    if (b === VOLCANO) {
+      // cone peaks every ~110 cells, each with a crater at its top
+      const P = 110, k = Math.floor(cx / P), u = cx - k * P - P / 2, hk = 70 + hash(k, s + 31) * 40, d = Math.abs(u);
+      let h = 138 - Math.max(0, hk - d * 1.5) - fbm(cx / 7, s + 32) * 4;
+      if (d < 7) h += 10 - d;
+      return UP + Math.round(h);
+    }
     return UP + Math.round(168 - (fbm(cx / 20, s + 15) - 0.5) * 8);
   }
   height(cx) {
@@ -186,6 +202,9 @@ export class World {
         if (cy >= WH - LAVA) m = M.BEDROCK;
         else if (d > 40 && hash(cx >> 2, cy >> 2) < 0.06) m = M.DIRT;
         else if (h > SEA - 2) m = d < 6 ? M.SAND : M.STONE;
+        else if (b === DESERT) m = d < 22 ? M.SAND : M.STONE;
+        else if (b === SNOWY) m = d < 3 ? M.SNOW : M.STONE;
+        else if (b === VOLCANO) m = d > 90 ? M.STONE : M.BASALT;
         else if (b === MOUNT || h < 126 + UP) m = h < 96 + UP && d < 2 ? M.SNOW : d > 3 || h < 118 + UP ? M.STONE : d === 0 ? M.GRASS : M.DIRT;
         else if (b === CITY) m = d === 0 ? M.ROAD : d < 10 ? M.DIRT : M.STONE;
         else m = d === 0 ? M.GRASS : d < 12 ? M.DIRT : M.STONE;
@@ -381,6 +400,30 @@ export class World {
       if (r < 0.14 && flat) { cabin(3); tree(36, R() < 0.4); tree(52); }
       else if (r < 0.24) { watchTower(24); tree(6, true); tree(48); }
       else for (let lx = RI(4, 8); lx < CW - 6; lx += RI(10, 18)) tree(lx, R() < 0.3);
+    } else if (biome === DESERT) {
+      // cacti, and now and then a ruined sandstone shrine
+      for (let lx = RI(3, 9); lx < CW - 4; lx += RI(9, 20)) {
+        const g = H(lx); if (g > SEA - 2) continue;
+        const th = RI(5, 10);
+        for (let i = 1; i <= th; i++) F(lx, g - i, M.CACTUS);
+        if (R() < 0.7) { const a = RI(2, th - 2), sd = R() < 0.5 ? -1 : 1; F(lx + sd, g - a, M.CACTUS); F(lx + sd * 2, g - a, M.CACTUS); F(lx + sd * 2, g - a - 1, M.CACTUS); F(lx + sd * 2, g - a - 2, M.CACTUS); }
+      }
+      if (R() < 0.25) { const lx = RI(10, CW - 20), g = H(lx); for (let a = 0; a < 12; a++) for (let b2 = 1; b2 <= RI(3, 10); b2++) if (a % 4 !== 2) F(lx + a, g - b2, M.SAND); }
+      if (R() < 0.4) spawn("soldier", RI(8, CW - 8), hmin);
+    } else if (biome === SNOWY) {
+      for (let lx = RI(3, 8); lx < CW - 3; lx += RI(6, 12)) if (Math.abs(H(lx - 1) - H(lx + 1)) < 4) {
+        tree(lx, true);
+        // snow on the branches
+        for (let dy = 1; dy < 40; dy++) for (let dx = -8; dx <= 8; dx++) { const cy = H(lx) - dy; if (G(lx + dx, cy) === M.PINE && !G(lx + dx, cy - 1) && R() < 0.8) F(lx + dx, cy - 1, M.SNOW); }
+      }
+    } else if (biome === VOLCANO) {
+      // lava in the craters, and a few glowing seams down the slopes
+      for (let lx = 0; lx < CW; lx++) {
+        const cx = x0 + lx, d = Math.abs(cx - Math.floor(cx / 110) * 110 - 55), h = H(lx);
+        if (d < 6) for (let k = 0; k < 4; k++) F(lx, h + k, M.MAGMA);
+        else if (hash(cx, 3) < 0.05) for (let k = 0; k < 2 + (hash(cx, 4) * 4 | 0); k++) F(lx, h + k, M.MAGMA);
+      }
+      for (let i = 0; i < 2; i++) spawn("soldier", RI(8, CW - 8), hmin);
     } else if (biome === MOUNT) {
       for (let lx = RI(3, 8); lx < CW - 3; lx += RI(8, 16)) if (H(lx) > 92 + UP && Math.abs(H(lx - 1) - H(lx + 1)) < 4) tree(lx, true);
       if (R() < 0.18) { // a radio mast on the ridge

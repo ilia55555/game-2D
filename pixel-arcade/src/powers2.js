@@ -10,6 +10,7 @@ import { VOID } from "../vendor/pixelfx/src/fx/shadow/_lib.js";
 import * as soulDrain from "../vendor/pixelfx/src/fx/shadow/soul-drain.js";
 import * as leafStorm from "../vendor/pixelfx/src/fx/nature/leaf-storm.js";
 import * as earthSpike from "../vendor/pixelfx/src/fx/nature/earth-spike.js";
+import * as vineWhip from "../vendor/pixelfx/src/fx/nature/vine-whip.js";
 import * as plasmaShot from "../vendor/pixelfx/src/fx/projectiles/plasma-shot.js";
 import * as chargeUp from "../vendor/pixelfx/src/fx/lightning/charge-up.js";
 import * as fireball from "../vendor/pixelfx/src/fx/fire/fireball.js";
@@ -325,13 +326,39 @@ class Spike extends Power {
   }
 }
 
+/** Right click: a giant vine bursts up out of the ground beside the aim like a magic beanstalk, rears up and comes
+ *  crashing down onto it. Its size and side are random. */
+class Vine extends Power {
+  constructor(g, ax, ay) {
+    const w = g.world, side = Math.random() < 0.5 ? -1 : 1, k = rnd(1.6, 2.6);
+    const ty = w.solidPx(ax, ay) ? w.surfaceY(ax, ay - 400) : w.surfaceY(ax, ay);
+    const bx = ax + side * rnd(40, 70) * k, by = w.surfaceY(bx, ty - 200);
+    // the lash goes from the root (local 60,114) to the right; mirror it so it falls towards the target
+    super(g, new ScaledFx(vineWhip, { x: bx, y: by, sx: k, flip: side > 0, seed: (Math.random() * 999) | 0 }));
+    Object.assign(this, { x: bx, y: by, tx: ax, ty, k, hit: false });
+    g.sfx("rumble");
+  }
+  step() {
+    if (this.hit || this.t < 0.62) return;
+    this.hit = true;
+    const g = this.g, w = g.world, n = 7;
+    for (let i = 1; i <= n; i++) {
+      const u = i / n, x = this.x + (this.tx - this.x) * u, y = this.y - 30 * this.k * Math.sin(u * Math.PI) * 0.4 + (this.ty - this.y) * u;
+      g.addScore(w.explode(x, y, 8 + 6 * u * this.k, 7, { fire: 0, debris: 8, kick: 1.4 }));
+    }
+    g.addScore(w.explode(this.tx, this.ty, 18 * this.k, 9, { fire: 0, debris: 30, kick: 1.6 }));
+    g.eachEnemy(this.tx, this.ty - 10, 26 * this.k, (e) => e.hurt(70, (e.x - this.x) * 4, -500));
+    g.shake(7); g.sfx("crash", 1); g.sfx("boom", 0.8);
+  }
+}
+
 export function upgradeTornado(TW) {
   return {
     name: TW.name, col: TW.col, cd: TW.cd, altCd: 0.5,
     tap: TW.fire,
     hold(g, h, ax, ay, t) { held(g, "leaves", () => new LeafStorm(g, h)).grow(t); },
     release(g) { g.held?.leaves?.end(); },
-    alt(g, h, ax, ay) { g.shots.push(new Spike(g, ax, ay)); },
+    alt(g, h, ax, ay) { g.shots.push(new Vine(g, ax, ay)); },
   };
 }
 

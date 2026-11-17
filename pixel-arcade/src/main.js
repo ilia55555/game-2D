@@ -420,7 +420,7 @@ class Game {
     const camX = Math.round(this.cam.x - W / 2) + sx, camY = Math.round(this.cam.y - H / 2) + sy;
     f.ox = camX; f.oy = camY;
     f.light.fill(0);
-    drawSky(f, camX, camY, this.time);
+    drawSky(f, camX, camY, this.time, this.zone ?? 0, this.dtLast || 0.016);
     this.world.render(f, camX, camY, this.time);
     this.world.renderIslands(f, camX, camY);
     this.fx.draw(f, true);
