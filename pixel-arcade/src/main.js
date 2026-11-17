@@ -245,6 +245,7 @@ class Game {
     for (const s of w.spawns.splice(0)) {
       if (this.enemies.length > 22 || close >= 12) break;
       if (s.type === "soldier" && Math.random() < 0.5) continue;
+      if (s.type === "tank" && s.y < w.groundPx(s.x) - 8) continue;
       close++;
       this.enemies.push(s.type === "soldier" ? new Soldier(this, s.x, s.y) : s.type === "car" ? new Car(this, s.x, s.y) : new Tank(this, s.x, s.y));
     }
@@ -259,7 +260,7 @@ class Game {
     if (lv >= 1 && nS < 2 + lv) for (let i = 0; i < 1 + (lv >> 2); i++) { const x = h.x + side * rnd(160, 330) * (i & 1 ? -1 : 1); this.enemies.push(new Soldier(this, x, this.paraY(x), true)); }
     if (lv >= 2 && nH < Math.ceil((lv - 1) / 2)) { const x = h.x + side * 460; this.enemies.push(new Heli(this, x, w.groundPx(x) - 200)); this.say("GUNSHIP INBOUND", UI.red); }
     if (lv >= 4 && nJ < lv - 3) { this.enemies.push(new Jet(this, h.x - side * 600, side)); if (!nJ) this.say("JETS INBOUND", UI.red); }
-    if (lv >= 3 && nT < lv - 2) { const x = h.x - side * 430, y = w.surfaceY(x, 0); if (!w.wet(Math.floor(x / CELL)) && y < WORLD_PX_H - 40) this.enemies.push(new Tank(this, x, y)); }
+    if (lv >= 3 && nT < lv - 2) { const x = h.x - side * 430, y = w.surfaceY(x, 0); if (!w.wet(Math.floor(x / CELL)) && y < WORLD_PX_H - 40 && y >= w.groundPx(x) - 8 && w.surfaceY(x - 40, 0) >= w.groundPx(x - 40) - 8 && w.surfaceY(x + 40, 0) >= w.groundPx(x + 40) - 8) this.enemies.push(new Tank(this, x, y)); }
   }
   stepEnemyShots(dt) {
     const w = this.world, h = this.hero;

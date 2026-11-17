@@ -125,7 +125,10 @@ export class Tank extends Enemy {
     this.face = dx > 0 ? 1 : -1;
     this.vy = Math.min(900, this.vy + 900 * dt);
     if (this.onGround) this.vx += ((sees && Math.abs(dx) > 170 ? this.face * 34 : 0) - this.vx) * Math.min(1, 4 * dt);
-    moveBody(g.world, this, dt, 8);
+    // tanks keep to the streets: they won't climb onto anything above the ground line
+    const gl = g.world.groundPx(this.x + this.face * 50);
+    if (this.vx * this.face > 0 && g.world.surfaceY(this.x + this.face * 50, 0) < gl - 8) this.vx = 0;
+    moveBody(g.world, this, dt, this.y > g.world.groundPx(this.x) - 12 ? 8 : 0);
     if (this.onGround) this.vy = 0;
     if (sees) {
       // lob it: pick the angle that carries the shell to him

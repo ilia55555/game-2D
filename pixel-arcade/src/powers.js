@@ -202,7 +202,9 @@ class Tsunami extends Power {
     const lo = Math.min(fx, bx), hi = Math.max(fx, bx), fy = this.floor(fx);
     // everything the water reaches is swept along with it
     for (const e of g.enemies) {
-      if (!live(e) || e.x < lo || e.x > hi || e.y < this.floor(e.x) - hgt) continue;
+      if (!live(e) || e.x < lo - e.hw || e.x > hi + e.hw || e.y - e.h > this.floor(e.x) + 6 || e.y < this.floor(e.x) - hgt - 20) continue;
+      this.hitSet = this.hitSet || new Set();
+      if (!this.hitSet.has(e)) { this.hitSet.add(e); e.hurt(e.kind === "soldier" ? 99 : 22, dir * 500, -250); g.fxKind("spark", e.x, mid(e)); }
       e.vx = dir * rnd(600, 900); e.vy = -rnd(150, 350); e.hurt(30 * dt);
     }
     ticks(this, dt, () => {
@@ -408,9 +410,9 @@ class ArcBeam extends Power {
 class StarFall extends Power {
   constructor(g, x, y) {
     // tall enough that the stars start above the top of the screen; either way across
-    const sy = Math.max(1.5, (y - view(g).t + 20) / 150);
-    super(g, new ScaledFx(starFall, { x, y, sx: 1.7, sy, flip: Math.random() < 0.5, pad: 4 }));
-    this.x = x; this.y = y; this.n = 0;
+    const top = view(g).t - 40, sy = Math.max(1.5, (y - top) / 150), flip = Math.random() < 0.5;
+    super(g, new ScaledFx(starFall, { x, y, sx: 1.7, sy, flip, pad: 4 }));
+    this.x = x; this.y = y; this.n = 0; this.top = top; this.flip = flip;
   }
   step() {
     const g = this.g;
@@ -418,6 +420,9 @@ class StarFall extends Power {
       const x = this.x + rnd(-46, 46) * 1.7, y = g.world.surfaceY(x, this.y - 80);
       g.addScore(g.world.explode(x, y - 4, 20, 10, { fire: 0.3, debris: 14, kick: 1.3 }));
       g.eachEnemy(x, y - 10, 32, (e) => e.hurt(30, (e.x - x) * 6, -260));
+      // the star came down from above the screen: whatever was in the air on its way down is hit too
+      const sx0 = x + (this.flip ? 1 : -1) * (y - this.top) * 0.35, a = Math.atan2(y - this.top, x - sx0), len = Math.hypot(y - this.top, x - sx0);
+      g.eachEnemyOnRay(sx0, this.top, Math.cos(a), Math.sin(a), len - 30, 10, (e) => { if (live(e)) { e.hurt(24, Math.cos(a) * 200, 200); g.fxKind("spark", e.x, mid(e)); } });
       g.flashLight(x, y, 40, 0xffff60c0, 0.9, 0.25);
       g.shake(2.5); g.sfx("boom", 0.5);
       this.n++;
