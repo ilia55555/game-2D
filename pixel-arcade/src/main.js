@@ -167,6 +167,38 @@ class Game {
       h.vx += f * 180; this.freeze = 0.045; sfx("punch");
     });
   }
+  /** Bodies colliding: the hero at speed rams through soldiers, batters vehicles over a few hits, and can't pass
+   *  through them; every knock costs him a little too, a tank most. */
+  ram(dt) {
+    const h = this.hero;
+    if (h.dead > 0) return;
+    const HITS = { soldier: 1, car: 2, jet: 2, heli: 3, tank: 4 }, HURT = { soldier: 1, car: 3, jet: 4, heli: 4, tank: 9 };
+    for (const e of this.enemies) {
+      if (e.dead || e.wreck || !HITS[e.kind]) continue;
+      if ((e.bumpT = (e.bumpT || 0) - dt) > 0) continue;
+      const ox = h.hw + e.hw - Math.abs(h.x - e.x), oy = Math.min(h.y, e.y) - Math.max(h.y - h.h, e.y - e.h);
+      if (ox <= 0 || oy <= 0) continue;
+      const rel = Math.hypot(h.vx - (e.vx || 0), h.vy - (e.vy || 0)), fast = rel > 150 || h.dashing || h.pounding;
+      const side = h.x < e.x ? -1 : 1, cx = (h.x + e.x) / 2, cy = Math.max(h.y - h.h, e.y - e.h) + oy / 2;
+      if (e.kind === "soldier" && !fast) continue;
+      e.bumpT = 0.45;
+      if (fast) {
+        e.ramHp = e.ramHp || e.hp;
+        const n = HITS[e.kind];
+        e.hurt(e.kind === "soldier" ? 99 : Math.ceil(e.ramHp / n) + 0.01, -side * 260, -140);
+        if (e.kind === "jet" && !e.dead) e.boost = 1.7;
+        this.fxKind("spark", cx, cy, { angle: side > 0 ? Math.PI : 0 });
+        sfx("punch"); this.shake(e.kind === "tank" ? 5 : 2);
+        this.hurtHero(HURT[e.kind]);
+      }
+      // no passing through anything bigger than a man
+      if (e.kind !== "soldier") {
+        h.x += side * (ox + 1);
+        h.vx = side * Math.max(120, Math.abs(h.vx) * 0.35);
+        if (h.fly) h.vy *= 0.4;
+      }
+    }
+  }
   hurtHero(d) {
     const h = this.hero;
     if (h.inv > 0 || h.dead > 0) return;
@@ -327,6 +359,7 @@ class Game {
       if (h.dashing && h.onGround && Math.abs(h.vx) > 300 && Math.random() < 0.5) this.parts.spawn(PT.SMOKE, h.x - h.face * 8, h.y - 2, -h.vx * 0.1, -10, 0.5, 0xffb0c4d0, 4);
       if (h.fly && h.dashing && !wasDash && h.speed > 100) { this.fx.spawn(manaBurst, { x: h.x, y: h.cy + 30 }); sfx("fly"); }
     }
+    this.ram(dt);
     w.update(dt);
     this.spawnWave(dt);
     for (let i = this.enemies.length - 1; i >= 0; i--) {
@@ -440,9 +473,10 @@ class Game {
     p.text(this.nuke >= 1 ? "NUKE READY - R" : "NUKE", 136, 23, this.nuke >= 1 ? UI.cyan : UI.dim, { outline: UI.ink });
     p.text("NOVA", 136, 11, UI.white, { outline: UI.ink });
     // score, combo, heat
-    t(String(this.score).padStart(8, "0"), W - 8, 8, UI.white, { align: "right" });
-    p.text("BEST " + this.best, W - 8, 19, UI.dim, { align: "right", outline: UI.ink });
-    if (this.combo > 1) { const pulse = this.comboT > 2.4 ? 2 : 1; t("x" + this.combo, W - 8, 30, this.combo > 12 ? UI.red : this.combo > 5 ? UI.orange : UI.gold, { align: "right", scale: pulse + 1 }); p.rect(W - 68, 30 + 8 * (pulse + 1) + 2, 60 * (this.comboT / 2.6), 2, UI.gold); }
+    const R = this.hudR || W - 8;
+    t(String(this.score).padStart(8, "0"), R, 8, UI.white, { align: "right" });
+    p.text("BEST " + this.best, R, 19, UI.dim, { align: "right", outline: UI.ink });
+    if (this.combo > 1) { const pulse = this.comboT > 2.4 ? 2 : 1; t("x" + this.combo, R, 30, this.combo > 12 ? UI.red : this.combo > 5 ? UI.orange : UI.gold, { align: "right", scale: pulse + 1 }); p.rect(R - 60, 30 + 8 * (pulse + 1) + 2, 60 * (this.comboT / 2.6), 2, UI.gold); }
     for (let i = 0; i < 5; i++) { const on = this.heat >= i + 1, x = W / 2 - 34 + i * 14; p.text("*", x, 8, on ? UI.red : UI.panel, { font: "big", scale: 2, outline: UI.ink }); }
     p.text(Math.round(this.maxX / 10) + " M", W / 2, 26, UI.dim, { align: "center", outline: UI.ink });
     // weapons
@@ -469,6 +503,7 @@ window.game = game;
 function fit() {
   const vw = innerWidth, vh = innerHeight, nw = Math.max(320, Math.min(1100, Math.round((H * vw) / vh / 2) * 2));
   if (nw !== W) { W = nw; game.resize(); }
+  game.hudR = W - 10 - Math.ceil((58 * H) / vh);
   canvas.style.width = vw + "px"; canvas.style.height = vh + "px";
 }
 addEventListener("resize", fit); addEventListener("orientationchange", () => setTimeout(fit, 200)); fit();

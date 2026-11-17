@@ -207,7 +207,7 @@ export class Jet extends Enemy {
     const g = this.g, h = g.hero;
     this.t += dt; this.flash -= dt;
     const w = g.world, top = w.surfaceY(this.x, 0), ty = Math.max(w.groundPx(this.x) - 320, Math.min(h.cy - this.alt, top - 120));
-    this.vx = this.dir * 380; this.vy += ((ty - this.y) * 2 - this.vy) * Math.min(1, 3 * dt);
+    this.vx = this.dir * 380 * (this.boost || 1); this.vy += ((ty - this.y) * 2 - this.vy) * Math.min(1, 3 * dt);
     this.x += this.vx * dt; this.y += this.vy * dt; this.face = this.dir;
     // never into the ground or a building: pull up hard
     const lim = Math.min(w.surfaceY(this.x + this.dir * 60, 0), top) - 50; if (this.y > lim) { this.y = lim; this.vy = Math.min(0, this.vy); }
