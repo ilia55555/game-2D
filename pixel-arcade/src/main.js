@@ -14,11 +14,20 @@ import * as splashFx from "../vendor/pixelfx/src/fx/water/splash.js";
 import * as manaBurst from "../vendor/pixelfx/src/fx/arcane/mana-burst.js";
 import * as thunderclap from "../vendor/pixelfx/src/fx/lightning/thunderclap.js";
 import * as birdFx from "../vendor/pixelfx/src/fx/critters/bird.js";
+import * as fishFx from "../vendor/pixelfx/src/fx/critters/fish-school.js";
+import * as tracerFx from "../vendor/pixelfx/src/fx/projectiles/bullet-tracer.js";
+import * as rocketFx from "../vendor/pixelfx/src/fx/projectiles/rocket.js";
+import * as flareFx from "../vendor/pixelfx/src/fx/projectiles/flare.js";
+import * as muzzlePistol from "../vendor/pixelfx/src/fx/projectiles/muzzle-pistol.js";
+import * as muzzleShotgun from "../vendor/pixelfx/src/fx/projectiles/muzzle-shotgun.js";
+import * as muzzleSmg from "../vendor/pixelfx/src/fx/projectiles/muzzle-smg.js";
+import { ScaledFx } from "./scaled.js";
+const MUZZLE = { pistol: muzzlePistol, shotgun: muzzleShotgun, smg: muzzleSmg };
 import { World, CELL, WORLD_PX_H, MAT_COLOR, M, SEA, BIOME_NAMES, WH, LAVA } from "./world.js";
 import { Parts, PT } from "./particles.js";
 import { FxMan } from "./fxm.js";
 import { Hero } from "./hero.js";
-import { Soldier, Car, Tank, Heli } from "./enemies.js";
+import { Soldier, Car, Tank, Heli, Jet } from "./enemies.js";
 import { WEAPONS, nuke } from "./weapons.js";
 import { Moon } from "./powers2.js";
 import { drawSky } from "./sky.js";
@@ -173,7 +182,30 @@ class Game {
   enemyAt(x, y, r) { for (const e of this.enemies) if (!e.dead && !e.wreck && e.hits(x, y, r)) return e; return null; }
   eachEnemy(x, y, r, fn) { for (const e of this.enemies) { if (e.dead) continue; const d = Math.hypot(e.x - x, e.y - e.h / 2 - y); if (d < r + e.hw) fn(e, d); } }
   eachEnemyOnRay(x, y, c, s, len, rad, fn) { for (const e of this.enemies) { if (e.dead) continue; const dx = e.x - x, dy = e.y - e.h / 2 - y, u = dx * c + dy * s; if (u < 0 || u > len) continue; if (Math.abs(dx * s - dy * c) < rad + e.hw) fn(e, u); } }
-  enemyShot(type, x, y, vx, vy) { this.eshots.push({ type, x, y, vx, vy, life: 3.5 }); if (type === "bullet") sfx("shot"); }
+  enemyShot(type, x, y, vx, vy) {
+    const s = { type, x, y, vx, vy, life: type === "pellet" ? 0.55 : 3.5 };
+    if ((type === "bullet" || type === "pellet") && this.eshots.length < 60) s.fx = new ScaledFx(tracerFx, { length: type === "pellet" ? 24 : 44, sx: 0.4, sy: 0.5 });
+    else if (type === "rocket" || type === "rpg") s.fx = new ScaledFx(rocketFx, { sx: type === "rpg" ? 0.16 : 0.22 });
+    if (s.fx) { s.fx.aim(Math.atan2(vy, vx)); s.fx.x = x; s.fx.y = y; }
+    this.eshots.push(s);
+    if (type === "bullet" || type === "pellet") sfx("shot");
+  }
+  /** A short-lived scaled effect in the world (muzzle flashes, flares), capped so a crowd can't flood the frame. */
+  vfx(mod, o) {
+    this.vfxN = this.vfxN || 0;
+    if (this.vfxN > 24) return;
+    const s = new ScaledFx(mod, o), g = this; this.vfxN++;
+    this.shots.push({ update(dt) { s.update(dt); if (s.done()) { g.vfxN--; return false; } return true; }, draw(f) { s.draw(f); } });
+  }
+  muzzle(gun, x, y, face) { if (Math.abs(x - this.cam.x) < W && MUZZLE[gun]) this.vfx(MUZZLE[gun], { x, y: y + 9, sx: 0.35, flip: face < 0 }); }
+  callFlare(x, y) {
+    if ((this.flareCd || 0) > this.time) return false;
+    this.flareCd = this.time + 16;
+    this.vfx(flareFx, { x, y, sx: 0.6 });
+    this.say("FLARE! REINFORCEMENTS", UI.red); sfx("rocket");
+    this.later(2, () => { const h = this.hero; for (let i = 0; i < 4; i++) this.enemies.push(new Soldier(this, x + rnd(-120, 120), Math.min(h.y - 260, this.cam.y - H / 2 - 20), true)); });
+    return true;
+  }
   spawnWave(dt) {
     const w = this.world, h = this.hero;
     for (const s of w.spawns.splice(0)) {
@@ -183,11 +215,12 @@ class Game {
     this.heat = Math.max(0, this.heat - 0.018 * dt);
     if ((this.spawnT -= dt) > 0 || h.dead > 0) return;
     this.spawnT = 3.2;
-    let nS = 0, nH = 0, nT = 0;
-    for (const e of this.enemies) { if (Math.abs(e.x - h.x) > 700) continue; if (e.kind === "soldier") nS++; else if (e.kind === "heli") nH++; else if (e.kind === "tank") nT++; }
+    let nS = 0, nH = 0, nT = 0, nJ = 0;
+    for (const e of this.enemies) { if (Math.abs(e.x - h.x) > 700) continue; if (e.kind === "soldier") nS++; else if (e.kind === "heli") nH++; else if (e.kind === "tank") nT++; else if (e.kind === "jet") nJ++; }
     const side = Math.random() < 0.5 ? -1 : 1, lv = Math.floor(this.heat);
     if (lv >= 1 && nS < 2 + lv * 2) for (let i = 0; i < 1 + (lv >> 1); i++) this.enemies.push(new Soldier(this, h.x + side * rnd(120, 330) * (i & 1 ? -1 : 1), Math.min(h.y - 260, this.cam.y - H / 2 - 20), true));
     if (lv >= 2 && nH < Math.ceil((lv - 1) / 1.5)) { this.enemies.push(new Heli(this, h.x + side * 460, h.y - 220)); this.say("GUNSHIP INBOUND", UI.red); }
+    if (lv >= 4 && nJ < (lv - 3) * 2) { this.enemies.push(new Jet(this, h.x - side * 600, side)); if (!nJ) this.say("JETS INBOUND", UI.red); }
     if (lv >= 3 && nT < lv - 2) { const x = h.x - side * 430, y = w.surfaceY(x, 0); if (!w.wet(Math.floor(x / CELL)) && y < WORLD_PX_H - 40) this.enemies.push(new Tank(this, x, y)); }
   }
   stepEnemyShots(dt) {
@@ -195,18 +228,21 @@ class Game {
     for (let i = this.eshots.length - 1; i >= 0; i--) {
       const s = this.eshots[i];
       if (s.type === "shell") s.vy += 500 * dt;
+      if (s.fx) { s.fx.update(dt); s.fx.aim(Math.atan2(s.vy, s.vx)); }
       if (s.type === "rocket") { const a = Math.atan2(h.cy - s.y, h.x - s.x), sp = Math.min(330, Math.hypot(s.vx, s.vy) + 200 * dt); const ca = Math.atan2(s.vy, s.vx); let d = a - ca; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283; const na = ca + Math.max(-1.6 * dt, Math.min(1.6 * dt, d)); s.vx = Math.cos(na) * sp; s.vy = Math.sin(na) * sp; this.parts.spawn(PT.SMOKE, s.x, s.y, 0, 0, 0.5, 0xffa09ca0, 3); }
       let hit = false;
       const n = Math.max(1, Math.ceil(Math.hypot(s.vx, s.vy) * dt / 3));
       for (let k = 0; k < n && !hit; k++) {
         s.x += s.vx * dt / n; s.y += s.vy * dt / n;
         if (w.solidPx(s.x, s.y)) hit = true;
-        else if (h.dead <= 0 && Math.abs(s.x - h.x) < 7 && s.y > h.y - 34 && s.y < h.y) { hit = true; if (s.type === "bullet") this.hurtHero(3); }
-        else if (this.pets) { const p = this.pets.find((q) => q.hits(s.x, s.y, 2)); if (p) { hit = true; if (s.type === "bullet") p.hurt(3); } }
+        else if (h.dead <= 0 && Math.abs(s.x - h.x) < 7 && s.y > h.y - 34 && s.y < h.y) { hit = true; if (s.type === "bullet" || s.type === "pellet") this.hurtHero(s.type === "pellet" ? 2 : 3); }
+        else if (this.pets) { const p = this.pets.find((q) => q.hits(s.x, s.y, 2)); if (p) { hit = true; if (s.type === "bullet" || s.type === "pellet") p.hurt(3); } }
       }
       if ((s.life -= dt) <= 0) hit = true;
       if (!hit) continue;
       this.eshots.splice(i, 1);
+      if (s.fx) { s.fx.x = s.x; s.fx.y = s.y; }
+      if (s.type === "pellet") continue;
       if (s.type === "bullet") { this.addScore(w.explode(s.x, s.y, 6, 2, { debris: 3, fire: 0 })); this.parts.spawn(PT.SPARK, s.x, s.y, -s.vx * 0.3 + rnd(-60, 60), -s.vy * 0.3 - 40, 0.3, 0xff80e0ff); }
       else this.blast(s.x, s.y, s.type === "shell" ? 28 : 30, 7, { owner: "enemy", kind: "small", size: 0.8 });
     }
@@ -273,8 +309,19 @@ class Game {
     if (this.comboT > 0 && (this.comboT -= dt) <= 0) { this.comboN = 0; this.combo = 1; this.rank = 0; }
     if (this.banner && (this.banner.t += dt) > 2) this.banner = null;
     // birds drift across now and then
-    if (this.critters.length < 3 && Math.random() < dt * 0.25) { const dir = Math.random() < 0.5 ? -1 : 1; this.critters.push({ fx: this.fx.spawn(birdFx, { x: h.x - dir * 420, y: h.y - rnd(120, 260), flip: dir < 0, keep: true }), dir, t: 0 }); }
-    for (let i = this.critters.length - 1; i >= 0; i--) { const c = this.critters[i]; c.fx.fx.options.x += c.dir * 70 * dt; if ((c.t += dt) > 14) { c.fx.dead = true; this.critters.splice(i, 1); } }
+    const nb = this.critters.filter((c) => !c.fish).length, nf = this.critters.length - nb;
+    if (nb < 3 && Math.random() < dt * 0.25) { const dir = Math.random() < 0.5 ? -1 : 1; this.critters.push({ s: new ScaledFx(birdFx, { x: h.x - dir * 420, y: h.y - rnd(120, 260), sx: 0.32, flip: dir < 0 }), dir, sp: 70, t: 0 }); }
+    if (nf < 4 && Math.random() < dt * 0.6) {
+      // a little school of fish somewhere in the water near the hero
+      const x = h.x + rnd(-320, 320), cx = Math.floor(x / CELL);
+      if (w.wet(cx)) { const top = SEA * CELL + 16, bot = w.surfaceY(x, SEA * CELL) - 10; if (bot > top + 6) { const dir = Math.random() < 0.5 ? -1 : 1; this.critters.push({ fish: true, s: new ScaledFx(fishFx, { x, y: rnd(top, bot), sx: 0.35, flip: dir < 0 }), dir, sp: 14, t: 0 }); } }
+    }
+    for (let i = this.critters.length - 1; i >= 0; i--) {
+      const c = this.critters[i]; c.s.update(dt);
+      const nx = c.s.x + c.dir * c.sp * dt;
+      if (c.fish && !w.wet(Math.floor((nx + c.dir * 20) / CELL))) { c.dir *= -1; c.s.flip = c.dir < 0; } else c.s.x = nx;
+      if ((c.t += dt) > (c.fish ? 20 : 14) || Math.abs(c.s.x - h.x) > 900) this.critters.splice(i, 1);
+    }
     const z = w.biomeAt(Math.floor(h.x / CELL));
     if (z !== this.zone) { if (this.zone !== null) this.say(BIOME_NAMES[z], UI.white); this.zone = z; }
     this.maxX = Math.max(this.maxX, Math.abs(h.x));
@@ -302,6 +349,7 @@ class Game {
     this.world.render(f, camX, camY, this.time);
     this.world.renderIslands(f, camX, camY);
     this.fx.draw(f, true);
+    for (const c of this.critters) if (Math.abs(c.s.x - this.cam.x) < W) c.s.draw(f);
     for (const e of this.enemies) if (e.x > camX - 60 && e.x < camX + W + 60) e.draw(f);
     for (const s of this.eshots) this.drawShot(f, s);
     h.draw(f);
@@ -336,6 +384,7 @@ class Game {
     this.ctx.putImageData(this.img, 0, 0);
   }
   drawShot(f, s) {
+    if (s.fx) { s.fx.x = s.x; s.fx.y = s.y; s.fx.draw(f); return; }
     const x = Math.round(s.x) - f.ox, y = Math.round(s.y) - f.oy, C = f.color, L = f.light;
     if (x < 3 || y < 3 || x >= W - 3 || y >= H - 3) return;
     if (s.type === "bullet") { const sp = Math.hypot(s.vx, s.vy), ux = s.vx / sp, uy = s.vy / sp; for (let k = 0; k < 5; k++) { const i = Math.round(y - uy * k) * W + Math.round(x - ux * k); C[i] = k < 2 ? 0xffe0ffff : 0xff40a0ff; L[i] = 0xff205080; } }

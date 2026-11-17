@@ -158,7 +158,7 @@ class Drain extends Power {
 
 /** Hold: dark arms burst out of the hero's back and follow the aim, like a mad scientist's. Their claws grab
  *  enemies; sweep the mouse and let go to throw them. They smash what they swing through. */
-const ARMS = 4, REACH = 250;
+const ARMS = 4, REACH = 250, AUTO_R = 170;
 const VC = fit(VOID, 8);
 class Tendrils {
   constructor(g, h) {
@@ -182,8 +182,17 @@ class Tendrils {
     if (this.ending) { this.fade -= dt * 3; return this.fade > 0; }
     this.arms.forEach((a, i) => {
       const [bx, by] = this.base(i);
-      // each claw goes for a point round the aim, never further than the arms reach
-      let tx = I.aimX + a.off * 26 + Math.cos(this.t * 3 + a.ph) * 6, ty = I.aimY + (a.off * a.off - 0.5) * 22 + Math.sin(this.t * 4 + a.ph) * 6;
+      // a free claw picks its own prey: any enemy that comes within reach, from any side, that no other claw is after
+      if (!a.held) {
+        if (a.prey && (!live(a.prey) || Math.hypot(a.prey.x - bx, mid(a.prey) - by) > AUTO_R * 1.2)) a.prey = null;
+        if (!a.prey) {
+          let best = null, bd = AUTO_R;
+          for (const e of g.enemies) { if (!live(e) || (e.flungT || 0) > g.time || this.arms.some((q) => q !== a && (q.prey === e || q.held === e))) continue; const d = Math.hypot(e.x - bx, mid(e) - by); if (d < bd) { bd = d; best = e; } }
+          a.prey = best;
+        }
+      } else a.prey = null;
+      // otherwise each claw goes for a point round the aim, never further than the arms reach
+      let tx = a.prey ? a.prey.x : I.aimX + a.off * 26 + Math.cos(this.t * 3 + a.ph) * 6, ty = a.prey ? mid(a.prey) : I.aimY + (a.off * a.off - 0.5) * 22 + Math.sin(this.t * 4 + a.ph) * 6;
       const dx = tx - bx, dy = ty - by, d = Math.hypot(dx, dy), grow = Math.min(1, this.t / 0.25) * REACH;
       if (d > grow) { tx = bx + (dx / d) * grow; ty = by + (dy / d) * grow; }
       const k = 60, damp = 11;
