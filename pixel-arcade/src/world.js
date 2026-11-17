@@ -4,7 +4,8 @@
 import { rgb } from "../vendor/pixelfx/src/core/index.js";
 
 // WH: the world goes deep; the bottom LAVA rows are molten rock nothing can dig through
-export const CELL = 4, CW = 32, WH = 640, SEA = 146, ZONE = 8, LAVA = 28;
+// UP: rows of open air added over the old ground line, so towers have room to rise
+export const CELL = 4, CW = 64, UP = 200, WH = 640 + UP, SEA = 146 + UP, ZONE = 4, LAVA = 28;
 export const WORLD_PX_H = WH * CELL;
 export const M = {
   AIR: 0, DIRT: 1, GRASS: 2, STONE: 3, SAND: 4, SNOW: 5, ROAD: 6, BEDROCK: 7,
@@ -108,10 +109,10 @@ export class World {
   biomeAt(cx) { return this.zoneBiome(Math.floor(cx / (ZONE * CW))); }
   hBiome(b, cx) {
     const s = this.seed;
-    if (b === CITY) return 140;
-    if (b === FOREST) return Math.round(138 - (fbm(cx / 26, s + 5) - 0.5) * 16);
-    if (b === MOUNT) { const r = 1 - Math.abs(fbm(cx / 70, s + 9) * 2 - 1); return Math.round(134 - Math.pow(r, 1.6) * 70 - fbm(cx / 9, s + 12) * 7); }
-    return Math.round(168 - (fbm(cx / 20, s + 15) - 0.5) * 8);
+    if (b === CITY) return 140 + UP;
+    if (b === FOREST) return UP + Math.round(138 - (fbm(cx / 26, s + 5) - 0.5) * 16);
+    if (b === MOUNT) { const r = 1 - Math.abs(fbm(cx / 70, s + 9) * 2 - 1); return UP + Math.round(134 - Math.pow(r, 1.6) * 70 - fbm(cx / 9, s + 12) * 7); }
+    return UP + Math.round(168 - (fbm(cx / 20, s + 15) - 0.5) * 8);
   }
   height(cx) {
     const zw = ZONE * CW, zf = cx / zw, z = Math.floor(zf), u = zf - z, b = this.zoneBiome(z);
@@ -139,17 +140,17 @@ export class World {
   get(cx, cy) {
     if (cy < 0) return 0;
     if (cy >= WH) return M.BEDROCK;
-    return this.chunk(cx >> 5).fg[(cx & 31) * WH + cy];
+    return this.chunk(cx >> 6).fg[(cx & 63) * WH + cy];
   }
   getBg(cx, cy) {
     if (cy < 0 || cy >= WH) return 0;
-    return this.chunk(cx >> 5).bg[(cx & 31) * WH + cy];
+    return this.chunk(cx >> 6).bg[(cx & 63) * WH + cy];
   }
-  set(cx, cy, m) { if (cy >= 0 && cy < WH) this.chunk(cx >> 5).fg[(cx & 31) * WH + cy] = m; }
-  setBg(cx, cy, m) { if (cy >= 0 && cy < WH) this.chunk(cx >> 5).bg[(cx & 31) * WH + cy] = m; }
+  set(cx, cy, m) { if (cy >= 0 && cy < WH) this.chunk(cx >> 6).fg[(cx & 63) * WH + cy] = m; }
+  setBg(cx, cy, m) { if (cy >= 0 && cy < WH) this.chunk(cx >> 6).bg[(cx & 63) * WH + cy] = m; }
   solid(cx, cy) { return SOLID[this.get(cx, cy)] === 1; }
   solidPx(x, y) { return SOLID[this.get(Math.floor(x / CELL), Math.floor(y / CELL))] === 1; }
-  wet(cx) { return this.chunk(cx >> 5).hgt[cx & 31] > SEA; }
+  wet(cx) { return this.chunk(cx >> 6).hgt[cx & 63] > SEA; }
   inWater(x, y) {
     const cx = Math.floor(x / CELL), cy = Math.floor(y / CELL);
     return cy >= SEA && this.wet(cx) && !SOLID[this.get(cx, cy)];
@@ -183,7 +184,7 @@ export class World {
         if (cy >= WH - LAVA) m = M.BEDROCK;
         else if (d > 40 && hash(cx >> 2, cy >> 2) < 0.06) m = M.DIRT;
         else if (h > SEA - 2) m = d < 6 ? M.SAND : M.STONE;
-        else if (b === MOUNT || h < 126) m = h < 96 && d < 2 ? M.SNOW : d > 3 || h < 118 ? M.STONE : d === 0 ? M.GRASS : M.DIRT;
+        else if (b === MOUNT || h < 126 + UP) m = h < 96 + UP && d < 2 ? M.SNOW : d > 3 || h < 118 + UP ? M.STONE : d === 0 ? M.GRASS : M.DIRT;
         else if (b === CITY) m = d === 0 ? M.ROAD : d < 10 ? M.DIRT : M.STONE;
         else m = d === 0 ? M.GRASS : d < 12 ? M.DIRT : M.STONE;
         if (m === M.STONE && hash(cx >> 1, cy >> 1) < 0.03) m = M.DIRT;
@@ -213,15 +214,15 @@ export class World {
     const tree = (lx, pine) => {
       const g = H(lx);
       if (g > SEA - 2 || G(lx, g) === M.STONE && !pine) return;
-      const th = pine ? RI(9, 15) : RI(7, 13);
+      const th = pine ? RI(18, 30) : RI(12, 22);
       for (let i = 1; i <= th; i++) B(lx, g - i, M.WOOD);
       if (pine) {
         for (let i = 3; i <= th + 3; i++) {
-          const w = Math.max(0, Math.floor(((th + 3 - i) / th) * 4.5) - ((i & 1) ? 1 : 0));
+          const w = Math.max(0, Math.floor(((th + 3 - i) / th) * 8) - ((i & 1) ? 1 : 0));
           for (let dx = -w; dx <= w; dx++) { if (dx !== 0 || i > th) { F(lx + dx, g - i, M.PINE); B(lx + dx, g - i, M.PINE); } }
         }
       } else {
-        const rx = RI(4, 6), ry = RI(3, 5), cy = g - th - ry + 2;
+        const rx = RI(7, 11), ry = RI(6, 9), cy = g - th - ry + 3;
         for (let dy = -ry; dy <= ry; dy++) for (let dx = -rx; dx <= rx; dx++) {
           const d = (dx * dx) / (rx * rx) + (dy * dy) / (ry * ry);
           if (d > 1 + (hash(lx + dx, cy + dy) - 0.5) * 0.5) continue;
@@ -230,7 +231,7 @@ export class World {
         }
       }
     };
-    const lampPost = (lx) => { const g = H(lx); for (let i = 1; i <= 8; i++) B(lx, g - i, M.STEEL); B(lx + 1, g - 8, M.STEEL); B(lx + 1, g - 7, M.LAMP); };
+    const lampPost = (lx) => { const g = H(lx); for (let i = 1; i <= 15; i++) B(lx, g - i, M.STEEL); B(lx + 1, g - 15, M.STEEL); B(lx + 2, g - 15, M.STEEL); B(lx + 2, g - 14, M.LAMP); };
 
     const tower = (lx0, w, floors, style) => {
       let g = 999;
@@ -311,7 +312,7 @@ export class World {
     };
 
     const crane = () => {
-      const g = hmin, mx = 9, mh = RI(48, 62);
+      const g = hmin, mx = 9, mh = RI(90, 130);
       for (let k = 1; k <= mh; k++) { F(mx, g - k, M.STEEL); B(mx + 1, g - k, M.STEEL); F(mx + 2, g - k, M.STEEL); if (k % 3 === 0) F(mx + 1, g - k, M.STEEL); }
       const jy = g - mh;
       for (let i = 2; i <= 30; i++) { F(i, jy, M.STEEL); if (i % 2 === 0) B(i, jy - 1, M.STEEL); B(i, jy - 2, M.STEEL); }
@@ -328,7 +329,7 @@ export class World {
     };
 
     const cabin = (lx0) => {
-      const w = RI(9, 13); let g = 999; for (let i = 0; i < w; i++) g = Math.min(g, H(lx0 + i));
+      const w = RI(18, 26); let g = 999; for (let i = 0; i < w; i++) g = Math.min(g, H(lx0 + i));
       for (let i = 0; i < w; i++) {
         const lx = lx0 + i, edge = i === 0 || i === w - 1;
         for (let cy = g; cy < H(lx); cy++) F(lx, cy, M.STONE);
@@ -350,25 +351,38 @@ export class World {
     };
 
     if (biome === CITY && flat && hmax <= SEA - 3) {
-      if (ci === 4) { tree(6); lampPost(14); tree(24); }
+      if (ci === 2) { tree(6); lampPost(16); tree(30); lampPost(44); tree(56); }
       else {
         const r = R();
-        if (r < 0.52) { const w = RI(14, 26), lx0 = RI(2, 30 - w); tower(lx0, w, RI(3, 13), RI(0, 2)); if (R() < 0.5) spawn("car", lx0 > 8 ? 4 : 29, hmin); }
-        else if (r < 0.66) { const w = RI(11, 14); shop(2, w); if (R() < 0.7) shop(16, RI(10, 13)); else lampPost(22); spawn("car", 15, hmin); }
-        else if (r < 0.75) gasStation();
-        else if (r < 0.84) crane();
-        else if (r < 0.92) { const w = RI(10, 13); tower(2, w, RI(8, 14), 2); tower(17, RI(10, 13), RI(3, 7), RI(0, 1)); }
-        else { tree(5); lampPost(11); tree(19); lampPost(26); spawn("car", 15, hmin); if (R() < 0.6) spawn("tank", 22, hmin); }
+        if (r < 0.7) {
+          // a street of buildings: low ones wide, towers narrower and much taller
+          let lx = RI(2, 6);
+          while (lx < CW - 20) {
+            const k = R(), room = CW - 2 - lx;
+            let w, fl, st;
+            if (k < 0.35) { w = RI(30, 50); fl = RI(1, 2); st = RI(0, 1); }
+            else if (k < 0.7) { w = RI(26, 42); fl = RI(3, 7); st = RI(0, 2); }
+            else { w = RI(20, 30); fl = RI(10, 24); st = RI(0, 2); }
+            w = Math.min(w, room);
+            if (w < 18) break;
+            if (fl <= 2 && R() < 0.5) shop(lx, w); else tower(lx, w, fl, st);
+            lx += w + RI(3, 8);
+          }
+          if (R() < 0.5) spawn("car", CW - 6, hmin);
+        }
+        else if (r < 0.78) { gasStation(); tower(36, RI(22, 26), RI(4, 12), RI(0, 2)); }
+        else if (r < 0.88) crane();
+        else { tree(5); lampPost(14); tree(24); lampPost(34); tree(44); lampPost(54); spawn("car", 20, hmin); if (R() < 0.6) spawn("tank", 40, hmin); }
       }
     } else if (biome === FOREST) {
       const r = R();
-      if (r < 0.14 && flat) { cabin(3); tree(20, R() < 0.4); tree(27); }
-      else if (r < 0.24) { watchTower(12); tree(3, true); tree(26); }
-      else for (let lx = RI(2, 5); lx < 30; lx += RI(5, 9)) tree(lx, R() < 0.3);
+      if (r < 0.14 && flat) { cabin(3); tree(36, R() < 0.4); tree(52); }
+      else if (r < 0.24) { watchTower(24); tree(6, true); tree(48); }
+      else for (let lx = RI(4, 8); lx < CW - 6; lx += RI(10, 18)) tree(lx, R() < 0.3);
     } else if (biome === MOUNT) {
-      for (let lx = RI(3, 8); lx < 29; lx += RI(6, 12)) if (H(lx) > 92 && Math.abs(H(lx - 1) - H(lx + 1)) < 4) tree(lx, true);
+      for (let lx = RI(3, 8); lx < CW - 3; lx += RI(8, 16)) if (H(lx) > 92 + UP && Math.abs(H(lx - 1) - H(lx + 1)) < 4) tree(lx, true);
       if (R() < 0.18) { // a radio mast on the ridge
-        let best = 4; for (let lx = 4; lx < 28; lx++) if (H(lx) < H(best)) best = lx;
+        let best = 4; for (let lx = 4; lx < CW - 4; lx++) if (H(lx) < H(best)) best = lx;
         const g = H(best), mh = RI(20, 34);
         for (let k = 1; k <= mh; k++) { F(best, g - k, M.STEEL); if (k % 4 === 0) { B(best - 1, g - k, M.STEEL); B(best + 1, g - k, M.STEEL); } }
         F(best, g - mh - 1, M.LAMP);
@@ -376,20 +390,31 @@ export class World {
         spawn("soldier", best + 2, g - 4);
       }
     }
-    // the bridge over the sea: a deck on piers, towers and cables as a backdrop that falls with it
-    const DECK = 138;
+    // the bridge over the sea: a thick deck on a steel truss, wide piers down into the water, tall towers with
+    // cables hanging between them, all of it a backdrop that falls with it
+    const DECK = 132 + UP, TH = 8, SPAN = 96, TOW = 70;
     for (let lx = 0; lx < CW; lx++) {
       const cx = x0 + lx, h = c.hgt[lx];
-      if (h <= DECK + 1) continue;
-      F(lx, DECK, M.CONCRETE); F(lx, DECK + 1, M.STEEL);
-      const m = ((cx % 24) + 24) % 24;
-      if (m < 2) for (let cy = DECK + 2; cy < h; cy++) F(lx, cy, M.CONCRETE);
+      if (h <= DECK + TH) continue;
+      F(lx, DECK - 1, M.STEEL);
+      for (let k = 0; k < 3; k++) F(lx, DECK + k, M.CONCRETE);
+      F(lx, DECK + TH, M.STEEL);
+      const q = ((cx % 12) + 12) % 12;
+      for (let k = 3; k < TH; k++) { const d = k - 3; if (q === 0 || q === d * 2 || q === 12 - d * 2) F(lx, DECK + k, M.STEEL); else B(lx, DECK + k, M.STEEL); }
+      const m = ((cx % 48) + 48) % 48;
+      if (m < 5) for (let cy = DECK + TH + 1; cy < h; cy++) F(lx, cy, M.CONCRETE);
       if (h > SEA) {
-        const t = ((cx % 48) + 48) % 48, d = Math.min(t, 48 - t), ch = Math.round(3 + 25 * Math.pow((24 - d) / 24, 2));
-        if (d < 1 || t === 47) { for (let k = 1; k <= 29; k++) B(lx, DECK - k, M.STEEL); B(lx, DECK - 30, M.LAMP); }
-        else { B(lx, DECK - ch, M.STEEL); B(lx, DECK - ch - 1, M.STEEL); if (((cx % 4) + 4) % 4 === 0) for (let k = 1; k < ch; k++) B(lx, DECK - k, M.STEEL); }
-        if (lx === 12 && R() < 0.5) spawn("car", lx, DECK);
-        if (lx === 24 && R() < 0.25) spawn("tank", lx, DECK);
+        const t = ((cx % SPAN) + SPAN) % SPAN, d = Math.min(t, SPAN - t), half = SPAN / 2;
+        if (d < 2) { for (let k = 2; k <= TOW; k++) F(lx, DECK - k, M.STEEL); for (let k = 2; k <= TOW; k += 6) B(lx + (t < half ? 1 : -1), DECK - k, M.STEEL); F(lx, DECK - TOW - 1, M.LAMP); }
+        else {
+          const ch = Math.round(4 + (TOW - 6) * Math.pow((half - d) / half, 2));
+          B(lx, DECK - ch, M.STEEL); B(lx, DECK - ch - 1, M.STEEL);
+          if (((cx % 6) + 6) % 6 === 0) for (let k = 2; k < ch; k++) B(lx, DECK - k, M.STEEL);
+          for (let k = 2; k <= 4; k++) if (((cx % 8) + 8) % 8 === 0) F(lx, DECK - k, M.STEEL);
+        }
+        if (lx === 20 && R() < 0.6) spawn("car", lx, DECK - 1);
+        if (lx === 44 && R() < 0.5) spawn("car", lx, DECK - 1);
+        if (lx === 32 && R() < 0.3) spawn("tank", lx, DECK - 1);
       }
     }
   }
@@ -398,7 +423,7 @@ export class World {
   key(cx, cy) { return (cx + 1048576) * 1024 + cy; }
   destroyCell(cx, cy, vx = 0, vy = 0, quiet = false) {
     if (cy < 0 || cy >= WH) return 0;
-    const c = this.chunk(cx >> 5), i = (cx & 31) * WH + cy, m = c.fg[i];
+    const c = this.chunk(cx >> 6), i = (cx & 63) * WH + cy, m = c.fg[i];
     if (!m || m === M.BEDROCK) return 0;
     c.fg[i] = 0; c.dmg[i] = 0;
     this.destroyed++;
@@ -409,7 +434,7 @@ export class World {
   }
   destroyBg(cx, cy) {
     if (cy < 0 || cy >= WH) return;
-    const c = this.chunk(cx >> 5), i = (cx & 31) * WH + cy;
+    const c = this.chunk(cx >> 6), i = (cx & 63) * WH + cy;
     if (!c.bg[i]) return;
     const m = c.bg[i];
     c.bg[i] = 0;
@@ -425,7 +450,7 @@ export class World {
     let n = 0;
     const kick = o.kick ?? 1;
     for (let cx = x0; cx <= x1; cx++) {
-      const c = this.chunk(cx >> 5), base = (cx & 31) * WH;
+      const c = this.chunk(cx >> 6), base = (cx & 63) * WH;
       for (let cy = y0; cy <= y1; cy++) {
         const i = base + cy, f = c.fg[i], b = c.bg[i];
         if (!f && !b) continue;
@@ -510,7 +535,7 @@ export class World {
     const w = x1 - x0 + 1, h = y1 - y0 + 1;
     const isl = { cx0: x0, row: y0, y: y0 * CELL, w, h, fg: new Uint8Array(w * h), bg: new Uint8Array(w * h), dmg: new Uint8Array(w * h), vy: 0, n, fell: 0, probes: [], wob: Math.random() * 6 };
     for (let i = 0; i < comp.length; i += 2) {
-      const cx = comp[i], cy = comp[i + 1], c = this.chunk(cx >> 5), j = (cx & 31) * WH + cy, k = (cy - y0) * w + (cx - x0);
+      const cx = comp[i], cy = comp[i + 1], c = this.chunk(cx >> 6), j = (cx & 63) * WH + cy, k = (cy - y0) * w + (cx - x0);
       isl.fg[k] = c.fg[j]; isl.bg[k] = c.bg[j]; isl.dmg[k] = c.dmg[j];
       c.fg[j] = 0; c.bg[j] = 0; c.dmg[j] = 0;
     }
@@ -546,7 +571,7 @@ export class World {
         if (!f && !b) continue;
         const cx = s.cx0 + x, cy = s.row + y;
         if (cy >= WH - 5) continue;
-        const c = this.chunk(cx >> 5), j = (cx & 31) * WH + cy;
+        const c = this.chunk(cx >> 6), j = (cx & 63) * WH + cy;
         const p = frac + (y >= s.h - 3 ? 0.3 : 0) + (f === M.GLASS ? 0.5 : 0) + (f === M.LEAVES ? 0.3 : 0);
         const smash = s.fell > 1 && Math.random() < p;
         if (f) {
@@ -591,7 +616,7 @@ export class World {
     const cx1 = Math.floor((camX + W - 1) / CELL), cy1 = Math.min(WH - 1, Math.floor((camY + Hh - 1) / CELL));
     const wave = Math.floor(time * 3);
     for (let cx = cx0; cx <= cx1; cx++) {
-      const c = this.chunk(cx >> 5), lx = cx & 31, base = lx * WH, h = c.hgt[lx], wet = h > SEA;
+      const c = this.chunk(cx >> 6), lx = cx & 63, base = lx * WH, h = c.hgt[lx], wet = h > SEA;
       const px = cx * CELL - camX, tx = (cx & 3) * 4;
       const xa = Math.max(0, px), xb = Math.min(W, px + CELL);
       for (let cy = cy0; cy <= cy1; cy++) {

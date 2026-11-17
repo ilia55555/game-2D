@@ -1,6 +1,6 @@
 // The backdrop: a hazy warm sky that deepens to night-blue as you climb, a pale sun, clouds,
 // and three parallax layers of far mountains and skyline that never end.
-import { hash } from "./world.js";
+import { hash, UP, CELL } from "./world.js";
 
 const lerp = (a, b, t) => a + (b - a) * t;
 const STOPS = [[0, 14, 16, 40], [0.22, 42, 62, 120], [0.45, 126, 168, 200], [0.66, 232, 216, 166], [0.85, 246, 232, 196], [1, 243, 220, 174]];
@@ -17,6 +17,7 @@ const col = (r, g, b) => 0xff000000 | (b << 16) | (g << 8) | r;
 const L1 = col(222, 204, 160), L2 = col(206, 186, 142), L2W = col(190, 168, 124), L3 = col(180, 158, 118), L3W = col(150, 128, 96), L3L = col(240, 214, 150);
 
 export function drawSky(frame, camX, camY, time) {
+  camY -= UP * CELL; // the sky was laid out for the old ground line
   const C = frame.color, W = frame.w, H = frame.h;
   // gradient by altitude
   for (let y = 0; y < H; y++) {
