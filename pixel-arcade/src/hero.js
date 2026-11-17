@@ -153,10 +153,17 @@ export class Hero {
     if (this.superJ > 0) { this.superJ -= dt; if (this.vy > -200) this.superJ = 0; }
 
     // fast enough and nothing stops him: walls give way
-    const smash = this.pounding ? false : (this.dashing && this.speed > 300) || this.superJ > 0;
+    // running into the ground (not flying): keep digging even when the dirt has slowed him down
+    const digRun = !this.fly && this.dashing && I.mx !== 0;
+    const smash = this.pounding ? false : (this.dashing && this.speed > 300) || this.superJ > 0 || digRun;
     if (smash) {
-      const sp = this.speed || 1, nx = this.vx / sp, ny = this.vy / sp, look = Math.max(6, sp * dt * 1.6);
-      if (boxHits(w, this.x + nx * look, this.y + ny * look - (this.onGround && ny === 0 ? CELL * 2 : 0), this.hw + 1, this.h + 1)) g.smashThrough(this.x + nx * 12, this.y - 16 + ny * 14, nx, ny);
+      let sp = this.speed || 1, nx = this.vx / sp, ny = this.vy / sp;
+      if (digRun && sp < 300) { nx = I.mx > 0 ? 1 : -1; ny = 0; sp = 300; }
+      const look = Math.max(6, sp * dt * 1.6);
+      if (boxHits(w, this.x + nx * look, this.y + ny * look - (this.onGround && ny === 0 ? CELL * 2 : 0), this.hw + 1, this.h + 1)) {
+        g.smashThrough(this.x + nx * 12, this.y - 16 + ny * 14, nx, ny);
+        if (digRun) { g.smashThrough(this.x + nx * 30, this.y - 16 + ny * 14, nx, ny); if (Math.abs(this.vx) < 260) this.vx = nx * 260; }
+      }
     }
     // the flash runs on water
     if (!this.fly && this.dashing && Math.abs(this.vx) > 300 && this.vy >= 0 && this.y >= SEA * CELL - 2 && this.y < SEA * CELL + 8 && w.wet(Math.floor(this.x / CELL)) && !w.solidPx(this.x, SEA * CELL + 1)) {

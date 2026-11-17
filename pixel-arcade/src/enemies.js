@@ -158,11 +158,21 @@ export class Heli extends Enemy {
       return;
     }
     if ((this.sideT -= dt) < 0) { this.sideT = 4 + Math.random() * 4; this.side *= -1; }
-    const tx = h.x + this.side * 190, ty = Math.min(h.cy - 130, w.surfaceY(this.x, 0) - 110);
+    const tx = h.x + this.side * 190;
+    // plan ahead: the highest ground/rooftop between here and a bit past where we're heading
+    let roof = Infinity;
+    const dir = Math.sign(tx - this.x) || 1, reach = Math.max(80, Math.abs(this.vx) * 1.4 + 70);
+    for (let ox = -40; ox <= reach; ox += CELL * 2) roof = Math.min(roof, w.surfaceY(this.x + dir * ox, 0));
+    const safeY = roof - 60;
+    const ty = Math.min(h.cy - 130, safeY);
     this.vx += ((tx - this.x) * 1.2 - this.vx) * Math.min(1, 1.5 * dt); this.vy += ((ty - this.y) * 1.5 - this.vy) * Math.min(1, 2 * dt);
+    // too low to clear what's ahead: hold back horizontally until it has climbed
+    if (this.y > safeY + 10 && Math.sign(this.vx) === dir) this.vx *= Math.max(0, 1 - 6 * dt);
     this.vx = Math.max(-220, Math.min(220, this.vx)); this.vy = Math.max(-160, Math.min(160, this.vy));
-    this.x += this.vx * dt; this.y += this.vy * dt + Math.sin(this.t * 3) * 0.2;
-    if (boxHits(w, this.x, this.y, 30, 30)) this.y -= 3;
+    const nx = this.x + this.vx * dt, ny = this.y + this.vy * dt + Math.sin(this.t * 3) * 0.2;
+    if (!boxHits(w, nx, ny, 30, 30)) { this.x = nx; this.y = ny; }
+    else if (!boxHits(w, this.x, ny, 30, 30)) { this.y = ny; this.vx *= 0.5; }
+    else { this.vy = Math.min(this.vy, -60); this.y += this.vy * dt; }
     const dx = h.x - this.x, dy = h.cy - this.y, dist = Math.hypot(dx, dy);
     this.face = dx > 0 ? 1 : -1;
     if (dist < 420 && h.dead <= 0) {
