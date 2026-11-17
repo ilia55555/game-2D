@@ -1,21 +1,14 @@
-// Ten weapons and an ultimate, each built round pixelfx effects and the world's own destruction.
+// The hero's powers and an ultimate, each built round pixelfx effects and the world's own destruction.
 import { createFx } from "../vendor/pixelfx/src/core/index.js";
-import * as laserBolt from "../vendor/pixelfx/src/fx/projectiles/laser-bolt.js";
-import * as rocketFx from "../vendor/pixelfx/src/fx/projectiles/rocket.js";
-import * as plasmaShot from "../vendor/pixelfx/src/fx/projectiles/plasma-shot.js";
 import * as blackHole from "../vendor/pixelfx/src/fx/shadow/black-hole.js";
 import * as voidOrb from "../vendor/pixelfx/src/fx/shadow/void-orb.js";
 import * as implosion from "../vendor/pixelfx/src/fx/explosions/implosion.js";
 import * as tornadoFx from "../vendor/pixelfx/src/fx/nature/tornado.js";
-import * as meteorFx from "../vendor/pixelfx/src/fx/fire/meteor.js";
-import * as strike from "../vendor/pixelfx/src/fx/lightning/lightning-strike.js";
-import * as iceSpikes from "../vendor/pixelfx/src/fx/ice/ice-spikes.js";
-import * as holyPillar from "../vendor/pixelfx/src/fx/holy/holy-pillar.js";
 import * as nukeFx from "../vendor/pixelfx/src/fx/explosions/nuke.js";
-import * as zapHit from "../vendor/pixelfx/src/fx/lightning/zap-hit.js";
 import { CELL, SEA } from "./world.js";
 import { PT } from "./particles.js";
 import { MJOLNIR } from "./thor.js";
+import { AQUA, FROST, ARCANE, INFERNO, RADIANCE, EMPTY } from "./powers.js";
 
 const BLUE = ["#061a3c", "#0b3b8c", "#1f6ad0", "#3f9cff", "#7fd0ff", "#c8f0ff", "#ffffff"];
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -30,58 +23,6 @@ function travel(g, s, dt, r = 2) {
     if (e) return { x: s.x, y: s.y, e };
   }
   return null;
-}
-
-class Bolt {
-  constructor(g, x, y, a) { Object.assign(this, { g, x, y, vx: Math.cos(a) * 640, vy: Math.sin(a) * 640, a, life: 0.8 }); this.fx = createFx(laserBolt, { x, y, angle: a, palette: BLUE, length: 22 }); }
-  update(dt) {
-    const g = this.g, hit = travel(g, this, dt);
-    this.fx.options.x = this.x; this.fx.options.y = this.y; this.fx.update(dt);
-    if (hit) { if (hit.e) hit.e.hurt(2, this.vx * 0.1, -20); g.blast(hit.x, hit.y, 11, 4, { kind: "spark", angle: this.a + Math.PI, quiet: true, fire: 0.05 }); return false; }
-    return (this.life -= dt) > 0;
-  }
-  draw(f) { this.fx.draw(f); }
-}
-
-class Rocket {
-  constructor(g, x, y, a) { Object.assign(this, { g, x, y, a, sp: 160, life: 2.2, vx: 0, vy: 0 }); this.fx = createFx(rocketFx, { x, y, angle: a }); }
-  update(dt) {
-    const g = this.g;
-    this.sp = Math.min(760, this.sp + 1500 * dt);
-    this.vx = Math.cos(this.a) * this.sp; this.vy = Math.sin(this.a) * this.sp;
-    const hit = travel(g, this, dt, 4);
-    this.fx.options.x = this.x; this.fx.options.y = this.y; this.fx.update(dt);
-    g.parts.spawn(PT.SMOKE, this.x - Math.cos(this.a) * 14, this.y - Math.sin(this.a) * 14, rnd(-12, 12), rnd(-12, 12), 0.7, 0xffb8b0b4, 4);
-    if (hit || (this.life -= dt) <= 0) { g.blast(this.x, this.y, 46, 10, { kind: "small", size: 1.25 }); return false; }
-    return true;
-  }
-  draw(f) { this.fx.draw(f); }
-}
-
-class Grenade {
-  constructor(g, x, y, vx, vy, mini) { Object.assign(this, { g, x, y, vx, vy, mini, fuse: mini ? rnd(0.5, 1) : 1.15, t: 0 }); }
-  update(dt) {
-    const g = this.g, w = g.world;
-    this.t += dt; this.vy += 720 * dt;
-    const nx = this.x + this.vx * dt, ny = this.y + this.vy * dt;
-    if (w.solidPx(nx, ny)) {
-      if (!w.solidPx(nx, this.y)) { this.vy *= -0.45; this.vx *= 0.7; } else if (!w.solidPx(this.x, ny)) this.vx *= -0.5; else { this.vx *= -0.4; this.vy *= -0.4; }
-      if (Math.hypot(this.vx, this.vy) > 90) g.sfx("thud");
-    } else { this.x = nx; this.y = ny; }
-    if (g.enemyAt(this.x, this.y, 3)) this.fuse = 0;
-    if ((this.fuse -= dt) > 0) return true;
-    if (this.mini) g.blast(this.x, this.y, 24, 7, { kind: "small", size: 0.7 });
-    else {
-      g.blast(this.x, this.y, 32, 8, { kind: "small", size: 1 });
-      for (let i = 0; i < 7; i++) g.shots.push(new Grenade(g, this.x, this.y - 4, rnd(-240, 240), rnd(-420, -180), true));
-    }
-    return false;
-  }
-  draw(f) {
-    const x = Math.round(this.x) - f.ox, y = Math.round(this.y) - f.oy, s = this.mini ? 1 : 2, W = f.w, H = f.h;
-    for (let b = -s; b <= s; b++) for (let a = -s; a <= s; a++) { if (Math.abs(a) + Math.abs(b) > s + 1) continue; const px = x + a, py = y + b; if (px >= 0 && py >= 0 && px < W && py < H) f.color[py * W + px] = a === 0 && b === 0 && Math.floor(this.t * 12) & 1 ? 0xff4040ff : 0xff283a2c; }
-    if (x >= 0 && y >= 0 && x < W && y < H && Math.floor(this.t * 12) & 1) f.light[y * W + x] = 0xff2020c0;
-  }
 }
 
 class VoidShot {
@@ -146,12 +87,9 @@ class Twister {
 }
 
 export const WEAPONS = [
-  { name: "BLASTER", cd: 0.08, pose: "pistol", col: 0xffffd07f,
-    fire(g, h, ax, ay) { const [x, y, a] = h.muzzle(ax, ay); g.shots.push(new Bolt(g, x, y, a + rnd(-0.03, 0.03))); g.sfx("shot"); g.flashLight(x, y, 14, 0xffffc060, 0.5); } },
-  { name: "ROCKETS", cd: 0.4, pose: "launcher", col: 0xff3c8cff,
-    fire(g, h, ax, ay) { const [x, y, a] = h.muzzle(ax, ay); g.shots.push(new Rocket(g, x, y, a)); g.sfx("rocket"); h.vx -= Math.cos(a) * 40; } },
-  { name: "CLUSTER", cd: 0.6, pose: "launcher", col: 0xff48c060,
-    fire(g, h, ax, ay) { const [x, y, a] = h.muzzle(ax, ay); const p = Math.min(1, Math.hypot(ax - x, ay - y) / 220); g.shots.push(new Grenade(g, x, y, Math.cos(a) * (260 + 300 * p) + h.vx * 0.5, Math.sin(a) * (260 + 300 * p) - 90)); g.sfx("thud"); } },
+  AQUA,
+  FROST,
+  ARCANE,
   { name: "HEAT VISION", cd: 0, beam: true, col: 0xff3030ff,
     fire(g, h, ax, ay, dt) {
       const [ex, ey] = h.eyes(), a = Math.atan2(ay - ey, ax - ex), c = Math.cos(a), s = Math.sin(a), w = g.world;
@@ -168,43 +106,13 @@ export const WEAPONS = [
       g.sfx("laser");
     } },
   MJOLNIR, // hold to charge; see thor.js
-  { name: "METEOR", cd: 0.9, col: 0xff2a6aff,
-    fire(g, h, ax, ay) {
-      const w = g.world, y = w.solidPx(ax, ay) ? ay : w.surfaceY(ax, ay), flip = ax < h.x;
-      g.fx.spawn(meteorFx, { x: ax, y, flip, keep: true });
-      g.later(0.62, () => g.blast(ax, y, 66, 13, { kind: "none", fire: 0.9, boom: 1.6 }));
-    } },
+  INFERNO,
   { name: "BLACK HOLE", cd: 2.2, col: 0xffff60a0,
     fire(g, h, ax, ay) { const [x, y] = h.muzzle(ax, ay); g.shots.push(new VoidShot(g, x, y, ax, ay)); g.sfx("fly"); } },
   { name: "TORNADO", cd: 1.8, col: 0xffc0c8d0,
     fire(g, h, ax, ay) { const dir = ax >= h.x ? 1 : -1, x = h.x + dir * 30; g.shots.push(new Twister(g, x, g.world.surfaceY(x, h.y - 40), dir)); } },
-  { name: "ICE SPIKES", cd: 0.7, col: 0xffffe0a0,
-    fire(g, h, ax, ay) {
-      const w = g.world, dir = ax >= h.x ? 1 : -1, y0 = w.surfaceY(h.x + dir * 20, h.y - 30), sx = h.x;
-      g.fx.spawn(iceSpikes, { x: h.x + dir * 4, y: y0, flip: dir < 0, keep: true });
-      g.sfx("ice");
-      for (let i = 0; i < 9; i++) g.later(0.12 + i * 0.05, () => {
-        const x = sx + dir * (24 + i * 18), y = w.surfaceY(x, y0 - 60);
-        if (Math.abs(y - y0) > 90) return;
-        g.addScore(w.explode(x, y - 14 - i * 1.5, 14 + i * 1.6, 7, { fire: 0, clean: true, kick: 1.4 }));
-        g.eachEnemy(x, y - 16, 26, (e) => e.hurt(14, dir * 60, -260));
-        for (let k = 0; k < 6; k++) g.parts.spawn(PT.DEBRIS, x + rnd(-8, 8), y - rnd(0, 40), rnd(-80, 80), rnd(-260, -80), rnd(0.6, 1.4), k & 1 ? 0xfffff4d8 : 0xffffd09b, 1 + (k & 1));
-        g.shake(1.5);
-      });
-    } },
-  { name: "SKY BEAM", cd: 1.3, col: 0xffa0f0ff,
-    fire(g, h, ax, ay) {
-      const w = g.world, y = w.solidPx(ax, ay) ? ay : w.surfaceY(ax, ay);
-      g.fx.spawn(holyPillar, { x: ax, y, keep: true });
-      g.sfx("beam");
-      for (let k = 0; k < 14; k++) g.later(0.5 + k * 0.06, () => {
-        for (let yy = y - 230; yy < y + 26 + k * 7; yy += 13) g.addScore(w.explode(ax + rnd(-2, 2), yy, 13 + Math.min(k, 5), 12, { fire: 0.3, debris: 4 }));
-        g.eachEnemy(ax, y - 100, 140, (e) => { if (Math.abs(e.x - ax) < 22) e.hurt(20); });
-        g.beam2 = { x: ax, y0: y - 260, y1: y + 26 + k * 7, t: 0.09 };
-        g.shake(2.5);
-        if (k === 0) g.sfx("bigboom");
-      });
-    } },
+  RADIANCE,
+  EMPTY, // slot 0: free for a power to come
 ];
 
 /** The ultimate. */

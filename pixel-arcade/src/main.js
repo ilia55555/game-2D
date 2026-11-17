@@ -221,9 +221,23 @@ class Game {
     } else {
       if (h.hurtT > 3) h.hp = Math.min(100, h.hp + 16 * dt);
       if (I.punchP) this.punch();
-      this.cd -= dt;
+      this.cd -= dt; this.altCd = (this.altCd || 0) - dt;
       const wp = WEAPONS[this.weapon];
-      if (wp.charge) {
+      // right click: the power's second move, or a punch if it has none
+      if (I.altP) { if (wp.alt) { if (this.altCd <= 0) { wp.alt(this, h, I.aimX, I.aimY); this.altCd = wp.altCd ?? 0.5; h.fireT = 0; } } else this.punch(); }
+      if (wp.empty) { /* free slot */ }
+      else if (wp.tap || wp.hold) {
+        // left click: a quick click taps, holding past HOLD_T holds
+        const HOLD_T = 0.2;
+        if (I.fire && h.punchT <= 0) {
+          this.holdT = (this.holdT || 0) + dt;
+          if (wp.hold && this.holdT >= HOLD_T) { wp.hold(this, h, I.aimX, I.aimY, this.holdT - HOLD_T, dt); this.holding = true; h.fireT = 0; }
+        } else if (this.holdT > 0) {
+          if (this.holding) wp.release?.(this, h, I.aimX, I.aimY, this.holdT - HOLD_T);
+          else if (this.cd <= 0 && wp.tap) { wp.tap(this, h, I.aimX, I.aimY); this.cd = wp.cd; h.fireT = 0; }
+          this.holdT = 0; this.holding = false;
+        }
+      } else if (wp.charge) {
         if (I.fire && h.punchT <= 0 && this.cd <= 0) { this.chargeT = (this.chargeT || 0) + dt; wp.charging(this, h, I.aimX, I.aimY, this.chargeT); h.fireT = 0; }
         else if (this.chargeT > 0) { wp.release(this, h, I.aimX, I.aimY, this.chargeT); this.chargeT = 0; this.cd = wp.cd; h.fireT = 0; }
       } else if (I.fire && h.punchT <= 0 && (wp.beam || this.cd <= 0)) { wp.fire(this, h, I.aimX, I.aimY, dt); this.cd = wp.cd; h.fireT = 0; }
@@ -256,7 +270,7 @@ class Game {
     if (z !== this.zone) { if (this.zone !== null) this.say(BIOME_NAMES[z], UI.white); this.zone = z; }
     this.maxX = Math.max(this.maxX, Math.abs(h.x));
     if (this.score > this.best) { this.best = this.score; }
-    I.jumpP = I.poundP = I.punchP = I.nukeP = false;
+    I.jumpP = I.poundP = I.punchP = I.nukeP = I.altP = false;
   }
 
   // ---- the picture
@@ -363,7 +377,7 @@ addEventListener("resize", fit); fit();
 
 const keys = new Set(), I = game.I;
 let mouseX = W / 2 + 80, mouseY = H / 2, mouseFire = false;
-const setWeapon = (i) => { const n = WEAPONS.length; game.weapon = ((i % n) + n) % n; game.chargeT = 0; game.cd = Math.min(game.cd, 0.2); sfx("swap"); };
+const setWeapon = (i) => { const n = WEAPONS.length; game.weapon = ((i % n) + n) % n; game.chargeT = 0; game.holdT = 0; game.holding = false; game.cd = Math.min(game.cd, 0.2); sfx("swap"); };
 addEventListener("keydown", (e) => {
   if (e.repeat) { if (["Space", "ArrowUp", "ArrowDown", "Tab"].includes(e.code)) e.preventDefault(); return; }
   const c = e.code;
@@ -382,7 +396,7 @@ addEventListener("keyup", (e) => keys.delete(e.code));
 addEventListener("blur", () => { keys.clear(); mouseFire = false; });
 const toCanvas = (e) => { const r = canvas.getBoundingClientRect(); return [((e.clientX - r.left) / r.width) * W, ((e.clientY - r.top) / r.height) * H]; };
 addEventListener("mousemove", (e) => { [mouseX, mouseY] = toCanvas(e); });
-addEventListener("mousedown", (e) => { if (e.target.closest && e.target.closest("#help")) return; start(); [mouseX, mouseY] = toCanvas(e); if (e.button === 0) mouseFire = true; if (e.button === 2) I.punchP = true; });
+addEventListener("mousedown", (e) => { if (e.target.closest && e.target.closest("#help")) return; start(); [mouseX, mouseY] = toCanvas(e); if (e.button === 0) mouseFire = true; if (e.button === 2) I.altP = true; });
 addEventListener("mouseup", (e) => { if (e.button === 0) mouseFire = false; });
 addEventListener("contextmenu", (e) => e.preventDefault());
 addEventListener("wheel", (e) => { setWeapon(game.weapon + (e.deltaY > 0 ? 1 : -1)); }, { passive: true });
@@ -406,7 +420,7 @@ function touchSetup() {
   btn("bJump", () => { I.jumpP = true; T.jump = true; }, () => (T.jump = false));
   btn("bDash", () => (T.dash = true), () => (T.dash = false));
   btn("bPound", () => (I.poundP = true));
-  btn("bPunch", () => (I.punchP = true));
+  btn("bPunch", () => (I.altP = true));
   btn("bNext", () => setWeapon(game.weapon + 1));
   btn("bNuke", () => (I.nukeP = true));
 }
