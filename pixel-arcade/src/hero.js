@@ -118,7 +118,7 @@ export class Hero {
     const water = w.inWater(this.x, this.y - 14);
     const wasGround = this.onGround, vy0 = this.vy;
     this.dashing = I.dash && (I.mx !== 0 || (this.fly && I.my !== 0));
-    this.slide = 5;
+    this.slide = this.dashing && !this.fly && !(I.my < -0.3) ? 0 : 5;
     // jump held: after a moment it becomes flight, straight up unless steered
     this.jumpT = I.jump ? (this.jumpT || 0) + dt : 0;
     if (!this.fly && !this.pounding && I.jump && this.jumpT > 0.22 && !this.onGround && this.superJ <= 0 && !water) { this.fly = true; this.vy *= 0.5; g.sfx("fly"); }
@@ -165,7 +165,7 @@ export class Hero {
     const smash = this.pounding ? false : this.dashing || this.superJ > 0;
     if (smash) {
       let sp = this.speed || 1, nx = this.vx / sp, ny = this.vy / sp;
-      if (this.onGround && !this.fly && this.superJ <= 0) { nx = Math.sign(this.vx || I.mx || this.face); ny = 0; }
+      if (this.onGround && !this.fly && this.superJ <= 0) { nx = Math.sign(this.vx || I.mx || this.face); ny = this.dashing ? I.my * 0.7 : 0; const m = Math.hypot(nx, ny); nx /= m; ny /= m; }
       if (sp < 200 && this.dashing) { const im = Math.hypot(I.mx, this.fly ? I.my : 0) || 1; nx = I.mx / im; ny = (this.fly ? I.my : 0) / im; sp = 200; }
       const look = Math.max(6, sp * dt * 1.6);
       if (boxHits(w, this.x + nx * look, this.y + ny * look - (this.onGround && ny === 0 ? CELL * 2 : 0), this.hw + 1, this.h + 1)) g.smashThrough(this.x + nx * 12, this.y - (this.onGround && ny === 0 ? 27 : 16) + ny * 14, nx, ny);
@@ -175,7 +175,13 @@ export class Hero {
       this.y = SEA * CELL; this.vy = 0;
       moveBody(w, this, dt, 8); this.vy = 0; this.onGround = true;
       if (Math.random() < 0.7) g.spray(this.x - this.face * 6, this.y, -this.face);
-    } else moveBody(w, this, dt, this.fly ? 0 : 8);
+    } else {
+      // flash on the ground: dead level unless steered; S digs down, W climbs
+      const run = this.dashing && !this.fly && this.onGround;
+      if (run && I.my > 0.3) this.vy = Math.max(this.vy, 260);
+      if (run && I.my < -0.3) this.vy = Math.min(this.vy, -220);
+      moveBody(w, this, dt, this.fly ? 0 : this.dashing && !(I.my < -0.3) ? 0 : 8);
+    }
     if (this.hitX && !smash) this.vx = 0;
     // blocked mid-flash by something the blast didn't break: knock out just the cells in the way, so he slows but never jams
     if (this.hitX && this.dashing) {
