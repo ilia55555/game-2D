@@ -31,6 +31,7 @@ const kit = (f, x, y, S, s = 1) => ({
   L: (x0, y0, x1, y1, c, wd = 1) => { for (let k = 0; k < Math.max(1, Math.round(wd * S)); k++) line(f, x + x0 * S, y + y0 * S + k, x + x1 * S, y + y1 * S + k, c); },
 });
 // sizes: a soldier is 2/3 of the hero's height; vehicles at real scale against him
+const SEA_Y = SEA * CELL;
 const SOLDIER = 0.68, CAR = 2.1, TANK = 2.4, HELI = 2.6;
 const K = (h) => hex(h);
 const COL = { tank: K("#4a5a34"), tankD: K("#2c381e"), tankL: K("#6e8048"), track: K("#1e1c20"), heli: K("#3a4254"), heliD: K("#222838"), glass: K("#8fd6e8"), red: K("#e03a2c"), tyre: K("#1a181c"), white: K("#f0ead8") };
@@ -172,7 +173,7 @@ export class Heli extends Enemy {
       return;
     }
     if ((this.sideT -= dt) < 0) { this.sideT = 4 + Math.random() * 4; this.side *= -1; }
-    const gl = w.groundPx(this.x), tx = h.x + this.side * 190;
+    const gl = Math.min(w.groundPx(this.x), w.wet(Math.floor(this.x / CELL)) ? SEA_Y : Infinity), tx = h.x + this.side * 190;
     let roof = Infinity; for (let ox = -60; ox <= 60 + Math.abs(this.vx) * 0.8; ox += 12) roof = Math.min(roof, w.surfaceY(this.x + ox * Math.sign(this.vx || 1), 0));
     const ty = Math.min(roof - 60, Math.max(gl - 300, Math.min(h.cy - 130, gl - 150)));
     this.vx += ((tx - this.x) * 1.2 - this.vx) * Math.min(1, 1.5 * dt); this.vy += ((ty - this.y) * 1.5 - this.vy) * Math.min(1, 2 * dt);
@@ -215,7 +216,7 @@ export class Jet extends Enemy {
     const g = this.g, h = g.hero;
     this.t += dt; this.flash -= dt;
     const w = g.world; let top = Infinity; for (let ox = -30; ox <= 420; ox += 14) top = Math.min(top, w.surfaceY(this.x + ox * this.dir, 0));
-    const gl = w.groundPx(this.x), ty = Math.min(top - 70, Math.max(gl - 340, Math.min(h.cy - this.alt, gl - 180)));
+    const gl = Math.min(w.groundPx(this.x), w.wet(Math.floor(this.x / CELL)) ? SEA_Y : Infinity), ty = Math.min(top - 70, Math.max(gl - 340, Math.min(h.cy - this.alt, gl - 180)));
     let spd = 380 * (this.boost || 1); this.vy += ((ty - this.y) * 3 - this.vy) * Math.min(1, 4 * dt);
     // plan the climb before moving: for every rooftop ahead, the climb rate needed to clear it in time
     let need = Infinity;
@@ -248,7 +249,6 @@ export class Jet extends Enemy {
 
 // ================================================================================================= THE NAVY
 // Boats ride the sea surface and only go where there is water. Each has its own way of fighting.
-const SEA_Y = SEA * CELL;
 class Ship extends Enemy {
   constructor(g, x) { super(g, x, SEA_Y); this.face = 1; this.sink = 0; }
   float(dt, want, sp, acc) {

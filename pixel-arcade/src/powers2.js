@@ -3,7 +3,8 @@
 // the sky and slammed down.
 import { ScaledFx } from "./scaled.js";
 import { PT } from "./particles.js";
-import { CELL } from "./world.js";
+import { CELL, SEA } from "./world.js";
+const SEA_PX = SEA * CELL;
 import { Arc } from "./thor.js";
 import { painterFor, fit } from "../vendor/pixelfx/src/core/index.js";
 import { VOID } from "../vendor/pixelfx/src/fx/shadow/_lib.js";
@@ -159,7 +160,7 @@ class Drain extends Power {
 
 /** Hold: dark arms burst out of the hero's back and follow the aim, like a mad scientist's. Their claws grab
  *  enemies; sweep the mouse and let go to throw them. They smash what they swing through. */
-const ARMS = 4, REACH = 250, AUTO_R = 170;
+const ARMS = 4, REACH = 250, AUTO_R = 250, HOLD_FOR = 0.45;
 const VC = fit(VOID, 8);
 class Tendrils {
   constructor(g, h) {
@@ -192,8 +193,9 @@ class Tendrils {
           a.prey = best;
         }
       } else a.prey = null;
-      // otherwise each claw goes for a point round the aim, never further than the arms reach
-      let tx = a.prey ? a.prey.x : I.aimX + a.off * 26 + Math.cos(this.t * 3 + a.ph) * 6, ty = a.prey ? mid(a.prey) : I.aimY + (a.off * a.off - 0.5) * 22 + Math.sin(this.t * 4 + a.ph) * 6;
+      // fully automatic: an idle claw waits fanned out round the hero; one holding something swings it up and throws it
+      let tx = a.prey ? a.prey.x : bx + a.off * 40 + Math.cos(this.t * 3 + a.ph) * 8, ty = a.prey ? mid(a.prey) : by - 46 + Math.abs(a.off) * 14 + Math.sin(this.t * 4 + a.ph) * 8;
+      if (a.held) { const out = a.held.x >= h.x ? 1 : -1, u = Math.min(1, (a.heldT || 0) / HOLD_FOR); tx = bx + out * (40 - 120 * u); ty = by - 60 - 90 * u; }
       const dx = tx - bx, dy = ty - by, d = Math.hypot(dx, dy), grow = Math.min(1, this.t / 0.25) * REACH;
       if (d > grow) { tx = bx + (dx / d) * grow; ty = by + (dy / d) * grow; }
       const k = 60, damp = 11;
@@ -202,12 +204,16 @@ class Tendrils {
       // grab
       if (!a.held) {
         const e = g.enemyAt(a.x, a.y, 6);
-        if (e && live(e) && (e.flungT || 0) < g.time && !this.arms.some((q) => q.held === e)) { a.held = e; g.sfx("punch"); }
+        if (e && live(e) && (e.flungT || 0) < g.time && !this.arms.some((q) => q.held === e)) { a.held = e; a.heldT = 0; g.sfx("punch"); }
       }
       if (a.held) {
         const e = a.held;
         if (!live(e)) a.held = null;
-        else { e.x = a.x; e.y = a.y + e.h / 2; e.vx = 0; e.vy = 0; e.hurt(2 * dt); }
+        else {
+          e.x = a.x; e.y = a.y + e.h / 2; e.vx = 0; e.vy = 0; e.hurt(2 * dt);
+          // swung over: let go and hurl it far away from the hero
+          if ((a.heldT = (a.heldT || 0) + dt) > HOLD_FOR) { const out = e.x >= h.x ? 1 : -1; a.vx = out * 520; a.vy = -380; this.throwOff(a); g.sfx("punch"); }
+        }
       }
       // smash: a fast claw tears through walls
       const sp = Math.hypot(a.vx, a.vy);
@@ -333,7 +339,8 @@ class Vine extends Power {
     const w = g.world, side = Math.random() < 0.5 ? -1 : 1;
     // it grows from the surface under the aim exactly up to the aim (the vine stands 79 px tall at scale 1)
     const by = w.solidPx(ax, ay) ? w.surfaceY(ax, ay - 600) : w.floorY(ax, ay); // on the sea: from the sea bed
-    const top = Math.min(ay, by - 30), k = Math.max(0.6, Math.min(9, (by - top) / 79));
+    // out on the sea it always grows up out of the water
+    const top = Math.min(ay, by - 30, w.wet(Math.floor(ax / CELL)) ? SEA_PX - 50 : Infinity), k = Math.max(0.6, Math.min(16, (by - top) / 79));
     super(g, new ScaledFx(vineWhip, { x: ax, y: by, sx: k, flip: side < 0, seed: (Math.random() * 999) | 0, pad: 4 }));
     Object.assign(this, { x: ax, y: by, top, k, side, row: by, hit: new Set(), lashed: false });
     g.sfx("rumble"); g.sfx("crash", 0.6);

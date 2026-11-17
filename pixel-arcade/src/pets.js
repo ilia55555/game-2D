@@ -5,7 +5,7 @@
 //   right click: a slime that hops along eating everything, growing as it goes, and bursts into green bits
 import { ScaledFx } from "./scaled.js";
 import { PT } from "./particles.js";
-import { CELL } from "./world.js";
+import { CELL, isStruct } from "./world.js";
 import { Arc } from "./thor.js";
 import { painterFor } from "../vendor/pixelfx/src/core/index.js";
 import * as skullFx from "../vendor/pixelfx/src/fx/critters/flying-skull.js";
@@ -199,7 +199,8 @@ class Slime extends Pet {
   get r() { return 13 * this.size; }
   get cy() { return this.y - 11 * this.size; }
   top() { return this.y - 26 * this.size; }
-  grow(k) { this.size = Math.min(SL_MAX, this.size + k); this.hp = Math.min(this.max, this.hp + k * 60); }
+  // the bigger it gets the frailer it is, but the harder it bites and the faster it eats
+  grow(k) { this.size = Math.min(SL_MAX, this.size + k); this.base = this.base || this.max; this.max = this.base / Math.pow(this.size, 0.75); this.hp = Math.min(this.max, this.hp + k * 30); }
   step(dt) {
     const g = this.g, w = g.world, sz = this.size, ph = this.s.t % SL_D;
     const e = nearest(g, this.x, this.cy, 400);
@@ -214,18 +215,21 @@ class Slime extends Pet {
     // eat whatever it touches: cells of the world are sucked in and it grows
     const R = this.r, cyc = this.cy, cx0 = Math.floor((this.x - R) / CELL), cx1 = Math.floor((this.x + R) / CELL);
     let bites = 0;
-    for (let k = 0; k < 6 * sz; k++) {
+    for (let k = 0; k < 6 * sz * sz; k++) {
       const cx = Math.floor(rnd(cx0, cx1 + 1)), cy = Math.floor((cyc + rnd(-R, R * 1.1)) / CELL);
       const dx = cx * CELL + 2 - this.x, dy = cy * CELL + 2 - cyc;
       if (dx * dx + dy * dy > R * R * 1.2) continue;
-      if (w.get(cx, cy) && w.destroyCell(cx, cy, 0, 0, true)) { bites++; g.parts.spawn(PT.DEBRIS, cx * CELL + 2, cy * CELL + 2, -dx * 3, -dy * 3, 0.15, GREEN[k & 3], 1); }
+      const m = w.get(cx, cy);
+      // buildings and things on the ground, yes; the ground under it only a little, so it doesn't sink away
+      if (m && !isStruct(m) && cy * CELL >= this.y - 2 && Math.random() > 0.04) continue;
+      if (m && w.destroyCell(cx, cy, 0, 0, true)) { bites++; g.parts.spawn(PT.DEBRIS, cx * CELL + 2, cy * CELL + 2, -dx * 3, -dy * 3, 0.15, GREEN[k & 3], 1); }
       else if (w.getBg(cx, cy)) { w.destroyBg(cx, cy); bites += 0.5; }
     }
     if (bites) { this.grow(bites * 0.0025); this.eaten += bites; g.addScore(Math.ceil(bites)); }
     // and the army: anyone it lands on is swallowed
     for (const q of g.enemies) {
       if (!live(q) || Math.abs(q.x - this.x) > R + q.hw || mid(q) < this.top() - 4 || q.y - q.h > this.y + 4) continue;
-      q.hurt(60 * dt * sz);
+      q.hurt(60 * dt * sz * sz);
       if (q.dead || q.hp <= 0) { this.grow(0.12); g.sfx("pop"); }
       else { q.x += (this.x - q.x) * dt * 3; }
     }
