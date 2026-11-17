@@ -5,6 +5,7 @@ import { painterFor, hex, rng } from "../vendor/pixelfx/src/core/index.js";
 import { VOLT, zigzag, stroke } from "../vendor/pixelfx/src/fx/lightning/_lib.js";
 import { PT } from "./particles.js";
 import { CELL } from "./world.js";
+import { strike } from "./thor.js";
 
 const C = VOLT.map(hex);
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -70,7 +71,11 @@ export function lightningLeft(M) {
   const { charge, charging, release, ...rest } = M;
   return {
     ...rest, cd: 0.12,
-    tap(g, h, ax, ay) { g.shots.push(new Strike(g, h, ax, ay)); },
+    tap(g, h, ax, ay) {
+      // the big bolt from the sky, as before; underground or inside a building it lands on top
+      const w = g.world, ty = w.solidPx(ax, ay) || w.getBg(Math.floor(ax / CELL), Math.floor(ay / CELL)) ? w.surfaceY(ax, Math.min(ay, g.cam.y) - 600) : ay;
+      strike(g, h, ax, ty, 1);
+    },
     hold(g, h, ax, ay, t, dt) {
       if (!g.bolt || !g.shots.includes(g.bolt)) { g.bolt = new Stream(g, h); g.shots.push(g.bolt); }
       g.bolt.aim(ax, ay, dt);

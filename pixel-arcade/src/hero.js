@@ -175,10 +175,12 @@ export class Hero {
         // running through the ground: A/D alone digs fastest, adding S/W digs slower
         if (this.dashing && !this.fly) {
           const diag = Math.abs(ny) > 0.2;
-          if (!diag) { g.smashThrough(this.x + nx * 30, oy, nx, ny); g.smashThrough(this.x + nx * 46, oy, nx, ny); }
-          const minV = diag ? 170 : 340;
+          if (!diag) g.smashThrough(this.x + nx * 28, oy, nx, ny);
+          const minV = diag ? 100 : 205;
           if (Math.abs(this.vx) < minV && nx) this.vx = Math.sign(nx) * minV;
-          if (diag) this.vx = Math.max(-260, Math.min(260, this.vx));
+          if (diag) this.vx = Math.max(-155, Math.min(155, this.vx));
+          // underground (rock over the head): 40% slower
+          if (w.solidPx(this.x, this.y - this.h - 6)) this.vx = Math.max(-325, Math.min(325, this.vx));
         }
       }
     }

@@ -327,8 +327,7 @@ class Blizzard extends Power {
     const g = this.g, w = g.world, s = this.s;
     if (this.t > 5.5) return this.end();
     this.x += this.dir * 45 * dt;
-    const gy = w.surfaceY(this.x, this.y - 60);
-    this.y += Math.max(-80 * dt, Math.min(160 * dt, gy - this.y));
+    // level along the ground: it keeps its height and tears through whatever stands in its way
     s.x = this.x; s.y = this.y;
     g.eachEnemy(this.x, this.y - 140, 150, (e) => { if (Math.abs(e.x - this.x) > 70) return; e.vx += (this.x - e.x) * 5 * dt; e.vy -= 1500 * dt; e.vx *= 0.97; e.hurt(14 * dt); });
     ticks(this, dt, () => {

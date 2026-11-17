@@ -169,7 +169,7 @@ function chainTargets(g, x, y, range, hop, max) {
 }
 
 /** Let go of the button: strike with power p in [0, 1]. */
-function strike(g, h, ax, ay, p) {
+export function strike(g, h, ax, ay, p) {
   const T = THOR, w = g.world, L = (a, b) => a + (b - a) * p;
   const storm = new Storm(g);
   g.shots.push(storm);
