@@ -43,9 +43,9 @@ export class ScaledFx {
     const G = this.ground, clip = this.clipY;
     const X0 = Math.max(0, Math.floor(x0 - FX)), X1 = Math.min(W, Math.ceil(x1 - FX));
     const Y0 = G ? 0 : Math.max(0, Math.floor(y0 - FY)), Y1 = G ? H : Math.min(H, Math.ceil(y1 - FY));
+    if (!(X1 > X0) || !(Y1 > Y0)) return;
     let base = null;
     if (G) { base = new Float32Array(X1 - X0); for (let X = X0; X < X1; X++) base[X - X0] = G(X + 0.5 + FX) - this.y; }
-    if (X0 >= X1 || Y0 >= Y1) return;
     const c = Math.cos(this.angle), s = Math.sin(this.angle), fl = this.flip ? -1 : 1;
     const C = f.color, L = f.light, BC = B.color, BL = B.light, ox = this.ox, oy = this.oy;
     for (let Y = Y0; Y < Y1; Y++) {
