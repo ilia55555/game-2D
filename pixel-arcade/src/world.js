@@ -85,6 +85,7 @@ for (let i = 0; i < 256; i++) { const n = hash(i % 16, (i >> 4) + 99); CAVE[i] =
 // ---- zones and terrain height
 const CITY = 0, FOREST = 1, MOUNT = 2, SEAB = 3, DESERT = 4, SNOWY = 5, VOLCANO = 6, OCEAN = 7;
 export const BIOMES = { CITY, FOREST, MOUNT, SEAB, DESERT, SNOWY, VOLCANO, OCEAN };
+const RING = [CITY, CITY, FOREST, FOREST, MOUNT, MOUNT, CITY, DESERT, DESERT, DESERT, DESERT, CITY, FOREST, SNOWY, SNOWY, MOUNT, VOLCANO, VOLCANO, FOREST, CITY, SEAB, CITY, FOREST, OCEAN, OCEAN, OCEAN];
 export const BIOME_NAMES = ["CITY", "FOREST", "MOUNTAINS", "SEA", "DESERT", "SNOW PEAKS", "VOLCANOES", "OPEN OCEAN"];
 export class World {
   constructor(seed = 1337) {
@@ -102,18 +103,9 @@ export class World {
     this.fireAcc = 0;
   }
   zoneBiome(z) {
-    if (z === 0) return CITY;
-    // west of the start: open ocean, as far as you can fly
-    if (z < 0) return OCEAN;
-    const r = hash(z * 7919, this.seed);
-    const prev = z > 0 ? hash((z - 1) * 7919, this.seed) : 0;
-    if (r < 0.28) return CITY;
-    if (r < 0.43) return FOREST;
-    if (r < 0.55) return prev >= 0.43 && prev < 0.55 ? CITY : MOUNT;
-    if (r < 0.68) return DESERT;
-    if (r < 0.79) return prev >= 0.68 && prev < 0.79 ? FOREST : SNOWY;
-    if (r < 0.89) return prev >= 0.79 && prev < 0.89 ? DESERT : VOLCANO;
-    return prev >= 0.89 ? FOREST : SEAB;
+    // the world is round: this ring of zones repeats, so going on in one direction brings you back round
+    const n = RING.length;
+    return RING[((z % n) + n) % n];
   }
   biomeAt(cx) { return this.zoneBiome(Math.floor(cx / (ZONE * CW))); }
   hBiome(b, cx) {
@@ -184,6 +176,12 @@ export class World {
     for (let cy = Math.max(0, Math.floor(from / CELL)); cy < WH; cy++) if (SOLID[this.get(cx, cy)]) return Math.min(cy * CELL, sea);
     return Math.min(WH * CELL, sea);
   }
+  /** The real floor under pixel x (the sea bed out on the water). */
+  floorY(x, from = 0) {
+    const cx = Math.floor(x / CELL);
+    for (let cy = Math.max(0, Math.floor(from / CELL)); cy < WH; cy++) if (SOLID[this.get(cx, cy)]) return cy * CELL;
+    return WH * CELL;
+  }
   /** March a ray; returns { x, y, hit, d }. */
   raycast(x, y, dx, dy, max) {
     for (let d = 0; d < max; d += 2) {
@@ -207,13 +205,13 @@ export class World {
         if (cy >= WH - LAVA) m = M.BEDROCK;
         else if (d > 40 && hash(cx >> 2, cy >> 2) < 0.06) m = M.DIRT;
         else if (h > SEA - 2) m = d < 6 ? M.SAND : M.STONE;
-        else if (b === DESERT) m = d < 22 ? M.SAND : M.STONE;
+        else if (b === DESERT) m = d < 80 ? M.SAND : M.STONE;
         else if (b === SNOWY) m = d < 3 ? M.SNOW : M.STONE;
         else if (b === VOLCANO) m = d > 90 ? M.STONE : M.BASALT;
         else if (b === MOUNT || h < 126 + UP) m = h < 96 + UP && d < 2 ? M.SNOW : d > 3 || h < 118 + UP ? M.STONE : d === 0 ? M.GRASS : M.DIRT;
         else if (b === CITY) m = d === 0 ? M.ROAD : d < 10 ? M.DIRT : M.STONE;
         else m = d === 0 ? M.GRASS : d < 12 ? M.DIRT : M.STONE;
-        if (m === M.STONE && hash(cx >> 1, cy >> 1) < 0.03) m = M.DIRT;
+        if (m === M.STONE && hash(cx >> 1, cy >> 1) < 0.03) m = b === DESERT ? M.SAND : M.DIRT;
         c.fg[o + cy] = m;
       }
     }
@@ -407,9 +405,9 @@ export class World {
       else for (let lx = RI(4, 8); lx < CW - 6; lx += RI(10, 18)) tree(lx, R() < 0.3);
     } else if (biome === DESERT) {
       // cacti, and now and then a ruined sandstone shrine
-      for (let lx = RI(3, 9); lx < CW - 4; lx += RI(9, 20)) {
+      for (let lx = RI(2, 6); lx < CW - 4; lx += RI(6, 12)) {
         const g = H(lx); if (g > SEA - 2) continue;
-        const th = RI(5, 10);
+        const th = RI(6, 14);
         for (let i = 1; i <= th; i++) F(lx, g - i, M.CACTUS);
         if (R() < 0.7) { const a = RI(2, th - 2), sd = R() < 0.5 ? -1 : 1; F(lx + sd, g - a, M.CACTUS); F(lx + sd * 2, g - a, M.CACTUS); F(lx + sd * 2, g - a - 1, M.CACTUS); F(lx + sd * 2, g - a - 2, M.CACTUS); }
       }

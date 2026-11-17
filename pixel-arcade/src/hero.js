@@ -135,7 +135,8 @@ export class Hero {
       this.vy = Math.min(1000, this.vy + 3200 * dt);
     } else if (this.fly) {
       let mx = I.mx, my = I.my; if (I.jump && !mx && !my) my = -1; const m = Math.hypot(mx, my); if (m > 1) { mx /= m; my /= m; }
-      const sp = this.dashing ? 600 : 240, k = Math.min(1, (this.dashing ? 5 : 7) * dt);
+      // under water the same hold is a fast swim; out of the water it carries on as flight
+      const sp = water ? (this.dashing ? 400 : 320) : this.dashing ? 600 : 240, k = Math.min(1, (water ? 4 : this.dashing ? 5 : 7) * dt);
       this.vx += (mx * sp - this.vx) * k; this.vy += (my * sp - this.vy) * k;
     } else {
       const sp = this.dashing ? 540 : 165, acc = this.onGround ? (this.dashing ? 2600 : 1800) : 900;
@@ -144,6 +145,7 @@ export class Hero {
       else this.vx *= Math.max(0, 1 - (this.onGround ? 12 : 1.5) * dt);
       if (water) {
         this.vy += 260 * dt; this.vy *= 1 - 3 * dt; this.vx *= 1 - 2 * dt;
+        if (I.jump && !I.jumpP) this.fly = true; // holding jump: swim fast, then fly out
         if (I.jump || I.my < 0) this.vy -= 900 * dt;
         if (I.jumpP && !w.inWater(this.x, this.y - 30)) this.vy = -330;
       } else {

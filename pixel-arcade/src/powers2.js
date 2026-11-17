@@ -332,7 +332,7 @@ class Vine extends Power {
   constructor(g, ax, ay) {
     const w = g.world, side = Math.random() < 0.5 ? -1 : 1;
     // it grows from the surface under the aim exactly up to the aim (the vine stands 79 px tall at scale 1)
-    const by = w.solidPx(ax, ay) ? w.surfaceY(ax, ay - 600) : w.surfaceY(ax, ay);
+    const by = w.solidPx(ax, ay) ? w.surfaceY(ax, ay - 600) : w.floorY(ax, ay); // on the sea: from the sea bed
     const top = Math.min(ay, by - 30), k = Math.max(0.6, Math.min(9, (by - top) / 79));
     super(g, new ScaledFx(vineWhip, { x: ax, y: by, sx: k, flip: side < 0, seed: (Math.random() * 999) | 0, pad: 4 }));
     Object.assign(this, { x: ax, y: by, top, k, side, row: by, hit: new Set(), lashed: false });

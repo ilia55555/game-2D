@@ -278,6 +278,15 @@ class Game {
     for (let i = this.eshots.length - 1; i >= 0; i--) {
       const s = this.eshots[i];
       if (s.type === "shell") s.vy += 500 * dt;
+      // bullets, rockets and shells die a little way under the surface; down there only torpedoes reach
+      if (s.type !== "torpedo" && s.y > SEA * CELL + 36 && w.inWater(s.x, s.y)) { this.eshots.splice(i, 1); for (let k = 0; k < 3; k++) this.parts.spawn(PT.DROP, s.x, s.y, rnd(-40, 40), -rnd(20, 80), 0.4, 0xfffff0d0, 1); continue; }
+      if (s.type === "torpedo") {
+        // runs under water, turning slowly onto him; it breaks up if it leaves the water
+        const a = Math.atan2(h.cy - s.y, h.x - s.x), ca = Math.atan2(s.vy, s.vx); let d = a - ca; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283;
+        const na = ca + Math.max(-1.2 * dt, Math.min(1.2 * dt, d)), sp = 210; s.vx = Math.cos(na) * sp; s.vy = Math.sin(na) * sp;
+        if (!w.inWater(s.x, s.y)) s.life = 0;
+        if (Math.random() < 0.5) this.parts.spawn(PT.DROP, s.x, s.y, rnd(-10, 10), -rnd(10, 40), 0.5, 0xfffff0d0, 1);
+      }
       if (s.fx) { s.fx.update(dt); s.fx.aim(Math.atan2(s.vy, s.vx)); }
       if (s.type === "rocket") { const a = Math.atan2(h.cy - s.y, h.x - s.x), sp = Math.min(330, Math.hypot(s.vx, s.vy) + 200 * dt); const ca = Math.atan2(s.vy, s.vx); let d = a - ca; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283; const na = ca + Math.max(-1.6 * dt, Math.min(1.6 * dt, d)); s.vx = Math.cos(na) * sp; s.vy = Math.sin(na) * sp; this.parts.spawn(PT.SMOKE, s.x, s.y, 0, 0, 0.5, 0xffa09ca0, 3); }
       let hit = false;
@@ -474,6 +483,7 @@ class Game {
     const x = Math.round(s.x) - f.ox, y = Math.round(s.y) - f.oy, C = f.color, L = f.light;
     if (x < 3 || y < 3 || x >= W - 3 || y >= H - 3) return;
     if (s.type === "bullet") { const sp = Math.hypot(s.vx, s.vy), ux = s.vx / sp, uy = s.vy / sp; for (let k = 0; k < 5; k++) { const i = Math.round(y - uy * k) * W + Math.round(x - ux * k); C[i] = k < 2 ? 0xffe0ffff : 0xff40a0ff; L[i] = 0xff205080; } }
+    else if (s.type === "torpedo") { const sp = Math.hypot(s.vx, s.vy) || 1, ux = s.vx / sp, uy = s.vy / sp; for (let k = 0; k < 9; k++) for (const o of [0, 1]) { const i = Math.round(y - uy * k + o) * W + Math.round(x - ux * k); C[i] = k === 0 ? 0xff3030e0 : 0xff505a64; } }
     else { for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { C[(y + b) * W + x + a] = s.type === "shell" ? 0xff202428 : 0xff4050c0; L[(y + b) * W + x + a] = 0xff103060; } }
   }
   drawBeam(p, b) {

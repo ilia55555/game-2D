@@ -261,6 +261,18 @@ class Ship extends Enemy {
     if (Math.abs(this.vx) > 40 && Math.random() < 0.5) g.parts.spawn(PT.DROP, this.x - Math.sign(this.vx) * this.hw, SEA_Y, -this.vx * 0.3, -Math.random() * 120, 0.6, 0xfffff0d0, 1);
   }
   hurt(d, kx = 0, ky = 0) { super.hurt(d, kx * 0.2, 0); this.vy = 0; }
+  /** He's deep under water: guns can't reach, so torpedoes. Returns true while it's handling him that way. */
+  torpedo(dt) {
+    const g = this.g, h = g.hero;
+    if (h.dead > 0 || h.y < SEA_Y + 40 || !g.world.inWater(h.x, h.y - 10)) return false;
+    if ((this.torpT = (this.torpT ?? 1) - dt) <= 0 && Math.abs(h.x - this.x) < 700) {
+      this.torpT = this.torpGap || 2.2;
+      const a = Math.atan2(h.cy - (SEA_Y + 10), h.x - this.x);
+      g.enemyShot("torpedo", this.x, SEA_Y + 10, Math.cos(a) * 160, Math.max(40, Math.sin(a) * 160));
+      g.sfx("dive");
+    }
+    return true;
+  }
   die() { this.g.blast(this.x, this.y - this.h / 2, this.hw * 1.2, 12, { kind: "big", owner: "enemy", metal: K("#5a6270") }); }
   hull(f, S, len, hgt, col, dark) {
     const { R } = kit(f, this.x, this.y, S);
@@ -277,6 +289,7 @@ export class Speedboat extends Ship {
     if ((this.sideT -= dt) < 0) { this.sideT = 1.5 + Math.random() * 2; this.side *= -1; }
     this.float(dt, (h.x + this.side * 140 - this.x) * 3, 300, 500);
     this.face = this.vx >= 0 ? 1 : -1;
+    if (this.torpedo(dt)) return;
     const dx = h.x - this.x, dy = h.cy - (this.y - 10);
     if (h.dead <= 0 && Math.hypot(dx, dy) < 380 && (this.shootT -= dt) <= 0) {
       this.burst = (this.burst + 1) % 6; this.shootT = this.burst ? 0.08 : 1.2;
@@ -297,6 +310,7 @@ export class Frigate extends Ship {
     const g = this.g, h = g.hero; this.t += dt; this.flash -= dt;
     const side = this.x < h.x ? -1 : 1; this.face = -side;
     this.float(dt, (h.x + side * 330 - this.x) * 1.2, 110, 80);
+    if (this.torpedo(dt)) return;
     const dx = h.x - this.x, dy = h.cy - (this.y - 30), d = Math.hypot(dx, dy);
     if (h.dead <= 0 && d < 650) {
       if ((this.volleyT -= dt) <= 0) {
@@ -325,6 +339,7 @@ export class Destroyer extends Ship {
     const g = this.g, h = g.hero; this.t += dt; this.flash -= dt;
     const side = this.x < h.x ? -1 : 1; this.face = -side;
     this.float(dt, (h.x + side * 480 - this.x) * 0.8, 60, 30);
+    if (this.torpedo(dt)) return;
     const dx = h.x - this.x, dy = h.cy - (this.y - 40);
     if (h.dead <= 0 && Math.abs(dx) < 900) {
       if ((this.shellT -= dt) <= 0) {
