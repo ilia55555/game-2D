@@ -27,6 +27,7 @@
   .stick i { position: absolute; left: 36px; top: 36px; width: 48px; height: 48px; border-radius: 50%; background: rgba(255, 200, 60, .55); }
   .btn { position: absolute; width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(255, 248, 232, .45); background: rgba(23, 18, 31, .4); color: #fff8e8; font: 700 11px ui-monospace, monospace; display: flex; align-items: center; justify-content: center; text-align: center; pointer-events: auto; }
   .btn.on { background: rgba(255, 200, 60, .6); }
+  #bAlt { border-radius: 14px; width: 64px; height: 64px; box-shadow: 0 0 0 10px rgba(255,248,232,.05); }
   #bJump { right: calc(24px + env(safe-area-inset-right)); bottom: 24px; width: 72px; height: 72px; }
   #bAlt { right: calc(110px + env(safe-area-inset-right)); bottom: 24px; }
   #bC { right: calc(24px + env(safe-area-inset-right)); bottom: 110px; }
@@ -44,7 +45,7 @@
 <body>
 <canvas id="game"></canvas>
 <button id="pause" title="Pause (Esc)">&#10074;&#10074;</button>
-<div id="pmenu"><div class="box"><h2>PAUSED</h2><button id="pResume">RESUME</button><button id="pFull">FULLSCREEN</button><button id="pHelp">CONTROLS</button></div></div>
+<div id="pmenu"><div class="box"><h2>PAUSED</h2><button id="pResume">RESUME</button><button id="pFull">FULLSCREEN</button><button id="rShape">AIM: CROSS</button><button id="rSize">AIM SIZE: 2</button><button id="pHelp">CONTROLS</button></div></div>
 <div id="pads">
   <div class="stick" id="stickL"><i></i></div>
   <div class="btn" id="bJump">JUMP<br>FLY</div><div class="btn" id="bAlt">ALT</div><div class="btn" id="bC">C<br>LAND</div><div class="btn" id="bNuke">NUKE</div>

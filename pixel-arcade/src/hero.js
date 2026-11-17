@@ -125,11 +125,11 @@ export class Hero {
     // C: a tap drops out of flight, held in the air it pounds the ground
     this.cT = I.c ? (this.cT || 0) + dt : 0;
     if (I.poundP && this.fly) { this.fly = false; this.cDropped = true; }
-    if (!I.c) this.cDropped = false;
+    if (!I.c) { this.cDropped = false; this.cUsed = false; }
     if (I.fire || this.fireT < 0.35) this.face = I.aimX >= this.x ? 1 : -1;
     else if (I.mx) this.face = I.mx > 0 ? 1 : -1;
 
-    if (I.c && this.cT > 0.2 && !this.onGround && !this.pounding) { this.pounding = true; this.fly = false; this.vx = 0; this.vy = Math.max(this.vy, 300); g.sfx("dive"); }
+    if (I.c && this.cT > 0.2 && !this.cUsed && !this.onGround && !this.pounding) { this.cUsed = true; this.pounding = true; this.fly = false; this.vx = 0; this.vy = Math.max(this.vy, 300); g.sfx("dive"); }
 
     if (this.pounding) {
       this.vy = Math.min(1000, this.vy + 3200 * dt);

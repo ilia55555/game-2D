@@ -260,6 +260,23 @@ class Game {
     this.img = this.ctx.createImageData(W, H); this.out = new Uint32Array(this.img.data.buffer);
     const old = this.frame; this.frame = createFrame(W, H); if (old) { this.frame.ox = old.ox; this.frame.oy = old.oy; }
   }
+  /** The aim mark, in the shape and size picked in the settings. */
+  drawReticle(p, mx, my) {
+    const o = this.reticle || { shape: "cross", size: 2 }, k = o.size, c = UI.white, ink = UI.ink;
+    const dot = (x, y, w, h, col) => { p.rect(x - 1, y - 1, w + 2, h + 2, ink, 0.6); p.rect(x, y, w, h, col); };
+    if (o.shape === "cross" || o.shape === "plus") {
+      const g = o.shape === "cross" ? 1 + k : 0, L = 2 + k * 2;
+      dot(mx - g - L, my, L, 1, c); dot(mx + g + 1, my, L, 1, c); dot(mx, my - g - L, 1, L, c); dot(mx, my + g + 1, 1, L, c);
+      if (g) p.px(mx, my, UI.red); else p.px(mx, my, UI.red);
+    } else if (o.shape === "circle") {
+      const R = 3 + k * 2; p.ring(mx, my, R + 1, 3, ink, 0.6); p.ring(mx, my, R, 1, c); p.px(mx, my, UI.red);
+    } else if (o.shape === "x") {
+      const L = 2 + k * 2;
+      for (let i = 2; i < L + 2; i++) for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) { p.rect(mx + sx * i - 1, my + sy * i - 1, 3, 3, ink, 0.5); }
+      for (let i = 2; i < L + 2; i++) for (const [sx, sy] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) p.px(mx + sx * i, my + sy * i, c);
+      p.px(mx, my, UI.red);
+    } else { const r = k; p.rect(mx - r - 1, my - r - 1, r * 2 + 3, r * 2 + 3, ink, 0.6); p.rect(mx - r, my - r, r * 2 + 1, r * 2 + 1, UI.red); }
+  }
   /** Which hotbar slot is under a point on the screen, or -1. */
   slotAt(x, y) {
     const n = WEAPONS.length, bw = 30, x0 = (W - n * bw) / 2, y0 = H - 22;
@@ -439,7 +456,7 @@ class Game {
     t(WEAPONS[this.weapon].name, W / 2, y0 - 16, UI.white, { align: "center" });
     if (this.cd > 0.15 && WEAPONS[this.weapon].cd > 0.5) p.rect(W / 2 - 20, y0 - 6, 40 * (1 - this.cd / WEAPONS[this.weapon].cd), 2, UI.cyan);
     if (this.banner) { const b = this.banner, k = b.t < 0.12 ? 3 : 2, a = b.t > 1.5 ? 1 - (b.t - 1.5) / 0.5 : 1; t(b.text, W / 2, 70 - (k - 2) * 4, b.c, { align: "center", scale: k, a }); }
-    if (!this.touch) { const mx = this.I.aimX - camX, my = this.I.aimY - camY; p.rect(mx - 5, my, 4, 1, UI.white); p.rect(mx + 2, my, 4, 1, UI.white); p.rect(mx, my - 5, 1, 4, UI.white); p.rect(mx, my + 2, 1, 4, UI.white); p.px(mx, my, UI.red); }
+    this.drawReticle(p, Math.round(this.I.aimX - camX), Math.round(this.I.aimY - camY));
     if (this.showFps) p.text(Math.round(this.fps) + " FPS  FX " + this.fx.list.length + " " + this.fx.ms.toFixed(1) + "MS  P " + this.parts.n, 8, 34, UI.dim, { outline: UI.ink });
   }
 }
@@ -507,7 +524,13 @@ function touchSetup() {
   el.addEventListener("touchend", end, { passive: false }); el.addEventListener("touchcancel", end, { passive: false });
   const btn = (id, down, up) => { const b = document.getElementById(id); const off = (e) => { e.preventDefault(); b.classList.remove("on"); up && up(); }; b.addEventListener("touchstart", (e) => { e.preventDefault(); if (game.paused) return; start(); b.classList.add("on"); down(); }, { passive: false }); b.addEventListener("touchend", off, { passive: false }); b.addEventListener("touchcancel", off, { passive: false }); };
   btn("bJump", () => { I.jumpP = true; T.jump = true; }, () => (T.jump = false));
-  btn("bAlt", () => { I.altP = true; T.alt = true; }, () => (T.alt = false));
+  // ALT: a button that is also a quiet stick. Tap fires the second move at the aim; drag to point it from the hero.
+  const alt = document.getElementById("bAlt");
+  const altSet = (t) => { const r = alt.getBoundingClientRect(); let dx = (t.clientX - r.left - r.width / 2) / 50, dy = (t.clientY - r.top - r.height / 2) / 50; const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; } T.altDir = Math.hypot(dx, dy) > 0.3 ? [dx, dy] : null; alt.style.transform = T.altDir ? `translate(${dx * 14}px,${dy * 14}px)` : ""; };
+  alt.addEventListener("touchstart", (e) => { e.preventDefault(); if (game.paused) return; start(); alt.classList.add("on"); T.altId = e.changedTouches[0].identifier; T.alt = true; T.altDir = null; if (WEAPONS[game.weapon].altHold) I.altP = true; }, { passive: false });
+  alt.addEventListener("touchmove", (e) => { e.preventDefault(); const t = [...e.changedTouches].find((q) => q.identifier === T.altId); if (t) altSet(t); }, { passive: false });
+  const altEnd = (e) => { e.preventDefault(); alt.classList.remove("on"); alt.style.transform = ""; if (T.alt && !WEAPONS[game.weapon].altHold) { T.altFire = 2; } T.alt = false; };
+  alt.addEventListener("touchend", altEnd, { passive: false }); alt.addEventListener("touchcancel", altEnd, { passive: false });
   btn("bC", () => { I.poundP = true; T.c = true; }, () => (T.c = false));
   btn("bNuke", () => (I.nukeP = true));
   // the screen itself: aim and fire
@@ -538,6 +561,14 @@ const tapBtn = (el, fn) => { el.addEventListener("click", (e) => { e.stopPropaga
 tapBtn(pauseBtn, () => togglePause());
 tapBtn(document.getElementById("pResume"), () => togglePause(false));
 tapBtn(document.getElementById("pFull"), () => { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else goFull(); });
+// settings: the aim mark's shape and size, remembered
+try { const r = JSON.parse(localStorage.getItem("nova-reticle")); if (r && r.shape) game.reticle = r; } catch (e) { /* none saved */ }
+game.reticle = game.reticle || { shape: "cross", size: 2 };
+const SHAPES = ["cross", "plus", "circle", "x", "dot"], rShape = document.getElementById("rShape"), rSize = document.getElementById("rSize");
+const showR = () => { rShape.textContent = "AIM: " + game.reticle.shape.toUpperCase(); rSize.textContent = "AIM SIZE: " + game.reticle.size; try { localStorage.setItem("nova-reticle", JSON.stringify(game.reticle)); } catch (e) { /* private */ } };
+tapBtn(rShape, () => { game.reticle.shape = SHAPES[(SHAPES.indexOf(game.reticle.shape) + 1) % SHAPES.length]; showR(); });
+tapBtn(rSize, () => { game.reticle.size = game.reticle.size % 5 + 1; showR(); });
+showR();
 tapBtn(document.getElementById("pHelp"), () => { togglePause(false); game.started = false; document.getElementById("help").classList.remove("hide"); });
 document.addEventListener("visibilitychange", () => { if (document.hidden && game.started && !game.paused) togglePause(true); });
 
@@ -555,7 +586,8 @@ function readInput() {
   if (game.touch) {
     const m = T.move;
     I.mx = Math.abs(m.x) > 0.25 ? Math.sign(m.x) * (h.fly ? Math.abs(m.x) : 1) : 0; I.my = Math.abs(m.y) > 0.3 ? m.y : 0;
-    I.fire = T.fire; I.alt = T.alt; I.jump = T.jump; I.c = T.c;
+    I.fire = T.fire; I.alt = WEAPONS[game.weapon].altHold ? T.alt : false; I.jump = T.jump; I.c = T.c;
+    if (T.altFire && --T.altFire === 0) { I.altP = true; }
     // the jump button doubles as the flash: held while steering
     I.dash = T.jump && (I.mx !== 0 || (h.fly && I.my !== 0));
   } else {
@@ -565,6 +597,10 @@ function readInput() {
     I.fire = mouseFire; I.alt = mouseAlt;
   }
   I.aimX = f.ox + mouseX; I.aimY = f.oy + mouseY;
+  // dragging the ALT button points from the hero; the aim stays there for the shot on release
+  if (game.touch && T.altDir) { const [dx, dy] = T.altDir, m = Math.hypot(dx, dy); T.altAim = [h.x + (dx / m) * (60 + 200 * m), h.cy + (dy / m) * (60 + 200 * m)]; }
+  if (game.touch && T.altAim && (T.alt || T.altFire)) { I.aimX = T.altAim[0]; I.aimY = T.altAim[1]; }
+  else if (game.touch && T.altAim && !T.alt) { [mouseX, mouseY] = [T.altAim[0] - f.ox, T.altAim[1] - f.oy]; T.altAim = null; }
 }
 
 let last = performance.now(), saveT = 0;
