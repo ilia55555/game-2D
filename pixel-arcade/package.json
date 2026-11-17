@@ -1,0 +1,12 @@
+{
+  "name": "nova-endless-demolition",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A 2D pixel-art arcade game about a superhero and an endless, fully destructible city.",
+  "scripts": {
+    "build": "esbuild src/main.js --bundle --minify --format=iife --outfile=dist/game.js",
+    "dev": "python3 -m http.server 8080"
+  },
+  "devDependencies": { "esbuild": "^0.25.10" }
+}
