@@ -169,10 +169,17 @@ export class Hero {
       if (sp < 200 && this.dashing) { const im = Math.hypot(I.mx, this.fly ? I.my : 0) || 1; nx = I.mx / im; ny = (this.fly ? I.my : 0) / im; sp = 200; }
       const look = Math.max(6, sp * dt * 1.6);
       if (boxHits(w, this.x + nx * look, this.y + ny * look - (this.onGround && ny === 0 ? CELL * 2 : 0), this.hw + 1, this.h + 1)) {
-        const oy = this.y - (this.onGround && ny === 0 ? 27 : 16) + ny * 14;
+        // level run: blast centred on the whole body (feet included) so nothing is left to snag on
+        const oy = this.y - (this.onGround && ny === 0 ? 17 : 16) + ny * 14;
         g.smashThrough(this.x + nx * 12, oy, nx, ny);
-        // running through the ground: dig twice as fast
-        if (this.dashing && !this.fly) { g.smashThrough(this.x + nx * 30, oy + ny * 18, nx, ny); if (Math.abs(this.vx) < 300 && nx) this.vx = Math.sign(nx) * 300; }
+        // running through the ground: A/D alone digs fastest, adding S/W digs slower
+        if (this.dashing && !this.fly) {
+          const diag = Math.abs(ny) > 0.2;
+          if (!diag) { g.smashThrough(this.x + nx * 30, oy, nx, ny); g.smashThrough(this.x + nx * 46, oy, nx, ny); }
+          const minV = diag ? 170 : 340;
+          if (Math.abs(this.vx) < minV && nx) this.vx = Math.sign(nx) * minV;
+          if (diag) this.vx = Math.max(-260, Math.min(260, this.vx));
+        }
       }
     }
     // the flash runs on water
@@ -192,7 +199,7 @@ export class Hero {
     if (this.hitX && this.dashing) {
       const dir = Math.sign(this.vx || I.mx || this.face), cx = Math.floor((this.x + dir * (this.hw + 2)) / CELL);
       for (let cy = Math.floor((this.y - this.h) / CELL); cy <= Math.floor((this.y - 1) / CELL); cy++) if (w.get(cx, cy)) g.addScore(w.destroyCell(cx, cy, dir * 160, -60));
-      this.vx *= 0.6;
+      this.vx *= this.onGround && !(Math.abs(I.my) > 0.3) ? 0.9 : 0.6;
     }
     if (this.hitY) {
       if (this.pounding && this.onGround) { this.pounding = false; g.poundImpact(this.x, this.y, vy0); this.vy = 0; }
