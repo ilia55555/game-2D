@@ -179,8 +179,10 @@ export class World {
   /** The first solid row at or below row `from` in the column of pixel x, as a pixel y. */
   surfaceY(x, from = 0) {
     const cx = Math.floor(x / CELL);
-    for (let cy = Math.max(0, Math.floor(from / CELL)); cy < WH; cy++) if (SOLID[this.get(cx, cy)]) return cy * CELL;
-    return WH * CELL;
+    // out on the sea the water is the surface: strikes, waves, spawns and fliers all treat it as the floor
+    const sea = from < SEA * CELL && this.wet(cx) ? SEA * CELL : Infinity;
+    for (let cy = Math.max(0, Math.floor(from / CELL)); cy < WH; cy++) if (SOLID[this.get(cx, cy)]) return Math.min(cy * CELL, sea);
+    return Math.min(WH * CELL, sea);
   }
   /** March a ray; returns { x, y, hit, d }. */
   raycast(x, y, dx, dy, max) {

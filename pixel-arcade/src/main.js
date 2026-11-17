@@ -234,7 +234,7 @@ class Game {
     this.flareCd = this.time + 16;
     this.vfx(flareFx, { x, y, sx: 0.6 });
     this.say("FLARE! REINFORCEMENTS", UI.red); sfx("rocket");
-    this.later(2, () => { const h = this.hero; for (let i = 0; i < 2; i++) { const px = x + rnd(-120, 120); this.enemies.push(new Soldier(this, px, this.paraY(px), true)); } });
+    this.later(2, () => { const h = this.hero; for (let i = 0; i < 2; i++) { const px = x + rnd(-120, 120); if (this.world.wet(Math.floor(px / CELL))) continue; this.enemies.push(new Soldier(this, px, this.paraY(px), true)); } });
     return true;
   }
   /** Where a paratrooper starts: in the air above the open ground, never inside rock and never up in space. */
@@ -251,17 +251,15 @@ class Game {
     }
     this.heat = Math.max(0, this.heat - 0.018 * dt);
     // the navy: out on the water, boats keep coming at him whatever the heat
-    if ((this.navyT = (this.navyT || 3) - dt) <= 0 && h.dead <= 0) {
-      this.navyT = 5;
-      const side = Math.random() < 0.5 ? -1 : 1, x = h.x + side * rnd(420, 560), cx = Math.floor(x / CELL);
-      if (w.wet(cx) && w.wet(Math.floor(h.x / CELL)) && !w.solidPx(x, SEA * CELL - 2)) {
-        let nB = 0, nF = 0, nD = 0;
-        for (const e of this.enemies) { if (e.dead || Math.abs(e.x - h.x) > 1200) continue; if (e.kind === "boat") nB++; else if (e.kind === "frigate") nF++; else if (e.kind === "destroyer") nD++; }
-        const deep = w.groundPx(x) > (SEA + 60) * CELL;
-        if (nB < 3) { this.enemies.push(new Speedboat(this, x)); if (!nB) this.say("SPEEDBOATS", UI.red); }
-        else if (deep && nF < 1) { this.enemies.push(new Frigate(this, x)); this.say("FRIGATE INBOUND", UI.red); }
-        else if (deep && nD < 1) { this.enemies.push(new Destroyer(this, x)); this.say("DESTROYER INBOUND", UI.red); }
-      }
+    if ((this.navyT = (this.navyT || 1) - dt) <= 0 && h.dead <= 0 && w.wet(Math.floor(h.x / CELL))) {
+      this.navyT = 3;
+      let nB = 0, nF = 0, nD = 0;
+      for (const e of this.enemies) { if (e.dead || Math.abs(e.x - h.x) > 1400) continue; if (e.kind === "boat") nB++; else if (e.kind === "frigate") nF++; else if (e.kind === "destroyer") nD++; }
+      const pick = (ok) => { for (let k = 0; k < 6; k++) { const x = h.x + (Math.random() < 0.5 ? -1 : 1) * rnd(380, 620); if (w.wet(Math.floor(x / CELL)) && w.wet(Math.floor((x - 100) / CELL)) && w.wet(Math.floor((x + 100) / CELL)) && ok(x)) return x; } return null; };
+      let x;
+      if (nB < 3 && (x = pick(() => true)) !== null) { this.enemies.push(new Speedboat(this, x)); if (!nB) this.say("SPEEDBOATS", UI.red); }
+      if (nF < 2 && (x = pick(() => true)) !== null) { this.enemies.push(new Frigate(this, x)); this.say("FRIGATE INBOUND", UI.red); }
+      if (nD < 1 && (x = pick((x) => w.groundPx(x) > (SEA + 40) * CELL)) !== null) { this.enemies.push(new Destroyer(this, x)); this.say("DESTROYER INBOUND", UI.red); }
     }
     if ((this.spawnT -= dt) > 0 || h.dead > 0) return;
     this.spawnT = 4.5;
@@ -270,7 +268,7 @@ class Game {
     let nS = 0, nH = 0, nT = 0, nJ = 0;
     for (const e of this.enemies) { if (Math.abs(e.x - h.x) > 700) continue; if (e.kind === "soldier") nS++; else if (e.kind === "heli") nH++; else if (e.kind === "tank") nT++; else if (e.kind === "jet") nJ++; }
     const side = Math.random() < 0.5 ? -1 : 1, lv = Math.floor(this.heat);
-    if (lv >= 1 && nS < 2 + lv) for (let i = 0; i < 1 + (lv >> 2); i++) { const x = h.x + side * rnd(160, 330) * (i & 1 ? -1 : 1); this.enemies.push(new Soldier(this, x, this.paraY(x), true)); }
+    if (lv >= 1 && nS < 2 + lv) for (let i = 0; i < 1 + (lv >> 2); i++) { const x = h.x + side * rnd(160, 330) * (i & 1 ? -1 : 1); if (w.wet(Math.floor(x / CELL))) continue; this.enemies.push(new Soldier(this, x, this.paraY(x), true)); }
     if (lv >= 2 && nH < Math.ceil((lv - 1) / 2)) { const x = h.x + side * 460; this.enemies.push(new Heli(this, x, w.groundPx(x) - 200)); this.say("GUNSHIP INBOUND", UI.red); }
     if (lv >= 4 && nJ < lv - 3) { this.enemies.push(new Jet(this, h.x - side * 600, side)); if (!nJ) this.say("JETS INBOUND", UI.red); }
     if (lv >= 3 && nT < lv - 2) { const x = h.x - side * 430, y = w.surfaceY(x, 0); if (!w.wet(Math.floor(x / CELL)) && y < WORLD_PX_H - 40 && y >= w.groundPx(x) - 8 && w.surfaceY(x - 40, 0) >= w.groundPx(x - 40) - 8 && w.surfaceY(x + 40, 0) >= w.groundPx(x + 40) - 8) this.enemies.push(new Tank(this, x, y)); }
