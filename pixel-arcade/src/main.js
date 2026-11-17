@@ -620,10 +620,13 @@ tapBtn(pauseBtn, () => togglePause());
 tapBtn(document.getElementById("pResume"), () => togglePause(false));
 tapBtn(document.getElementById("pFull"), () => { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}); else goFull(); });
 // settings: the aim mark's shape and size, remembered
-try { const r = JSON.parse(localStorage.getItem("nova-reticle")); if (r && r.shape) game.reticle = r; } catch (e) { /* none saved */ }
+// kept in localStorage and, in case that is wiped or blocked, in a cookie too
+const loadSet = () => { let v = null; try { v = localStorage.getItem("nova-reticle"); } catch (e) { /* blocked */ } if (!v) { const m = document.cookie.match(/(?:^|; )nova-reticle=([^;]*)/); if (m) v = decodeURIComponent(m[1]); } try { return JSON.parse(v); } catch (e) { return null; } };
+const saveSet = (o) => { const v = JSON.stringify(o); try { localStorage.setItem("nova-reticle", v); } catch (e) { /* blocked */ } try { document.cookie = "nova-reticle=" + encodeURIComponent(v) + "; max-age=31536000; path=/; SameSite=Lax"; } catch (e) { /* blocked */ } };
+{ const r = loadSet(); if (r && r.shape) game.reticle = { shape: r.shape, size: Math.max(1, Math.min(5, +r.size || 2)) }; }
 game.reticle = game.reticle || { shape: "cross", size: 2 };
 const SHAPES = ["cross", "plus", "circle", "x", "dot"], rShape = document.getElementById("rShape"), rSize = document.getElementById("rSize");
-const showR = () => { rShape.textContent = "AIM: " + game.reticle.shape.toUpperCase(); rSize.textContent = "AIM SIZE: " + game.reticle.size; try { localStorage.setItem("nova-reticle", JSON.stringify(game.reticle)); } catch (e) { /* private */ } };
+const showR = () => { rShape.textContent = "AIM: " + game.reticle.shape.toUpperCase(); rSize.textContent = "AIM SIZE: " + game.reticle.size; saveSet(game.reticle); };
 tapBtn(rShape, () => { game.reticle.shape = SHAPES[(SHAPES.indexOf(game.reticle.shape) + 1) % SHAPES.length]; showR(); });
 tapBtn(rSize, () => { game.reticle.size = game.reticle.size % 5 + 1; showR(); });
 showR();
@@ -642,8 +645,7 @@ document.getElementById("help").addEventListener("touchend", (e) => { e.preventD
 function readInput() {
   const h = game.hero, f = game.frame;
   // touch mode while any finger is down (a held stick + jump sends no new touch events), or touched lately
-  const held = T.move.on || T.jump || T.fire || T.alt || T.c;
-  if (game.touch && (held || performance.now() - lastTouch < 4000)) {
+  if (game.touch) {
     const m = T.move;
     I.mx = Math.abs(m.x) > 0.25 ? Math.sign(m.x) * (h.fly ? Math.abs(m.x) : 1) : 0; I.my = Math.abs(m.y) > 0.3 ? m.y : 0;
     I.fire = T.fire; I.alt = WEAPONS[game.weapon].altHold ? T.alt : false; I.jump = T.jump; I.c = T.c;
