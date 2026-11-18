@@ -27,7 +27,7 @@ import { World, CELL, WORLD_PX_H, MAT_COLOR, M, SEA, BIOME_NAMES, WH, LAVA } fro
 import { Parts, PT } from "./particles.js";
 import { FxMan } from "./fxm.js";
 import { Hero } from "./hero.js";
-import { Soldier, Car, Tank, Heli, Jet, Speedboat, Frigate, Destroyer } from "./enemies.js";
+import { Soldier, Car, Tank, Heli, Jet, Speedboat, Frigate, Destroyer, Rival } from "./enemies.js";
 import { WEAPONS, nuke } from "./weapons.js";
 import { Moon } from "./powers2.js";
 import { drawSky } from "./sky.js";
@@ -172,7 +172,7 @@ class Game {
   ram(dt) {
     const h = this.hero;
     if (h.dead > 0) return;
-    const HITS = { soldier: 1, car: 2, jet: 2, heli: 3, tank: 4 }, HURT = { soldier: 1, car: 3, jet: 4, heli: 4, tank: 9 };
+    const HITS = { soldier: 1, car: 2, jet: 2, heli: 3, tank: 4, boat: 2, frigate: 6, destroyer: 10, rival: 80 }, HURT = { soldier: 1, car: 3, jet: 4, heli: 4, tank: 9, boat: 3, frigate: 6, destroyer: 8, rival: 10 };
     for (const e of this.enemies) {
       if (e.dead || e.wreck || !HITS[e.kind]) continue;
       if ((e.bumpT = (e.bumpT || 0) - dt) > 0) continue;
@@ -250,6 +250,13 @@ class Game {
       this.enemies.push(s.type === "soldier" ? new Soldier(this, s.x, s.y) : s.type === "car" ? new Car(this, s.x, s.y) : new Tank(this, s.x, s.y));
     }
     this.heat = Math.max(0, this.heat - 0.018 * dt);
+    // the rival: turns up somewhere between half a minute and two minutes in, and again a while after he falls
+    if (this.rivalT === undefined) this.rivalT = rnd(30, 120);
+    if (!(this.rival && !this.rival.dead && this.enemies.includes(this.rival)) && h.dead <= 0 && (this.rivalT -= dt) <= 0) {
+      this.rivalT = rnd(120, 240);
+      this.rival = new Rival(this, h.x + (Math.random() < 0.5 ? -1 : 1) * 520, h.y - 260);
+      this.enemies.push(this.rival); this.say("OMEGA HAS COME FOR YOU", UI.red); sfx("void"); this.shake(6);
+    }
     // the navy: out on the water, boats keep coming at him whatever the heat
     if ((this.navyT = (this.navyT || 1) - dt) <= 0 && h.dead <= 0 && w.wet(Math.floor(h.x / CELL))) {
       this.navyT = 3;
@@ -499,6 +506,9 @@ class Game {
     p.rect(8, 8, 124, 11, UI.ink); p.rect(10, 10, 120, 7, UI.panel); p.rect(10, 10, Math.max(0, h.hp) * 1.2, 7, h.hp < 35 ? UI.red : UI.green); p.rect(10, 10, Math.max(0, h.hp) * 1.2, 2, UI.white, 0.5);
     p.rect(8, 21, 124, 8, UI.ink); p.rect(10, 23, 120, 4, UI.panel); p.rect(10, 23, this.nuke * 120, 4, this.nuke >= 1 ? (Math.floor(this.time * 6) & 1 ? UI.cyan : UI.white) : UI.orange);
     p.text(this.nuke >= 1 ? "NUKE READY - R" : "NUKE", 136, 23, this.nuke >= 1 ? UI.cyan : UI.dim, { outline: UI.ink });
+    // the rival's health, across the top while he's here
+    const rv = this.rival;
+    if (rv && !rv.dead && this.enemies.includes(rv)) { const bw = 220, bx = (W - bw) / 2, by = 46; p.rect(bx - 2, by - 2, bw + 4, 8, UI.ink); p.rect(bx, by, bw, 4, UI.panel); p.rect(bx, by, Math.max(0, rv.hp / rv.max) * bw, 4, UI.red); p.text("OMEGA", bx, by - 10, UI.red, { outline: UI.ink }); }
     p.text("NOVA", 136, 11, UI.white, { outline: UI.ink });
     // score, combo, heat
     const R = this.hudR || W - 8;

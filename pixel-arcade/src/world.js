@@ -14,7 +14,7 @@ export const M = {
 const NM = 24;
 //                 air dirt grass stone sand snow road bedrock conc brick glass steel wood leaves roof fuel sign lamp pine
 export const HP = [0, 2, 2, 5, 1, 1, 3, 255, 4, 3, 1, 7, 2, 1, 2, 1, 1, 1, 1, 5, 1, 1, 3, 2];
-export const SOLID = [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1];
+export const SOLID = [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1];
 export const FLAM = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0];
 export const isStruct = (m) => (m >= 8 && m <= 18) || m === 21;
 const BASE = [
@@ -103,6 +103,7 @@ export class World {
     this.destroyed = 0;
     this._lastCi = null; this._last = null;
     this.fireAcc = 0;
+    this.regrow = []; this.clock = 0; this.regrowI = 0;
   }
   zoneBiome(z) {
     // the world is round: this ring of zones repeats, so going on in one direction brings you back round
@@ -406,39 +407,46 @@ export class World {
       else if (r < 0.24) { watchTower(24); tree(6, true); tree(48); }
       else for (let lx = RI(4, 8); lx < CW - 6; lx += RI(10, 18)) tree(lx, R() < 0.3);
     } else if (biome === BEAN) {
-      // the beanstalk: one giant vine from the ground up into space, in the middle of the zone
-      const zc = ((ci % ZONE) + ZONE) % ZONE;
-      if (zc === ZONE >> 1) {
-        const g = H(32), mid = (cy) => 32 + Math.round(Math.sin(cy / 37) * 12 + Math.sin(cy / 13) * 3);
-        for (let cy = g + 2; cy > 42; cy--) {
-          const c = mid(cy), w = cy > g - 40 ? 8 : 5 + Math.round((cy / g) * 3);
-          for (let dx = -w; dx <= w; dx++) F(c + dx, cy, M.STALK);
-          // a leaf every so often: a platform to stand on, curling out to one side
-          if (cy % 28 === 0 && cy < g - 20) { const sd = (cy / 28) & 1 ? 1 : -1; for (let k = 0; k < 18; k++) { const lx = c + sd * (w + k), ly = cy - Math.round(Math.sin((k / 18) * Math.PI) * 3); if (lx > 0 && lx < CW - 1) { F(lx, ly, M.STALK); if (k > 2 && k < 15) F(lx, ly - 1, M.STALK); } } }
+      // the beanstalk: a vine as wide as a city, from the ground up into space, with leaves like whole districts.
+      // It's soft: everything passes through it, and what gets torn off grows back (see regrow).
+      const z = Math.floor(ci / ZONE), C = z * ZONE * CW + (ZONE * CW) / 2, TOPR = 34, GR = 150 + UP;
+      const ctr = (cy) => C + Math.round(Math.sin(cy / 90) * 70 + Math.sin(cy / 31) * 12), half = (cy) => 46 + Math.round(Math.sin(cy / 23) * 8) + Math.max(0, (cy - (GR - 60)) * 0.8);
+      const leaves = [];
+      for (let ly = GR - 70, k = 0; ly > TOPR + 40; ly -= 52, k++) leaves.push({ ly, s: k & 1 ? 1 : -1, L: 170 + (hash(k, z + 7) * 90 | 0), lift: 30 + (hash(k, z + 9) * 30 | 0) });
+      for (let lx = 0; lx < CW; lx++) {
+        const cx = x0 + lx;
+        for (let cy = TOPR; cy < H(lx); cy++) {
+          let on = Math.abs(cx - ctr(cy)) <= half(cy);
+          if (!on) for (const q of leaves) {
+            const edge = ctr(q.ly) + q.s * (half(q.ly) - 4), u = ((cx - edge) * q.s) / q.L;
+            if (u <= 0 || u >= 1) continue;
+            const yc = q.ly - q.lift * u * u - 6 * Math.sin(u * Math.PI), th = 16 * Math.sin(Math.PI * Math.pow(u, 0.7)) + 1;
+            if (Math.abs(cy - yc) < th) { on = true; break; }
+          }
+          if (on && !G(lx, cy)) F(lx, cy, M.STALK);
         }
-        // a castle in the clouds at the top
-        const tx = mid(44), base = 42;
+      }
+      const tl = ctr(TOPR) - x0;
+      if (tl >= 14 && tl < CW - 14) {
+        // a castle on the very top
+        const tx = tl, base = TOPR;
         for (let a = -14; a <= 14; a++) for (let b2 = 0; b2 < 3; b2++) F(tx + a, base + b2, M.STONE);
         for (let a = -12; a <= 12; a++) for (let h = 1; h <= 14; h++) { const wall = Math.abs(a) > 10 || h > 12; F(tx + a, base - h, wall ? M.BRICK : (h % 5 === 2 && a % 4 === 0 ? M.GLASS : 0)); B(tx + a, base - h, M.BRICK); }
         for (const a of [-12, 12, 0]) for (let h = 15; h <= (a ? 24 : 30); h++) for (let d = -2; d <= 2; d++) F(tx + a + d, base - h, h > (a ? 22 : 28) ? M.ROOF : M.BRICK);
         for (let a = -10; a <= 10; a += 4) F(tx + a, base - 3, M.CRYSTAL);
         for (let i = 0; i < 4; i++) spawn("soldier", tx - 8 + i * 5, base - 1);
-      } else {
-        // floating islands up in space, with trees, crystals and drifting rocks round them
-        const n = 1 + (R() < 0.5 ? 1 : 0);
-        for (let i = 0; i < n; i++) {
-          const ix = RI(14, CW - 14), iy = RI(20, 70), rw = RI(7, 12), rh = RI(4, 7);
-          for (let dy = -1; dy <= rh; dy++) for (let dx = -rw; dx <= rw; dx++) {
-            if ((dx * dx) / (rw * rw) + (Math.max(0, dy) * Math.max(0, dy)) / (rh * rh) > 1) continue;
-            F(ix + dx, iy + dy, dy === -1 ? M.GRASS : dy < 2 ? M.DIRT : hash(ix + dx, iy + dy) < 0.12 ? M.CRYSTAL : M.STONE);
-          }
-          if (R() < 0.6) { const th = RI(6, 11); for (let h = 2; h <= th; h++) B(ix, iy - h, M.WOOD); for (let dy = -4; dy <= 4; dy++) for (let dx = -5; dx <= 5; dx++) if (dx * dx / 25 + dy * dy / 16 <= 1) F(ix + dx, iy - th + dy, M.LEAVES); }
-          else for (let h = 2; h < 12; h++) for (let d = -Math.floor((12 - h) / 4); d <= Math.floor((12 - h) / 4); d++) F(ix + d + 4, iy - h, M.CRYSTAL);
-          if (R() < 0.5) spawn("soldier", ix, iy - 2);
-        }
-        for (let i = 0; i < 4; i++) { const ax = RI(3, CW - 4), ay = RI(10, 80), r = RI(1, 3); for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (dx * dx + dy * dy <= r * r) F(ax + dx, ay + dy, R() < 0.5 ? M.BASALT : M.STONE); }
-        for (let lx = RI(4, 8); lx < CW - 6; lx += RI(12, 20)) tree(lx, R() < 0.3);
       }
+      // floating islands up in space, with trees, crystals and drifting rocks round them
+      if (R() < 0.7) {
+        const ix = RI(14, CW - 14), iy = RI(8, 30), rw = RI(7, 12), rh = RI(4, 7);
+        for (let dy = -1; dy <= rh; dy++) for (let dx = -rw; dx <= rw; dx++) {
+          if ((dx * dx) / (rw * rw) + (Math.max(0, dy) * Math.max(0, dy)) / (rh * rh) > 1) continue;
+          F(ix + dx, iy + dy, dy === -1 ? M.GRASS : dy < 2 ? M.DIRT : hash(ix + dx, iy + dy) < 0.12 ? M.CRYSTAL : M.STONE);
+        }
+        if (R() < 0.6) { const th = RI(6, 11); for (let h = 2; h <= th; h++) B(ix, iy - h, M.WOOD); for (let dy = -4; dy <= 4; dy++) for (let dx = -5; dx <= 5; dx++) if (dx * dx / 25 + dy * dy / 16 <= 1) F(ix + dx, iy - th + dy, M.LEAVES); }
+        else for (let h = 2; h < 12; h++) for (let d = -Math.floor((12 - h) / 4); d <= Math.floor((12 - h) / 4); d++) F(ix + d + 4, iy - h, M.CRYSTAL);
+      }
+      for (let i = 0; i < 3; i++) { const ax = RI(3, CW - 4), ay = RI(6, 70), r = RI(1, 3); for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (dx * dx + dy * dy <= r * r && !G(ax + dx, ay + dy)) F(ax + dx, ay + dy, R() < 0.5 ? M.BASALT : M.STONE); }
     } else if (biome === DESERT) {
       // cacti, and now and then a ruined sandstone shrine
       for (let lx = RI(2, 6); lx < CW - 4; lx += RI(6, 12)) {
@@ -513,6 +521,7 @@ export class World {
     this.destroyed++;
     this.queue.push(cx - 1, cy, cx + 1, cy, cx, cy - 1, cx, cy + 1);
     if (m === M.FUEL) this.fuel.push({ x: cx * CELL + 2, y: cy * CELL + 2, t: 0.05 + Math.random() * 0.18 });
+    if (m === M.STALK && this.regrow.length < 40000) this.regrow.push(cx, cy, this.clock + 1 + Math.random() * 1.5);
     if (!quiet && this.hooks.debris) this.hooks.debris(m, cx * CELL + 2, cy * CELL + 2, vx, vy);
     return 1;
   }
@@ -670,6 +679,11 @@ export class World {
     }
   }
   update(dt) {
+    // the beanstalk heals: torn-off cells grow back a second or two later (oldest first)
+    this.clock += dt;
+    const RG = this.regrow;
+    while (this.regrowI < RG.length && RG[this.regrowI + 2] <= this.clock) { const cx = RG[this.regrowI], cy = RG[this.regrowI + 1]; if (!this.get(cx, cy)) this.set(cx, cy, M.STALK); this.regrowI += 3; }
+    if (this.regrowI > 3000) { RG.splice(0, this.regrowI); this.regrowI = 0; }
     this.collapse();
     this.stepIslands(dt);
     // fuel goes off a beat after it's breached

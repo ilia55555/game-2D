@@ -364,3 +364,73 @@ export class Destroyer extends Ship {
     R(-90, -8, 180, 1, COL.red);
   }
 }
+
+// ================================================================================================= THE RIVAL
+// OMEGA: a dark mirror of the hero. He flies, chases, rams straight through buildings, sweeps a burning eye beam,
+// hurls volleys of fireballs and dives down in ground-shaking slams.
+const omega = dressWith((c, row, col, t) => c === INK ? hex("#0a0408") : c === hex("#f53cd1") ? hex("#ff2a2a") : row <= 6 ? mix(hex("#1a0a10"), hex("#c03040"), t) : mix(hex("#140810"), hex("#5a1a2a"), t));
+const RIVAL = 1.35;
+export class Rival extends Enemy {
+  constructor(g, x, y) {
+    super(g, x, y);
+    Object.assign(this, { hw: 7, h: 44, hp: 3200, max: 3200, mass: 30, kind: "rival", score: 25000, face: 1, state: "chase", st: 1.5, ph: 0, hitCd: 0 });
+  }
+  hurt(d, kx = 0, ky = 0) { super.hurt(d * 0.8, kx * 0.3, ky * 0.3); }
+  pick() {
+    const r = Math.random(), h = this.g.hero, far = Math.hypot(h.x - this.x, h.cy - this.y) > 260;
+    if (r < 0.3) { this.state = "dash"; this.st = 0.55; const a = Math.atan2(h.cy - (this.y - 22), h.x - this.x); this.dvx = Math.cos(a) * 760; this.dvy = Math.sin(a) * 760; this.g.sfx("dive"); }
+    else if (r < 0.5) { this.state = "beam"; this.st = 1.4; this.g.sfx("laser"); }
+    else if (r < 0.7 || far) { this.state = "volley"; this.st = 1.1; this.n = 0; }
+    else { this.state = "slam"; this.st = 2; this.sp = 0; }
+  }
+  update(dt) {
+    const g = this.g, h = g.hero, w = g.world;
+    this.t += dt; this.flash -= dt; this.hitCd -= dt;
+    const cy = this.y - 22, dx = h.x - this.x, dy = h.cy - cy;
+    this.face = this.state === "dash" ? (this.dvx > 0 ? 1 : -1) : dx > 0 ? 1 : -1;
+    const smash = (r) => { g.addScore(w.explode(this.x, cy, r, 10, { fire: 0.2, debris: 10, kick: 1.6 })); };
+    if (h.dead > 0) { this.vy -= 40 * dt; this.y += this.vy * dt; return; }
+    if ((this.st -= dt) <= 0) { if (this.state === "chase") this.pick(); else { this.state = "chase"; this.st = 0.8 + Math.random() * 1.2; } }
+    if (this.state === "chase") {
+      const tx = h.x - Math.sign(dx || 1) * 110, ty = h.cy - 50, k = Math.min(1, 3 * dt);
+      this.vx += ((tx - this.x) * 3 - this.vx) * k; this.vy += ((ty - cy) * 3 - this.vy) * k;
+      const sp = Math.hypot(this.vx, this.vy); if (sp > 330) { this.vx *= 330 / sp; this.vy *= 330 / sp; }
+    } else if (this.state === "dash") {
+      this.vx = this.dvx; this.vy = this.dvy; smash(16);
+      for (let i = 0; i < 2; i++) g.parts.spawn(PT.FLAME, this.x, cy, -this.vx * 0.2, -this.vy * 0.2, 0.4, 0, 3);
+    } else if (this.state === "beam") {
+      this.vx *= 1 - 4 * dt; this.vy *= 1 - 4 * dt;
+      if ((this.bt = (this.bt || 0) - dt) <= 0) { this.bt = 0.035; const a = Math.atan2(dy, dx) + Math.sin(this.t * 6) * 0.12; g.enemyShot("bullet", this.x + this.face * 4, cy - 16, Math.cos(a) * 640, Math.sin(a) * 640); }
+    } else if (this.state === "volley") {
+      this.vx *= 1 - 3 * dt; this.vy *= 1 - 3 * dt;
+      if ((this.bt = (this.bt || 0) - dt) <= 0 && this.n < 6) { this.bt = 0.16; this.n++; const a = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.5; g.enemyShot("rocket", this.x, cy - 10, Math.cos(a) * 260, Math.sin(a) * 260); g.sfx("rocket"); }
+    } else if (this.state === "slam") {
+      // up over him, then straight down
+      if (this.st > 1.2) { this.vx += ((h.x - this.x) * 4 - this.vx) * Math.min(1, 4 * dt); this.vy += ((h.cy - 220 - cy) * 4 - this.vy) * Math.min(1, 4 * dt); }
+      else {
+        this.vx *= 0.9; this.vy = 900; smash(10);
+        const gy = w.surfaceY(this.x, cy);
+        if (this.y >= gy - 2) { this.y = gy; this.vy = 0; this.state = "chase"; this.st = 1.2; g.blast(this.x, this.y - 6, 90, 14, { kind: "big", owner: "enemy" }); g.shake(14); g.sfx("bigboom"); }
+      }
+    }
+    this.x += this.vx * dt; this.y += this.vy * dt;
+    if (this.y > (WH - LAVA) * CELL - 10) { this.y = (WH - LAVA) * CELL - 10; this.vy = -300; }
+    // contact: he hits hard
+    if (this.hitCd <= 0 && Math.abs(h.x - this.x) < 14 && Math.abs(h.cy - cy) < 26) { this.hitCd = 0.6; g.hurtHero(this.state === "dash" ? 22 : 8); h.vx += Math.sign(dx || 1) * 500; h.vy -= 250; g.shake(6); g.sfx("punch"); }
+    g.flashLight(this.x, cy, 50, 0xff3030ff, 0.5, 0.05);
+  }
+  die() {
+    const g = this.g;
+    g.blast(this.x, this.y - 22, 140, 18, { kind: "big" });
+    g.say("OMEGA FALLS", 0xff40e0ff); g.shake(18); g.flash = Math.max(g.flash, 0.6); g.addScore(this.score, this.x, this.y);
+  }
+  draw(f) {
+    let pose;
+    if (this.state === "dash" || this.state === "slam" && this.st < 1.2) pose = { lean: 8, fx: 16, fy: -30, bx: 14, by: -26, ffx: -6, fbx: -10 };
+    else if (this.state === "beam" || this.state === "volley") { const a = Math.atan2(this.g.hero.cy - (this.y - 22), (this.g.hero.x - this.x) * this.face); pose = { fx: 15 * Math.cos(a), fy: -26 + 15 * Math.sin(a), bx: 6, by: -18, ffx: 2, fbx: -4 }; }
+    else pose = { lean: 3, fx: 8, fy: -16, bx: -6, by: -16, ffx: -3 + Math.sin(this.t * 4) * 2, fbx: -7 };
+    // a dark aura and a torn cape behind him
+    for (let i = 0; i < 6; i++) rect(f, Math.round(this.x - this.face * (4 + i * 2)), Math.round(this.y - 40 + i * 3 + Math.sin(this.t * 8 + i) * 2), 3, 10 - i, i & 1 ? K("#4a0a14") : K("#7a1020"));
+    drawPosed(f, this.x, this.y, this.face, pose, omega, this.flash > 0, RIVAL);
+  }
+}
