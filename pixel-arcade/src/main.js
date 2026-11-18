@@ -339,9 +339,16 @@ class Game {
     } else { const r = k; p.rect(mx - r - 1, my - r - 1, r * 2 + 3, r * 2 + 3, ink, 0.6); p.rect(mx - r, my - r, r * 2 + 1, r * 2 + 1, UI.red); }
   }
   /** Which hotbar slot is under a point on the screen, or -1. */
+  /** The weapon bar: bigger on touch screens, but never reaching under the joysticks. */
+  bar() {
+    const n = WEAPONS.length;
+    if (!this.touch) return { n, bw: 30, bh: 14, x0: (W - n * 30) / 2, y0: H - 22 };
+    const bw = Math.max(26, Math.min(52, Math.floor((W - 2 * (this.stickW || 150)) / n))), bh = 24;
+    return { n, bw, bh, x0: (W - n * bw) / 2, y0: H - bh - 6 };
+  }
   slotAt(x, y) {
-    const n = WEAPONS.length, bw = 30, x0 = (W - n * bw) / 2, y0 = H - 22;
-    if (y < y0 - 6 || y > y0 + 16 || x < x0 || x >= x0 + n * bw) return -1;
+    const { bw, bh, x0, y0, n } = this.bar();
+    if (y < y0 - 6 || y > y0 + bh + 4 || x < x0 || x >= x0 + n * bw) return -1;
     return Math.floor((x - x0) / bw);
   }
   // ---- one step of the world
@@ -519,12 +526,12 @@ class Game {
     for (let i = 0; i < 5; i++) { const on = this.heat >= i + 1, x = W / 2 - 34 + i * 14; p.text("*", x, 8, on ? UI.red : UI.panel, { font: "big", scale: 2, outline: UI.ink }); }
     p.text(Math.round(this.maxX / 10) + " M", W / 2, 26, UI.dim, { align: "center", outline: UI.ink });
     // weapons
-    const n = WEAPONS.length, bw = 30, x0 = (W - n * bw) / 2, y0 = H - 22;
+    const { n, bw, bh, x0, y0 } = this.bar(), big = bh > 14;
     for (let i = 0; i < n; i++) {
       const sel = i === this.weapon, x = x0 + i * bw;
-      p.rect(x, y0 - (sel ? 3 : 0), bw - 2, 14 + (sel ? 3 : 0), sel ? UI.ink : UI.panel);
-      p.rect(x + 2, y0 + 9, bw - 6, 2, WEAPONS[i].col);
-      p.text(String((i + 1) % 10), x + bw / 2 - 1, y0 + (sel ? -1 : 1), sel ? UI.white : UI.dim, { font: "big", align: "center" });
+      p.rect(x, y0 - (sel ? 3 : 0), bw - 2, bh + (sel ? 3 : 0), sel ? UI.ink : UI.panel);
+      p.rect(x + 2, y0 + bh - 5, bw - 6, big ? 3 : 2, WEAPONS[i].col);
+      p.text(String((i + 1) % 10), x + bw / 2 - 1, y0 + (sel ? -1 : 1) + (big ? 2 : 0), sel ? UI.white : UI.dim, { font: "big", align: "center", scale: big ? 2 : 1 });
     }
     t(WEAPONS[this.weapon].name, W / 2, y0 - 16, UI.white, { align: "center" });
     if (this.cd > 0.15 && WEAPONS[this.weapon].cd > 0.5) p.rect(W / 2 - 20, y0 - 6, 40 * (1 - this.cd / WEAPONS[this.weapon].cd), 2, UI.cyan);
@@ -543,6 +550,7 @@ function fit() {
   const vw = innerWidth, vh = innerHeight, nw = Math.max(320, Math.min(1100, Math.round((H * vw) / vh / 2) * 2));
   if (nw !== W) { W = nw; game.resize(); }
   game.hudR = W - 10 - Math.ceil((58 * H) / vh);
+  game.stickW = Math.ceil((170 * H) / vh); // room the joysticks take at each side, in picture pixels
   canvas.style.width = vw + "px"; canvas.style.height = vh + "px";
 }
 addEventListener("resize", fit); addEventListener("orientationchange", () => setTimeout(fit, 200)); fit();
@@ -602,8 +610,8 @@ function touchSetup() {
   el.addEventListener("touchend", end, { passive: false }); el.addEventListener("touchcancel", end, { passive: false });
   const btn = (id, down, up) => { const b = document.getElementById(id); let tid = null; const off = (e) => { e.preventDefault(); if (still(e, tid)) return; b.classList.remove("on"); up && up(); }; b.addEventListener("touchstart", (e) => { e.preventDefault(); if (game.paused) return; tid = e.changedTouches[0].identifier; start(); b.classList.add("on"); down(); }, { passive: false }); b.addEventListener("touchend", off, { passive: false }); b.addEventListener("touchcancel", off, { passive: false }); };
   btn("bNuke", () => (I.nukeP = true));
-  btn("bPrev", () => setWeapon(game.weapon - 1));
-  btn("bNext", () => setWeapon(game.weapon + 1));
+  btn("bC", () => { I.poundP = true; T.c = true; }, () => (T.c = false));
+  btn("bAlt", () => { if (WEAPONS[game.weapon].altHold) { I.altP = true; T.alt = true; } }, () => { if (!WEAPONS[game.weapon].altHold) T.altFire = 2; T.alt = false; });
   // right stick: drag = aim that way and fire while held; a short tap = one shot; a fast flick = the second move
   const rs = document.getElementById("stickR"), rk = rs.firstElementChild, A = (T.aim = { x: 0, y: 0, on: false, id: null });
   const aimSet = (t) => { const r = rs.getBoundingClientRect(); let dx = (t.clientX - r.left - r.width / 2) / (r.width / 2), dy = (t.clientY - r.top - r.height / 2) / (r.height / 2); const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; } A.x = dx; A.y = dy; A.m = Math.min(1, m); rk.style.transform = `translate(${dx * 34}px,${dy * 34}px)`; };
@@ -686,10 +694,10 @@ function readInput() {
     if (T.up && !wasUp) I.jumpP = true;
     I.jump = T.up || (h.fly && T.up);
     if (T.down && !wasDown) I.poundP = true;
-    I.c = T.down;
+    I.c = T.down || T.c;
     I.dash = M > 0.95 && (Math.abs(m.x) > 0.5 || (h.fly && Math.abs(m.y) > 0.5));
     const A = T.aim || {};
-    I.fire = T.fire || (A.on && A.m > 0.3) || !!T.tap; I.alt = false;
+    I.fire = T.fire || (A.on && A.m > 0.3) || !!T.tap; I.alt = WEAPONS[game.weapon].altHold ? !!T.alt : false;
     if (T.tap && --T.tap === 0) T.tap = 0;
     if (T.altFire && --T.altFire === 0) { I.altP = true; }
   } else {

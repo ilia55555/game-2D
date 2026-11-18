@@ -27,7 +27,7 @@
   .btn { position: absolute; width: 54px; height: 54px; border-radius: 50%; border: 2px solid rgba(255, 248, 232, .45); background: rgba(23, 18, 31, .4); color: #fff8e8; font: 700 11px ui-monospace, monospace; display: flex; align-items: center; justify-content: center; pointer-events: auto; }
   #stickR { left: auto; right: calc(22px + env(safe-area-inset-right)); } #stickR i { background: rgba(255, 74, 60, .6); }
   .btn.sm { width: 40px; height: 40px; }
-  #bPrev { left: calc(50% - 150px); top: 8px; } #bNext { left: calc(50% + 110px); top: 8px; }
+  #bAlt { right: calc(150px + env(safe-area-inset-right)); bottom: 120px; } #bC { right: calc(78px + env(safe-area-inset-right)); bottom: 158px; }
   #bNuke { right: calc(12px + env(safe-area-inset-right)); top: 80px; width: 48px; height: 48px; border-color: #ff4a3c; color: #ff8a7c; }
   .btn.on { background: rgba(255, 200, 60, .6); }
   #pause { position: fixed; left: 10px; top: 10px; z-index: 4; width: 38px; height: 38px; border: 2px solid #fff6; border-radius: 6px; background: #0e0c14cc; color: #fff; font: bold 14px monospace; cursor: pointer; }
@@ -72,7 +72,7 @@
 <button id="pause" title="Pause (Esc)">&#10074;&#10074;</button>
 <div id="pads">
   <div class="stick" id="stickL"><i></i></div><div class="stick" id="stickR"><i></i></div>
-  <div class="btn sm" id="bPrev">&#9664;</div><div class="btn sm" id="bNext">&#9654;</div><div class="btn" id="bNuke">NUKE</div>
+  <div class="btn" id="bAlt">ALT</div><div class="btn" id="bC">C<br>LAND</div><div class="btn" id="bNuke">NUKE</div>
 </div>
 <div id="help"><div id="card">
   <button class="lang" id="hLang">EN / FA</button><h1>NOVA<small>ENDLESS DEMOLITION</small></h1>
