@@ -96,6 +96,21 @@
     .mode img.pxt { height: auto; max-height: 34px; width: auto; }
     .mode i img.pxt { max-height: 22px; }
   }
+  /* same size in both languages, never scrolls */
+  #card { width: min(720px, calc(100vw - 32px)) !important; max-width: none; height: min(460px, calc(100dvh - 24px)); max-height: none; overflow: hidden !important; }
+  #help.menu #card { display: flex; flex-direction: column; justify-content: center; }
+  #card .lang { align-self: flex-end; }
+  #card h1 { margin-top: -8px; }
+  body.en .mode b { font-size: 20px; } body.en .mode i { font-size: 12px; } body.en .mode { font-size: 14px; }
+  body.en .lang { font-size: 13px !important; }
+  #ctrl tbody { display: grid; grid-template-columns: 1fr 1fr; column-gap: 18px; }
+  #ctrl tr { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  #ctrl td { padding: 4px 2px; }
+  #card img.pxt { width: auto !important; display: block; }
+  .mode b img.pxt { height: 32px; } .mode i img.pxt { height: 20px; } .mode.small b img.pxt { height: 26px; } .lang img.pxt { height: 18px; }
+  .mode b, .mode i { line-height: 1; min-height: 20px; display: flex; align-items: center; }
+  body.en .mode b { min-height: 32px; } body.en .mode i { min-height: 20px; } body.en .mode.small b { min-height: 26px; } body.en .lang { min-height: 18px; line-height: 18px; }
+  #pmenu .box { overflow: hidden !important; height: min(300px, calc(100dvh - 24px)); align-content: center; }
 </style>
 </head>
 <body>
@@ -133,6 +148,6 @@
   <div class="go" data-px="10" data-col="#ffc83c" data-fa="برای شروع کلیک یا لمس کن" data-en="CLICK / TAP TO START">CLICK / TAP TO START</div>
   </div>
 </div></div>
-<script src="dist/game.js?v=1795013300395"></script>
+<script src="dist/game.js?v=1795013762280"></script>
 </body>
 </html>
