@@ -107,10 +107,17 @@
   #ctrl tr { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   #ctrl td { padding: 4px 2px; }
   #card img.pxt { width: auto !important; display: block; }
-  .mode b img.pxt { height: 32px; } .mode i img.pxt { height: 20px; } .mode.small b img.pxt { height: 26px; } .lang img.pxt { height: 18px; }
+  body.en .mode b img.pxt { height: 50px; } body.en .mode i img.pxt { height: 32px; } body.en .mode.small b img.pxt { height: 40px; } body.en .lang img.pxt { height: 28px; }
+  body.en .mode b { min-height: 42px; } body.en .mode.small b { min-height: 34px; }
+  #pmenu button { min-width: 0; overflow: hidden; } #pmenu img.pxt { max-width: 100%; height: auto; object-fit: contain; }
   .mode b, .mode i { line-height: 1; min-height: 20px; display: flex; align-items: center; }
   body.en .mode b { min-height: 32px; } body.en .mode i { min-height: 20px; } body.en .mode.small b { min-height: 26px; } body.en .lang { min-height: 18px; line-height: 18px; }
   #pmenu .box { overflow: hidden !important; height: min(300px, calc(100dvh - 24px)); align-content: center; }
+  #card { position: relative; }
+  #card .lang { position: absolute; right: 22px; bottom: 18px; float: none; margin: 0; z-index: 2; }
+  #modes .mode { height: 108px; gap: 2px; box-sizing: border-box; justify-content: center; } #modes .mode.small { height: 56px; }
+  #card .lang { height: 44px; box-sizing: border-box; display: flex; align-items: center; }
+  #help.menu #modes { margin: 14px 0 60px; }
 </style>
 </head>
 <body>
@@ -148,6 +155,6 @@
   <div class="go" data-px="10" data-col="#ffc83c" data-fa="برای شروع کلیک یا لمس کن" data-en="CLICK / TAP TO START">CLICK / TAP TO START</div>
   </div>
 </div></div>
-<script src="dist/game.js?v=1795013762280"></script>
+<script src="dist/game.js?v=1795014079215"></script>
 </body>
 </html>

@@ -59,12 +59,13 @@ Painter.prototype.text = function (str, x, y, c, opts = {}) {
 // Persian for the HTML menus, as crisp pixel text: rasterised small, thresholded, shown scaled up with hard pixels
 const imgCache = new Map();
 function pixImg(str, color, px) {
-  const key = str + "|" + color + "|" + px;
+  const rtl = FA_RE.test(str);
+  const key = str + "|" + color + "|" + px + "|" + (document.fonts ? document.fonts.check("700 12px Vazirmatn") : 1);
   if (imgCache.has(key)) return imgCache.get(key);
   const c = document.createElement("canvas"), x = c.getContext("2d", { willReadFrequently: true });
   const F = `700 ${px}px Vazirmatn, Tahoma, sans-serif`;
   x.font = F; const w = Math.ceil(x.measureText(str).width) + 4, h = Math.ceil(px * 1.8);
-  c.width = w; c.height = h; x.font = F; x.direction = "rtl"; x.textAlign = "right"; x.textBaseline = "middle"; x.fillStyle = "#fff"; x.fillText(str, w - 3, h / 2);
+  c.width = w; c.height = h; x.font = F; x.direction = rtl ? "rtl" : "ltr"; x.textAlign = rtl ? "right" : "left"; x.textBaseline = "middle"; x.fillStyle = "#fff"; x.fillText(str, rtl ? w - 3 : 2, h / 2);
   const d = x.getImageData(0, 0, w, h), a = d.data, o = new ImageData(w, h), b = o.data;
   const r = parseInt(color.slice(1, 3), 16), g = parseInt(color.slice(3, 5), 16), bl = parseInt(color.slice(5, 7), 16);
   for (let i = 0; i < w * h; i++) {
@@ -78,9 +79,9 @@ function pixImg(str, color, px) {
 }
 /** Set an element's label: Persian as pixel art, English as text in the pixel font. */
 export function label(el, en, fa, color, px = 11, k = 2) {
-  if (lang !== "fa") { el.textContent = en; return; }
-  const im = pixImg(fa, color || getComputedStyle(el).color.replace(/rgba?\((\d+), (\d+), (\d+).*/, (m, r, g, b) => "#" + [r, g, b].map((v) => (+v).toString(16).padStart(2, "0")).join("")), px * 2);
-  el.innerHTML = `<img class="pxt" src="${im.src}" width="${Math.round(im.w * k / 2)}" height="${Math.round(im.h * k / 2)}" alt="${fa}">`;
+  const txt = lang === "fa" ? fa : en; if (lang !== "fa") px = Math.round(px * 1.15);
+  const im = pixImg(txt, color || getComputedStyle(el).color.replace(/rgba?\((\d+), (\d+), (\d+).*/, (m, r, g, b) => "#" + [r, g, b].map((v) => (+v).toString(16).padStart(2, "0")).join("")), px * 2);
+  el.innerHTML = `<img class="pxt" src="${im.src}" width="${Math.round(im.w * k / 2)}" height="${Math.round(im.h * k / 2)}" alt="${txt}">`;
 }
 
 // the HTML: elements carry data-fa / data-en (those with data-px are drawn as pixel text in Persian)
