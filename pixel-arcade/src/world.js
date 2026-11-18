@@ -9,17 +9,17 @@ export const CELL = 4, CW = 64, UP = 200, WH = 640 + UP, SEA = 146 + UP, ZONE = 
 export const WORLD_PX_H = WH * CELL;
 export const M = {
   AIR: 0, DIRT: 1, GRASS: 2, STONE: 3, SAND: 4, SNOW: 5, ROAD: 6, BEDROCK: 7,
-  CONCRETE: 8, BRICK: 9, GLASS: 10, STEEL: 11, WOOD: 12, LEAVES: 13, ROOF: 14, FUEL: 15, SIGN: 16, LAMP: 17, PINE: 18, BASALT: 19, MAGMA: 20, CACTUS: 21, STALK: 22, CRYSTAL: 23,
+  CONCRETE: 8, BRICK: 9, GLASS: 10, STEEL: 11, WOOD: 12, LEAVES: 13, ROOF: 14, FUEL: 15, SIGN: 16, LAMP: 17, PINE: 18, BASALT: 19, MAGMA: 20, CACTUS: 21, STALK: 22, CRYSTAL: 23, BRANCH: 24,
 };
-const NM = 24;
+const NM = 25;
 //                 air dirt grass stone sand snow road bedrock conc brick glass steel wood leaves roof fuel sign lamp pine
-export const HP = [0, 2, 2, 5, 1, 1, 3, 255, 4, 3, 1, 7, 2, 1, 2, 1, 1, 1, 1, 5, 1, 1, 3, 2];
-export const SOLID = [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1];
-export const FLAM = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0];
-export const isStruct = (m) => (m >= 8 && m <= 18) || m === 21;
+export const HP = [0, 2, 2, 5, 1, 1, 3, 255, 4, 3, 1, 7, 2, 1, 2, 1, 1, 1, 1, 5, 1, 1, 3, 2, 3];
+export const SOLID = [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1, 1];
+export const FLAM = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0];
+export const isStruct = (m) => (m >= 8 && m <= 18) || m === 21 || m === 24;
 const BASE = [
   0, 0x6b4a32, 0x5a9a3a, 0x7c7a84, 0xd9c07a, 0xf2f6fa, 0x4b4a55, 0xe8501a,
-  0xb9b0a0, 0xa65a3c, 0x86cfe0, 0x5c6676, 0x8a5a34, 0x3f8a3a, 0x8a3434, 0xd03a2c, 0xe8dcc0, 0xffe27a, 0x2c6a4a, 0x3a3238, 0xff7a1a, 0x4a8a3a, 0x3fa83a, 0xc080ff,
+  0xb9b0a0, 0xa65a3c, 0x86cfe0, 0x5c6676, 0x8a5a34, 0x3f8a3a, 0x8a3434, 0xd03a2c, 0xe8dcc0, 0xffe27a, 0x2c6a4a, 0x3a3238, 0xff7a1a, 0x4a8a3a, 0x3fa83a, 0xc080ff, 0x48b040,
 ];
 export const MAT_COLOR = BASE.map((c) => rgb(c >> 16, (c >> 8) & 255, c & 255));
 
@@ -63,7 +63,7 @@ function texel(m, x, y) {
     case M.SIGN: return y % 8 < 4 ? sh(0xd8402c, x % 4 === 3 ? 0.85 : 1) : sh(b, x % 4 === 3 ? 0.9 : 1);
     case M.BASALT: return sh(b, (x * 3 + y) % 11 === 0 || n < 0.1 ? 0.65 : n > 0.88 ? 1.25 : 1);
     case M.MAGMA: return n < 0.2 ? sh(0xfff07a, 1) : n < 0.55 ? sh(0xffa030, 1) : n > 0.9 ? sh(0x8a1a10, 1) : sh(b, 1);
-    case M.STALK: return sh(b, (x + (y >> 1)) % 8 < 2 ? 0.72 : x % 8 === 5 ? 1.25 : n > 0.9 ? 1.15 : 1);
+    case M.BRANCH: case M.STALK: return sh(b, (x + (y >> 1)) % 8 < 2 ? 0.72 : x % 8 === 5 ? 1.25 : n > 0.9 ? 1.15 : 1);
     case M.CRYSTAL: return sh(b, (x + y) % 6 === 0 ? 1.6 : (x - y + 16) % 5 === 0 ? 0.7 : 1);
     case M.CACTUS: return sh(b, x % 4 === 0 ? 0.75 : x % 4 === 2 ? 1.18 : 1);
     case M.LAMP: return sh(b, (x % 4 === 0 || y % 4 === 0) ? 0.85 : 1.1);
@@ -233,7 +233,7 @@ export class World {
     const G = (lx, cy) => (lx >= 0 && lx < CW && cy >= 0 && cy < WH ? c.fg[lx * WH + cy] : 0);
     let Hf = null;
     const H = (lx) => Hf ? Hf(lx) : c.hgt[Math.max(0, Math.min(CW - 1, lx))];
-    const spawn = (type, lx, cy, extra) => self.spawns.push({ type, x: (x0 + lx) * CELL + 2, y: cy * CELL, ...extra });
+    const spawn = (type, lx, cy, extra) => lx >= 0 && lx < CW && self.spawns.push({ type, x: (x0 + lx) * CELL + 2, y: cy * CELL, ...extra });
     const biome = this.biomeAt(x0 + 16);
     let hmin = 999, hmax = 0;
     for (let lx = 0; lx < CW; lx++) { hmin = Math.min(hmin, c.hgt[lx]); hmax = Math.max(hmax, c.hgt[lx]); }
@@ -412,19 +412,33 @@ export class World {
       // It's soft: everything passes through it, and what gets torn off grows back (see regrow).
       const z = Math.floor(ci / ZONE), C = z * ZONE * CW + (ZONE * CW) / 2, TOPR = 34, GR = 150 + UP;
       const ctr = (cy) => C + Math.round(Math.sin(cy / 90) * 70 + Math.sin(cy / 31) * 12), half = (cy) => 46 + Math.round(Math.sin(cy / 23) * 8) + Math.max(0, (cy - (GR - 60)) * 0.8);
-      const leaves = [];
-      for (let ly = GR - 70, k = 0; ly > TOPR + 40; ly -= 52, k++) leaves.push({ ly, s: k & 1 ? 1 : -1, L: 170 + (hash(k, z + 7) * 90 | 0), lift: 30 + (hash(k, z + 9) * 30 | 0) });
+      // six big leaves up the stalk, alternating sides, flat enough on top to carry a town each.
+      // Leaves are BRANCH: solid underfoot, and a town on one falls if the leaf is cut through.
+      const leaves = [], Z0 = z * ZONE * CW, Z1 = Z0 + ZONE * CW;
+      for (let ly = GR - 64, k = 0; ly > TOPR + 22; ly -= 44, k++) leaves.push({ ly, k, s: k & 1 ? 1 : -1, L: 170 + (hash(k, z + 7) * 50 | 0), lift: 8 + (hash(k, z + 9) * 14 | 0) });
+      const leafAt = (q, cx) => { const edge = ctr(q.ly) + q.s * (half(q.ly) - 4), u = ((cx - edge) * q.s) / q.L; if (u <= 0 || u >= 1 || cx < Z0 || cx >= Z1) return null; const yc = q.ly - q.lift * u * u - 4 * Math.sin(u * Math.PI), th = 14 * Math.sin(Math.PI * Math.pow(u, 0.6)) + 3; return { u, yc, th, top: Math.round(yc - th) + 1 }; };
       for (let lx = 0; lx < CW; lx++) {
         const cx = x0 + lx;
         for (let cy = TOPR; cy < H(lx); cy++) {
-          let on = Math.abs(cx - ctr(cy)) <= half(cy);
-          if (!on) for (const q of leaves) {
-            const edge = ctr(q.ly) + q.s * (half(q.ly) - 4), u = ((cx - edge) * q.s) / q.L;
-            if (u <= 0 || u >= 1) continue;
-            const yc = q.ly - q.lift * u * u - 6 * Math.sin(u * Math.PI), th = 16 * Math.sin(Math.PI * Math.pow(u, 0.7)) + 1;
-            if (Math.abs(cy - yc) < th) { on = true; break; }
-          }
-          if (on && !G(lx, cy)) F(lx, cy, M.STALK);
+          if (Math.abs(cx - ctr(cy)) <= half(cy)) { if (!G(lx, cy)) F(lx, cy, M.STALK); continue; }
+          for (const q of leaves) { const l = leafAt(q, cx); if (l && Math.abs(cy - l.yc) < l.th) { if (!G(lx, cy)) F(lx, cy, M.BRANCH); break; } }
+        }
+      }
+      // the towns: laid out along each leaf from its own seed, so every chunk draws the same buildings
+      for (const q of leaves) {
+        const edge = ctr(q.ly) + q.s * (half(q.ly) - 4);
+        let u = 0.1;
+        let b = 0;
+        while (u < 0.86) {
+          seedN = (z * 131 + q.k * 17 + b) * 7919 + this.seed; b++;
+          const k = R(), w = k < 0.35 ? RI(12, 18) : RI(10, 16), wx = Math.round(edge + q.s * u * q.L) - (q.s < 0 ? w : 0);
+          u += (w + RI(3, 7)) / q.L;
+          const ok = leafAt(q, wx) && leafAt(q, wx + w - 1);
+          if (!ok) continue;
+          Hf = (lx) => { const l = leafAt(q, x0 + lx); return l ? l.top : 0; };
+          const room = Math.max(1, Math.min(4, Math.floor((q.ly - TOPR - 40) / 11)));
+          if (k < 0.4) shop(wx - x0, w); else if (k < 0.85) tower(wx - x0, w, RI(1, room), RI(0, 2)); else { tree(wx - x0 + 3); lampPost(wx - x0 + 8); }
+          Hf = null;
         }
       }
       const tl = ctr(TOPR) - x0;
@@ -437,51 +451,6 @@ export class World {
         for (let a = -10; a <= 10; a += 4) F(tx + a, base - 3, M.CRYSTAL);
         for (let i = 0; i < 4; i++) spawn("soldier", tx - 8 + i * 5, base - 1);
       }
-      // a city in the sky on several decks, one above another up the stalk, each held up by it, with streets on it
-      for (const [SK, maxF] of [[290, 7], [190, 7], [96, 4]]) {
-        const onStalk = (lx) => { for (let cy = SK - 2; cy <= SK + 4; cy++) if (G(lx, cy) === M.STALK) return true; return false; };
-        for (let lx = 0; lx < CW; lx++) {
-          if (Math.abs(x0 + lx - ctr(SK)) <= half(SK)) continue;
-          F(lx, SK, M.ROAD); for (let k = 1; k <= 4; k++) F(lx, SK + k, k < 3 ? M.STONE : M.BASALT);
-          const hv = (hash(x0 + lx, 91 + SK) * 14) | 0; if (hash(x0 + lx, 92 + SK) < 0.35) for (let k = 5; k < 5 + hv; k++) if (!G(lx, SK + k)) F(lx, SK + k, M.STALK);
-        }
-        Hf = () => SK;
-        let lx = RI(1, 5);
-        while (lx < CW - 14) {
-          const k = R();
-          let w = k < 0.4 ? RI(14, 22) : RI(12, 18);
-          w = Math.min(w, CW - 2 - lx);
-          let clear = w >= 10;
-          for (let i = -1; i <= w && clear; i++) if (onStalk(lx + i)) clear = false;
-          if (!clear) { lx += 3; continue; }
-          for (let i = -1; i <= w; i++) for (let cy = SK - maxF * 11 - 14; cy < SK; cy++) if (G(lx + i, cy) === M.STALK) F(lx + i, cy, 0);
-          if (k < 0.3) shop(lx, w); else if (k < 0.85) tower(lx, w, RI(2, maxF), RI(0, 2));
-          else { tree(lx + 3); lampPost(lx + 8); tree(lx + 12); }
-          lx += w + RI(2, 5);
-        }
-        if (R() < 0.5) spawn("car", RI(4, CW - 4), SK);
-        Hf = null;
-      }
-      // little houses standing along the tops of the leaves, like villages on giant green hills
-      leaves.forEach((q, k) => {
-        const edge = ctr(q.ly) + q.s * (half(q.ly) - 4);
-        for (const u0 of [0.32, 0.55, 0.78]) {
-          if (hash(k * 7 + (u0 * 100 | 0), z + 33) < 0.25) continue;
-          const top = (cx) => { const u = ((cx - edge) * q.s) / q.L; return Math.round(q.ly - q.lift * u * u - 6 * Math.sin(u * Math.PI) - (16 * Math.sin(Math.PI * Math.pow(u, 0.7)) + 1)); };
-          const hx = Math.round(edge + q.s * u0 * q.L) - 4, W = 9;
-          let floor = 1e9; for (let i = 0; i < W; i++) floor = Math.min(floor, top(hx + i));
-          if ([[290, 7], [190, 7], [96, 4]].some(([SK, mf]) => floor > SK - mf * 11 - 30 && floor < SK + 24)) continue; // not where a deck's streets are
-          const wall = hash(hx, z + 5) < 0.5 ? M.BRICK : M.WOOD, H2 = 7;
-          for (let i = 0; i < W; i++) {
-            const lx = hx + i - x0, edgeC = i === 0 || i === W - 1;
-            for (let cy = floor; cy < top(hx + i) + 1; cy++) F(lx, cy, M.STALK);
-            F(lx, floor - 1, M.WOOD);
-            for (let h = 2; h <= H2; h++) { F(lx, floor - h, edgeC ? wall : (h === 4 || h === 5) && (i === 2 || i === 6) ? M.GLASS : 0); B(lx, floor - h, wall); }
-          }
-          for (let r = 0; r <= 4; r++) for (let i = -1 + r; i <= W - r; i++) F(hx + i - x0, floor - H2 - 1 - r, M.ROOF);
-          if (hash(hx, z + 6) < 0.4) spawn("soldier", hx + 4 - x0, floor - 1);
-        }
-      });
       // floating islands up in space, with trees, crystals and drifting rocks round them
       if (R() < 0.7) {
         const ix = RI(14, CW - 14), iy = RI(8, 30), rw = RI(7, 12), rh = RI(4, 7);
@@ -567,7 +536,8 @@ export class World {
     this.destroyed++;
     this.queue.push(cx - 1, cy, cx + 1, cy, cx, cy - 1, cx, cy + 1);
     if (m === M.FUEL) this.fuel.push({ x: cx * CELL + 2, y: cy * CELL + 2, t: 0.05 + Math.random() * 0.18 });
-    if (m === M.STALK && this.regrow.length < 40000) this.regrow.push(cx, cy, this.clock + (hash(cx, cy * 3) < 0.18 || cx % 7 === 0 ? 0.2 + Math.random() * 0.2 : 2.4 + Math.random() * 0.6)); // strands knit the gap at once, the rest fills in by 3 s
+    if (m === M.STALK && this.regrow.length < 40000) this.regrow.push(cx, cy, this.clock + (hash(cx, cy * 3) < 0.18 || cx % 7 === 0 ? 0.2 + Math.random() * 0.2 : 2.4 + Math.random() * 0.6), m);
+    else if (m === M.BRANCH && this.regrow.length < 40000) this.regrow.push(cx, cy, this.clock + 2.6 + Math.random() * 0.4, m); // strands knit the gap at once, the rest fills in by 3 s
     if (!quiet && this.hooks.debris) this.hooks.debris(m, cx * CELL + 2, cy * CELL + 2, vx, vy);
     return 1;
   }
@@ -676,6 +646,7 @@ export class World {
     for (let i = 0; i < comp.length; i += 2) {
       const cx = comp[i], cy = comp[i + 1], c = this.chunk(cx >> 6), j = (cx & 63) * WH + cy, k = (cy - y0) * w + (cx - x0);
       isl.fg[k] = c.fg[j]; isl.bg[k] = c.bg[j]; isl.dmg[k] = c.dmg[j];
+      if (c.fg[j] === M.BRANCH && this.regrow.length < 40000) this.regrow.push(cx, cy, this.clock + 3, M.BRANCH);
       c.fg[j] = 0; c.bg[j] = 0; c.dmg[j] = 0;
     }
     for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) {
@@ -730,9 +701,9 @@ export class World {
     const RG = this.regrow;
     if (RG.length) {
       let j = 0;
-      for (let i = 0; i < RG.length; i += 3) {
-        if (RG[i + 2] <= this.clock) { const cx = RG[i], cy = RG[i + 1]; if (!this.get(cx, cy)) this.set(cx, cy, M.STALK); }
-        else { RG[j] = RG[i]; RG[j + 1] = RG[i + 1]; RG[j + 2] = RG[i + 2]; j += 3; }
+      for (let i = 0; i < RG.length; i += 4) {
+        if (RG[i + 2] <= this.clock) { const cx = RG[i], cy = RG[i + 1]; if (!this.get(cx, cy)) this.set(cx, cy, RG[i + 3]); }
+        else { RG[j] = RG[i]; RG[j + 1] = RG[i + 1]; RG[j + 2] = RG[i + 2]; RG[j + 3] = RG[i + 3]; j += 4; }
       }
       RG.length = j;
     }
@@ -782,11 +753,11 @@ export class World {
             const row = y * W, trow = (ty + y - py) * 16 + tx - px;
             for (let x = xa; x < xb; x++) C[row + x] = tex[trow + x];
           }
-          if (f === M.STALK) {
+          if (f === M.STALK || f === M.BRANCH) {
             // 2.5D: the stalk is shaded like a round stem, lit from the left, by how far this cell is from its edges
             let dl = 0, dr = 0;
-            while (dl < 22 && this.get(cx - dl - 1, cy) === M.STALK) dl++;
-            while (dr < 22 && this.get(cx + dr + 1, cy) === M.STALK) dr++;
+            while (dl < 22 && this.get(cx - dl - 1, cy) === f) dl++;
+            while (dr < 22 && this.get(cx + dr + 1, cy) === f) dr++;
             const p = (dl - dr) / (dl + dr + 1), k = 0.42 + 0.72 * Math.sqrt(Math.max(0, 1 - p * p)) - 0.28 * p + (dl === 0 ? 0.3 : 0);
             if (k < 0.99 || k > 1.01) for (let y = ya; y < yb; y++) { const row = y * W; for (let x = xa; x < xb; x++) { const v = C[row + x]; C[row + x] = 0xff000000 | (Math.min(255, ((v >> 16) & 255) * k) << 16) | (Math.min(255, ((v >> 8) & 255) * k) << 8) | Math.min(255, (v & 255) * k); } }
           }
