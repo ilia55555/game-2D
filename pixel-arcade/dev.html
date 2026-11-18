@@ -51,6 +51,9 @@
   #pLang { color: #7ff3ff !important; }
   .lang { font-family: var(--px) !important; font-size: 10px !important; }
   img.pxt { image-rendering: pixelated; image-rendering: crisp-edges; display: inline-block; vertical-align: middle; pointer-events: none; }
+  #pmenu .box { display: grid; grid-template-columns: 1fr 1fr 1fr; width: min(660px, calc(100vw - 32px)); }
+  #pmenu h2 { grid-column: 1 / -1; }
+  html[lang=fa] #pmenu .box { direction: rtl; }
   #pmenu .box { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); overflow: auto; box-sizing: border-box; }
   #pmenu button { min-height: 44px; display: flex; align-items: center; justify-content: center; }
   @media (max-height: 520px) {

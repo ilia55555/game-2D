@@ -409,7 +409,7 @@ class Game {
     for (let i = this.enemies.length - 1; i >= 0; i--) {
       const e = this.enemies[i];
       if (Math.abs(e.x - h.x) < 900) e.update(dt);
-      if (e.dead || Math.abs(e.x - h.x) > 1400) { if (e.dead && !e.wreck && e.kind !== "heli") this.addScore(e.score, e.x, e.y); this.enemies.splice(i, 1); }
+      if (e.dead || (Math.abs(e.x - h.x) > 1400 && e.kind !== "rival")) { if (e.dead && !e.wreck && e.kind !== "heli") this.addScore(e.score, e.x, e.y); this.enemies.splice(i, 1); }
     }
     for (let i = this.shots.length - 1; i >= 0; i--) if (!this.shots[i].update(dt)) this.shots.splice(i, 1);
     this.stepEnemyShots(dt);
@@ -675,7 +675,8 @@ tapBtn(document.getElementById("hLang"), flipLang);
 applyHtml();
 tapBtn(rShape, () => { game.reticle.shape = SHAPES[(SHAPES.indexOf(game.reticle.shape) + 1) % SHAPES.length]; showR(); });
 tapBtn(rColor, () => { game.reticle.color = ((game.reticle.color || 0) + 1) % RET_COL.length; showR(); });
-tapBtn(document.getElementById("pHome"), () => { location.href = "../index.html"; });
+tapBtn(document.getElementById("pHome"), () => { location.reload(); });
+tapBtn(document.getElementById("pLaunch"), () => { location.href = "../index.html"; });
 tapBtn(rSize, () => { game.reticle.size = game.reticle.size % 5 + 1; showR(); });
 showR();
 tapBtn(document.getElementById("pHelp"), () => { togglePause(false); game.started = false; document.getElementById("help").classList.remove("hide"); });
