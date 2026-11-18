@@ -103,7 +103,7 @@ export class World {
     this.destroyed = 0;
     this._lastCi = null; this._last = null;
     this.fireAcc = 0;
-    this.regrow = []; this.clock = 0; this.regrowI = 0;
+    this.regrow = []; this.clock = 0;
   }
   zoneBiome(z) {
     // the world is round: this ring of zones repeats, so going on in one direction brings you back round
@@ -437,16 +437,15 @@ export class World {
         for (let a = -10; a <= 10; a += 4) F(tx + a, base - 3, M.CRYSTAL);
         for (let i = 0; i < 4; i++) spawn("soldier", tx - 8 + i * 5, base - 1);
       }
-      // a whole city in the sky: a stone-and-road deck right across the zone, held up by the stalk, with streets on it
-      const SK = 150, onStalk = (lx) => { for (let cy = SK - 2; cy <= SK + 4; cy++) if (G(lx, cy) === M.STALK) return true; return false; };
-      for (let lx = 0; lx < CW; lx++) {
-        if (Math.abs(x0 + lx - ctr(SK)) <= half(SK)) continue;
-        F(lx, SK, M.ROAD); for (let k = 1; k <= 4; k++) F(lx, SK + k, k < 3 ? M.STONE : M.BASALT);
-        // vines hanging under it (they grow back too)
-        const hv = (hash(x0 + lx, 91) * 14) | 0; if (hash(x0 + lx, 92) < 0.35) for (let k = 5; k < 5 + hv; k++) if (!G(lx, SK + k)) F(lx, SK + k, M.STALK);
-      }
-      Hf = () => SK;
-      {
+      // a city in the sky on several decks, one above another up the stalk, each held up by it, with streets on it
+      for (const [SK, maxF] of [[290, 7], [190, 7], [96, 4]]) {
+        const onStalk = (lx) => { for (let cy = SK - 2; cy <= SK + 4; cy++) if (G(lx, cy) === M.STALK) return true; return false; };
+        for (let lx = 0; lx < CW; lx++) {
+          if (Math.abs(x0 + lx - ctr(SK)) <= half(SK)) continue;
+          F(lx, SK, M.ROAD); for (let k = 1; k <= 4; k++) F(lx, SK + k, k < 3 ? M.STONE : M.BASALT);
+          const hv = (hash(x0 + lx, 91 + SK) * 14) | 0; if (hash(x0 + lx, 92 + SK) < 0.35) for (let k = 5; k < 5 + hv; k++) if (!G(lx, SK + k)) F(lx, SK + k, M.STALK);
+        }
+        Hf = () => SK;
         let lx = RI(1, 5);
         while (lx < CW - 14) {
           const k = R();
@@ -455,14 +454,34 @@ export class World {
           let clear = w >= 10;
           for (let i = -1; i <= w && clear; i++) if (onStalk(lx + i)) clear = false;
           if (!clear) { lx += 3; continue; }
-          for (let i = -1; i <= w; i++) for (let cy = SK - 120; cy < SK; cy++) if (G(lx + i, cy) === M.STALK) F(lx + i, cy, 0);
-          if (k < 0.3) shop(lx, w); else if (k < 0.85) tower(lx, w, RI(3, 9), RI(0, 2));
+          for (let i = -1; i <= w; i++) for (let cy = SK - maxF * 11 - 14; cy < SK; cy++) if (G(lx + i, cy) === M.STALK) F(lx + i, cy, 0);
+          if (k < 0.3) shop(lx, w); else if (k < 0.85) tower(lx, w, RI(2, maxF), RI(0, 2));
           else { tree(lx + 3); lampPost(lx + 8); tree(lx + 12); }
           lx += w + RI(2, 5);
         }
         if (R() < 0.5) spawn("car", RI(4, CW - 4), SK);
+        Hf = null;
       }
-      Hf = null;
+      // little houses standing along the tops of the leaves, like villages on giant green hills
+      leaves.forEach((q, k) => {
+        const edge = ctr(q.ly) + q.s * (half(q.ly) - 4);
+        for (const u0 of [0.32, 0.55, 0.78]) {
+          if (hash(k * 7 + (u0 * 100 | 0), z + 33) < 0.25) continue;
+          const top = (cx) => { const u = ((cx - edge) * q.s) / q.L; return Math.round(q.ly - q.lift * u * u - 6 * Math.sin(u * Math.PI) - (16 * Math.sin(Math.PI * Math.pow(u, 0.7)) + 1)); };
+          const hx = Math.round(edge + q.s * u0 * q.L) - 4, W = 9;
+          let floor = 1e9; for (let i = 0; i < W; i++) floor = Math.min(floor, top(hx + i));
+          if ([[290, 7], [190, 7], [96, 4]].some(([SK, mf]) => floor > SK - mf * 11 - 30 && floor < SK + 24)) continue; // not where a deck's streets are
+          const wall = hash(hx, z + 5) < 0.5 ? M.BRICK : M.WOOD, H2 = 7;
+          for (let i = 0; i < W; i++) {
+            const lx = hx + i - x0, edgeC = i === 0 || i === W - 1;
+            for (let cy = floor; cy < top(hx + i) + 1; cy++) F(lx, cy, M.STALK);
+            F(lx, floor - 1, M.WOOD);
+            for (let h = 2; h <= H2; h++) { F(lx, floor - h, edgeC ? wall : (h === 4 || h === 5) && (i === 2 || i === 6) ? M.GLASS : 0); B(lx, floor - h, wall); }
+          }
+          for (let r = 0; r <= 4; r++) for (let i = -1 + r; i <= W - r; i++) F(hx + i - x0, floor - H2 - 1 - r, M.ROOF);
+          if (hash(hx, z + 6) < 0.4) spawn("soldier", hx + 4 - x0, floor - 1);
+        }
+      });
       // floating islands up in space, with trees, crystals and drifting rocks round them
       if (R() < 0.7) {
         const ix = RI(14, CW - 14), iy = RI(8, 30), rw = RI(7, 12), rh = RI(4, 7);
@@ -548,7 +567,7 @@ export class World {
     this.destroyed++;
     this.queue.push(cx - 1, cy, cx + 1, cy, cx, cy - 1, cx, cy + 1);
     if (m === M.FUEL) this.fuel.push({ x: cx * CELL + 2, y: cy * CELL + 2, t: 0.05 + Math.random() * 0.18 });
-    if (m === M.STALK && this.regrow.length < 40000) this.regrow.push(cx, cy, this.clock + 1 + Math.random());
+    if (m === M.STALK && this.regrow.length < 40000) this.regrow.push(cx, cy, this.clock + (hash(cx, cy * 3) < 0.18 || cx % 7 === 0 ? 0.2 + Math.random() * 0.2 : 2.4 + Math.random() * 0.6)); // strands knit the gap at once, the rest fills in by 3 s
     if (!quiet && this.hooks.debris) this.hooks.debris(m, cx * CELL + 2, cy * CELL + 2, vx, vy);
     return 1;
   }
@@ -709,8 +728,14 @@ export class World {
     // the beanstalk heals: torn-off cells grow back a second or two later (oldest first)
     this.clock += dt;
     const RG = this.regrow;
-    while (this.regrowI < RG.length && RG[this.regrowI + 2] <= this.clock) { const cx = RG[this.regrowI], cy = RG[this.regrowI + 1]; if (!this.get(cx, cy)) this.set(cx, cy, M.STALK); this.regrowI += 3; }
-    if (this.regrowI > 3000) { RG.splice(0, this.regrowI); this.regrowI = 0; }
+    if (RG.length) {
+      let j = 0;
+      for (let i = 0; i < RG.length; i += 3) {
+        if (RG[i + 2] <= this.clock) { const cx = RG[i], cy = RG[i + 1]; if (!this.get(cx, cy)) this.set(cx, cy, M.STALK); }
+        else { RG[j] = RG[i]; RG[j + 1] = RG[i + 1]; RG[j + 2] = RG[i + 2]; j += 3; }
+      }
+      RG.length = j;
+    }
     this.collapse();
     this.stepIslands(dt);
     // fuel goes off a beat after it's breached
@@ -756,6 +781,14 @@ export class World {
           for (let y = ya; y < yb; y++) {
             const row = y * W, trow = (ty + y - py) * 16 + tx - px;
             for (let x = xa; x < xb; x++) C[row + x] = tex[trow + x];
+          }
+          if (f === M.STALK) {
+            // 2.5D: the stalk is shaded like a round stem, lit from the left, by how far this cell is from its edges
+            let dl = 0, dr = 0;
+            while (dl < 22 && this.get(cx - dl - 1, cy) === M.STALK) dl++;
+            while (dr < 22 && this.get(cx + dr + 1, cy) === M.STALK) dr++;
+            const p = (dl - dr) / (dl + dr + 1), k = 0.42 + 0.72 * Math.sqrt(Math.max(0, 1 - p * p)) - 0.28 * p + (dl === 0 ? 0.3 : 0);
+            if (k < 0.99 || k > 1.01) for (let y = ya; y < yb; y++) { const row = y * W; for (let x = xa; x < xb; x++) { const v = C[row + x]; C[row + x] = 0xff000000 | (Math.min(255, ((v >> 16) & 255) * k) << 16) | (Math.min(255, ((v >> 8) & 255) * k) << 8) | Math.min(255, (v & 255) * k); } }
           }
           if (f) {
             if (py >= 0 && py < Hh && cy > 0 && !c.fg[i - 1]) {
