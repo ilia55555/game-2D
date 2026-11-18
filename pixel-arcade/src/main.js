@@ -616,7 +616,14 @@ function touchSetup() {
   const btn = (id, down, up) => { const b = document.getElementById(id); if (!b) return; let tid = null; const off = (e) => { e.preventDefault(); if (still(e, tid)) return; b.classList.remove("on"); up && up(); }; b.addEventListener("touchstart", (e) => { e.preventDefault(); if (game.paused) return; tid = e.changedTouches[0].identifier; start(); b.classList.add("on"); down(); }, { passive: false }); b.addEventListener("touchend", off, { passive: false }); b.addEventListener("touchcancel", off, { passive: false }); };
   btn("bNuke", () => (I.nukeP = true));
   btn("bC", () => { I.poundP = true; T.c = true; }, () => (T.c = false));
-  btn("bAlt", () => { if (WEAPONS[game.weapon].altHold) { I.altP = true; T.alt = true; } }, () => { if (!WEAPONS[game.weapon].altHold) T.altFire = 2; T.alt = false; });
+  // ALT: a button that is also a small stick. Tap fires the second move at the aim; drag to point it from the hero.
+  const alt = document.getElementById("bAlt");
+  const altSet = (t) => { const r = alt.getBoundingClientRect(); let dx = (t.clientX - r.left - r.width / 2) / 50, dy = (t.clientY - r.top - r.height / 2) / 50; const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; } T.altDir = Math.hypot(dx, dy) > 0.3 ? [dx, dy] : null; alt.style.transform = T.altDir ? `translate(${dx * 14}px,${dy * 14}px)` : ""; };
+  T.altId = null;
+  alt.addEventListener("touchstart", (e) => { e.preventDefault(); if (game.paused || T.altId !== null) return; start(); alt.classList.add("on"); T.altId = e.changedTouches[0].identifier; T.alt = true; T.altDir = null; if (WEAPONS[game.weapon].altHold) I.altP = true; }, { passive: false });
+  alt.addEventListener("touchmove", (e) => { e.preventDefault(); const t = mine(e, T.altId); if (t) altSet(t); }, { passive: false });
+  const altEnd = (e) => { e.preventDefault(); if (T.altId === null || !mine(e, T.altId)) return; T.altId = null; alt.classList.remove("on"); alt.style.transform = ""; if (T.alt && !WEAPONS[game.weapon].altHold) T.altFire = 2; T.alt = false; };
+  alt.addEventListener("touchend", altEnd, { passive: false }); alt.addEventListener("touchcancel", altEnd, { passive: false });
   // right stick: drag = aim that way and fire while held; a short tap = one shot; a fast flick = the second move
   const rs = document.getElementById("stickR"), rk = rs.firstElementChild, A = (T.aim = { x: 0, y: 0, on: false, id: null });
   const aimSet = (t) => { const r = rs.getBoundingClientRect(); let dx = (t.clientX - r.left - r.width / 2) / (r.width / 2), dy = (t.clientY - r.top - r.height / 2) / (r.height / 2); const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; } A.x = dx; A.y = dy; A.m = Math.min(1, m); rk.style.transform = `translate(${dx * 34}px,${dy * 34}px)`; };
@@ -726,6 +733,10 @@ function readInput() {
       if (!A.on && !T.altFire) T.flick = null;
     }
   }
+  // dragging the ALT button points from the hero; the aim stays there for the shot on release
+  if (game.touch && T.altDir) { const [dx, dy] = T.altDir, m = Math.hypot(dx, dy); T.altAim = [h.x + (dx / m) * (60 + 200 * m), h.cy + (dy / m) * (60 + 200 * m)]; }
+  if (game.touch && T.altAim && (T.alt || T.altFire)) { I.aimX = T.altAim[0]; I.aimY = T.altAim[1]; }
+  else if (game.touch && T.altAim && !T.alt) { [mouseX, mouseY] = [T.altAim[0] - f.ox, T.altAim[1] - f.oy]; T.altAim = null; T.altDir = null; }
   // dragging the ALT button points from the hero; the aim stays there for the shot on release
 }
 
