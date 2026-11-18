@@ -56,10 +56,40 @@ Painter.prototype.text = function (str, x, y, c, opts = {}) {
   for (let i = 0; i < P.length; i += 2) this.rect(left + P[i], top + P[i + 1], 1, 1, col, a);
 };
 
-// the HTML: elements carry data-fa / data-en
+// Persian for the HTML menus, as crisp pixel text: rasterised small, thresholded, shown scaled up with hard pixels
+const imgCache = new Map();
+function pixImg(str, color, px) {
+  const key = str + "|" + color + "|" + px;
+  if (imgCache.has(key)) return imgCache.get(key);
+  const c = document.createElement("canvas"), x = c.getContext("2d", { willReadFrequently: true });
+  const F = `700 ${px}px Vazirmatn, Tahoma, sans-serif`;
+  x.font = F; const w = Math.ceil(x.measureText(str).width) + 4, h = Math.ceil(px * 1.8);
+  c.width = w; c.height = h; x.font = F; x.direction = "rtl"; x.textAlign = "right"; x.textBaseline = "middle"; x.fillStyle = "#fff"; x.fillText(str, w - 3, h / 2);
+  const d = x.getImageData(0, 0, w, h), a = d.data, o = new ImageData(w, h), b = o.data;
+  const r = parseInt(color.slice(1, 3), 16), g = parseInt(color.slice(3, 5), 16), bl = parseInt(color.slice(5, 7), 16);
+  for (let i = 0; i < w * h; i++) {
+    if (a[i * 4 + 3] > 110) { b[i * 4] = r; b[i * 4 + 1] = g; b[i * 4 + 2] = bl; b[i * 4 + 3] = 255; }
+    else { const y = (i / w) | 0, xx = i % w; if (y > 0 && xx > 0 && a[(i - w - 1) * 4 + 3] > 110) { b[i * 4 + 3] = 255; } } // hard shadow
+  }
+  x.putImageData(o, 0, 0);
+  const out = { src: c.toDataURL(), w, h };
+  imgCache.set(key, out);
+  return out;
+}
+/** Set an element's label: Persian as pixel art, English as text in the pixel font. */
+export function label(el, en, fa, color, px = 11, k = 2) {
+  if (lang !== "fa") { el.textContent = en; return; }
+  const im = pixImg(fa, color || getComputedStyle(el).color.replace(/rgba?\((\d+), (\d+), (\d+).*/, (m, r, g, b) => "#" + [r, g, b].map((v) => (+v).toString(16).padStart(2, "0")).join("")), px);
+  el.innerHTML = `<img class="pxt" src="${im.src}" width="${im.w * k}" height="${im.h * k}" alt="${fa}">`;
+}
+
+// the HTML: elements carry data-fa / data-en (those with data-px are drawn as pixel text in Persian)
 export function applyHtml() {
   document.documentElement.lang = lang;
-  for (const el of document.querySelectorAll("[data-fa]")) el.innerHTML = lang === "fa" ? el.dataset.fa : el.dataset.en;
+  for (const el of document.querySelectorAll("[data-fa]")) {
+    if (el.dataset.px !== undefined) label(el, el.dataset.en, el.dataset.fa, el.dataset.col, +(el.dataset.px || 11), 2);
+    else el.innerHTML = lang === "fa" ? el.dataset.fa : el.dataset.en;
+  }
   document.body.classList.toggle("en", lang === "en");
 }
 export function setLang(l) { lang = l; try { localStorage.setItem("nova-lang", l); } catch (e) { /* blocked */ } cache.clear(); applyHtml(); }

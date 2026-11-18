@@ -1,6 +1,6 @@
 // NOVA: Endless Demolition. The loop, the camera, input, the HUD, and the glue between everything.
 import { createFrame, painterFor, hex } from "../vendor/pixelfx/src/core/index.js";
-import { tr, getLang, setLang, applyHtml } from "./i18n.js";
+import { tr, getLang, setLang, applyHtml, label } from "./i18n.js";
 import * as smallExplosion from "../vendor/pixelfx/src/fx/explosions/small-explosion.js";
 import * as bigExplosion from "../vendor/pixelfx/src/fx/explosions/big-explosion.js";
 import * as plasmaExplosion from "../vendor/pixelfx/src/fx/explosions/plasma-explosion.js";
@@ -653,8 +653,10 @@ const saveSet = (o) => { const v = JSON.stringify(o); try { localStorage.setItem
 game.reticle = game.reticle || { shape: "cross", size: 2 };
 const SHAPES = ["cross", "plus", "circle", "x", "dot"], rShape = document.getElementById("rShape"), rSize = document.getElementById("rSize");
 const FA_SH = { cross: "ضربدری", plus: "بعلاوه", circle: "دایره", x: "ایکس", dot: "نقطه" };
-const showR = () => { const fa = getLang() === "fa"; rShape.textContent = fa ? "نشانه: " + FA_SH[game.reticle.shape] : "AIM: " + game.reticle.shape.toUpperCase(); rSize.textContent = fa ? "اندازهٔ نشانه: " + game.reticle.size : "AIM SIZE: " + game.reticle.size; saveSet(game.reticle); };
-const flipLang = () => { setLang(getLang() === "fa" ? "en" : "fa"); showR(); };
+const showR = () => { label(rShape, "AIM: " + game.reticle.shape.toUpperCase(), "نشانه: " + FA_SH[game.reticle.shape], "#fff8e8"); label(rSize, "AIM SIZE: " + game.reticle.size, "اندازهٔ نشانه: " + game.reticle.size, "#fff8e8"); saveSet(game.reticle); };
+let flipT = 0;
+const flipLang = () => { const n = performance.now(); if (n - flipT < 350) return; flipT = n; setLang(getLang() === "fa" ? "en" : "fa"); showR(); };
+if (document.fonts) document.fonts.ready.then(() => { applyHtml(); showR(); });
 tapBtn(document.getElementById("pLang"), flipLang);
 tapBtn(document.getElementById("hLang"), flipLang);
 applyHtml();

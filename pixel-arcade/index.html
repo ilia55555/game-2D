@@ -54,11 +54,18 @@
   .fa, td:last-child { font-family: Vazirmatn, Tahoma, sans-serif; font-weight: 700; }
   td:last-child { font-size: 12px; }
   #pmenu .box, #pmenu button { font-family: var(--px); }
-  html[lang=fa] #pmenu button, html[lang=fa] #pmenu h2, html[lang=fa] .go { font-family: Vazirmatn, Tahoma, sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 0; }
-  html[lang=fa] #pmenu h2 { font-size: 22px; }
   body.en .fa, body.en td:last-child { direction: ltr; text-align: left; font-family: var(--px); font-size: 9px; line-height: 2; font-weight: 400; }
   .lang { float: right; padding: 8px 10px; font: 700 12px Vazirmatn, Tahoma, sans-serif; color: #17121f; background: #7ff3ff; border: 0; cursor: pointer; box-shadow: 0 -3px 0 #000, 0 3px 0 #000, -3px 0 0 #000, 3px 0 0 #000, inset -3px -3px 0 #3aa8b8; }
-  #pLang { color: #7ff3ff !important; font-family: Vazirmatn, Tahoma, sans-serif !important; }
+  #pLang { color: #7ff3ff !important; }
+  .lang { font-family: var(--px) !important; font-size: 10px !important; }
+  img.pxt { image-rendering: pixelated; image-rendering: crisp-edges; display: inline-block; vertical-align: middle; pointer-events: none; }
+  #pmenu .box { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); overflow: auto; box-sizing: border-box; }
+  #pmenu button { min-height: 44px; display: flex; align-items: center; justify-content: center; }
+  @media (max-height: 520px) {
+    #pmenu .box { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; padding: 14px 18px; min-width: 0; width: min(520px, calc(100vw - 32px)); }
+    #pmenu h2 { grid-column: 1 / -1; margin: 0; font-size: 14px; }
+    #pmenu button { padding: 8px; font-size: 9px; min-height: 40px; }
+  }
   kbd { border-radius: 0; border: 2px solid #6a6078; border-bottom-width: 4px; font-size: 9px; padding: 3px 5px; }
   .go { font-size: 13px; text-shadow: 3px 3px 0 #000; }
   #pmenu h2 { font-size: 18px; text-shadow: 3px 3px 0 #d0382c, 6px 6px 0 #000; margin-bottom: 10px; }
@@ -71,13 +78,13 @@
 <body>
 <canvas id="game"></canvas>
 <button id="pause" title="Pause (Esc)">&#10074;&#10074;</button>
-<div id="pmenu"><div class="box"><h2 data-fa="مکث" data-en="PAUSED">PAUSED</h2><button id="pResume" data-fa="ادامه" data-en="RESUME">RESUME</button><button id="pFull" data-fa="تمام‌صفحه" data-en="FULLSCREEN">FULLSCREEN</button><button id="rShape">AIM: CROSS</button><button id="rSize">AIM SIZE: 2</button><button id="pLang">EN / فا</button><button id="pHelp" data-fa="راهنما" data-en="CONTROLS">CONTROLS</button></div></div>
+<div id="pmenu"><div class="box"><h2 data-px="13" data-col="#ffc83c" data-fa="مکث" data-en="PAUSED">PAUSED</h2><button id="pResume" data-px data-col="#fff8e8" data-fa="ادامه" data-en="RESUME">RESUME</button><button id="pFull" data-px data-col="#fff8e8" data-fa="تمام‌صفحه" data-en="FULLSCREEN">FULLSCREEN</button><button id="rShape">AIM: CROSS</button><button id="rSize">AIM SIZE: 2</button><button id="pLang">EN / FA</button><button id="pHelp" data-px data-col="#fff8e8" data-fa="راهنما" data-en="CONTROLS">CONTROLS</button></div></div>
 <div id="pads">
   <div class="stick" id="stickL"><i></i></div><div class="stick" id="stickR"><i></i></div>
   <div class="btn sm" id="bPrev">&#9664;</div><div class="btn sm" id="bNext">&#9654;</div><div class="btn" id="bNuke">NUKE</div>
 </div>
 <div id="help"><div id="card">
-  <button class="lang" id="hLang">EN / فا</button><h1>NOVA<small>ENDLESS DEMOLITION</small></h1>
+  <button class="lang" id="hLang">EN / FA</button><h1>NOVA<small>ENDLESS DEMOLITION</small></h1>
   <p class="fa" data-fa="یک اَبَرقهرمان، یک شهرِ بی‌انتها، و هیچ چیزی که نشود خرابش کرد. ساختمان‌ها را از وسط ببُر تا فرو بریزند، با سرعتِ نور از دلِ دیوارها رد شو، از آسمان شهاب‌سنگ بیار و وقتی نوارِ هرج‌ومرج پُر شد، بمبِ اتمی را رها کن." data-en="One superhero, an endless city, and nothing that can't be wrecked. Slice buildings in half and watch them fall, tear through walls at light speed, call meteors down from the sky, and when the chaos meter fills, drop the nuke.">یک اَبَرقهرمان، یک شهرِ بی‌انتها، و هیچ چیزی که نشود خرابش کرد. ساختمان‌ها را از وسط ببُر تا فرو بریزند، با سرعتِ نور از دلِ دیوارها رد شو، از آسمان شهاب‌سنگ بیار و وقتی نوارِ هرج‌ومرج پُر شد، بمبِ اتمی را رها کن.</p>
   <table>
     <tr><td><kbd>A</kbd> <kbd>D</kbd> · <kbd>W</kbd> <kbd>S</kbd></td><td data-fa="حرکت · در پرواز: بالا و پایین" data-en="Move · while flying: up and down">حرکت · در پرواز: بالا و پایین</td></tr>
@@ -90,7 +97,7 @@
     <tr><td><kbd>1</kbd>…<kbd>0</kbd> · <kbd>Q</kbd> <kbd>E</kbd> · Wheel</td><td data-fa="ده سلاح: بلستر، راکت، خوشه‌ای، نگاهِ لیزری، صاعقه، شهاب‌سنگ، سیاه‌چاله، گردباد، تیغه‌های یخ، پرتوِ آسمانی" data-en="Ten weapons: blaster, rocket, cluster, heat vision, lightning, meteor, black hole, tornado, ice blades, sky beam">ده سلاح: بلستر، راکت، خوشه‌ای، نگاهِ لیزری، صاعقه، شهاب‌سنگ، سیاه‌چاله، گردباد، تیغه‌های یخ، پرتوِ آسمانی</td></tr>
     <tr><td><kbd>R</kbd></td><td data-fa="بمبِ اتمی (وقتی نوار پُر است)" data-en="Nuke (when the meter is full)">بمبِ اتمی (وقتی نوار پُر است)</td></tr>
   </table>
-  <div class="go" data-fa="برای شروع کلیک یا لمس کن" data-en="CLICK / TAP TO START">CLICK / TAP TO START</div>
+  <div class="go" data-px="10" data-col="#ffc83c" data-fa="برای شروع کلیک یا لمس کن" data-en="CLICK / TAP TO START">CLICK / TAP TO START</div>
 </div></div>
 <script src="dist/game.js"></script>
 </body>
