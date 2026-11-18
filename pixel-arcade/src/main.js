@@ -550,7 +550,7 @@ function fit() {
   const vw = innerWidth, vh = innerHeight, nw = Math.max(320, Math.min(1100, Math.round((H * vw) / vh / 2) * 2));
   if (nw !== W) { W = nw; game.resize(); }
   game.hudR = W - 10 - Math.ceil((58 * H) / vh);
-  game.stickW = Math.ceil((170 * H) / vh); // room the joysticks take at each side, in picture pixels
+  game.stickW = Math.ceil((235 * H) / vh); // room the joysticks take at each side, in picture pixels
   canvas.style.width = vw + "px"; canvas.style.height = vh + "px";
 }
 addEventListener("resize", fit); addEventListener("orientationchange", () => setTimeout(fit, 200)); fit();
@@ -608,7 +608,7 @@ function touchSetup() {
   const still = (e, id) => [...e.touches].some((q) => q.identifier === id); // a finger that is really still down
   const end = (e) => { e.preventDefault(); if (still(e, st.id)) return; st.on = false; st.x = st.y = 0; knob.style.transform = ""; };
   el.addEventListener("touchend", end, { passive: false }); el.addEventListener("touchcancel", end, { passive: false });
-  const btn = (id, down, up) => { const b = document.getElementById(id); let tid = null; const off = (e) => { e.preventDefault(); if (still(e, tid)) return; b.classList.remove("on"); up && up(); }; b.addEventListener("touchstart", (e) => { e.preventDefault(); if (game.paused) return; tid = e.changedTouches[0].identifier; start(); b.classList.add("on"); down(); }, { passive: false }); b.addEventListener("touchend", off, { passive: false }); b.addEventListener("touchcancel", off, { passive: false }); };
+  const btn = (id, down, up) => { const b = document.getElementById(id); if (!b) return; let tid = null; const off = (e) => { e.preventDefault(); if (still(e, tid)) return; b.classList.remove("on"); up && up(); }; b.addEventListener("touchstart", (e) => { e.preventDefault(); if (game.paused) return; tid = e.changedTouches[0].identifier; start(); b.classList.add("on"); down(); }, { passive: false }); b.addEventListener("touchend", off, { passive: false }); b.addEventListener("touchcancel", off, { passive: false }); };
   btn("bNuke", () => (I.nukeP = true));
   btn("bC", () => { I.poundP = true; T.c = true; }, () => (T.c = false));
   btn("bAlt", () => { if (WEAPONS[game.weapon].altHold) { I.altP = true; T.alt = true; } }, () => { if (!WEAPONS[game.weapon].altHold) T.altFire = 2; T.alt = false; });

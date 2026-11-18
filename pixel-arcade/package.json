@@ -5,8 +5,10 @@
   "type": "module",
   "description": "A 2D pixel-art arcade game about a superhero and an endless, fully destructible city.",
   "scripts": {
-    "build": "esbuild src/main.js --bundle --minify --format=iife --outfile=dist/game.js",
+    "build": "esbuild src/main.js --bundle --minify --format=iife --outfile=dist/game.js && node -e \"const f='index.html',fs=require('fs');fs.writeFileSync(f,fs.readFileSync(f,'utf8').replace(/game\\.js\\?v=\\d+/,'game.js?v='+Date.now()))\"",
     "dev": "python3 -m http.server 8080"
   },
-  "devDependencies": { "esbuild": "^0.25.10" }
+  "devDependencies": {
+    "esbuild": "^0.25.10"
+  }
 }
