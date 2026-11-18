@@ -602,11 +602,14 @@ function touchSetup() {
   if (game.touch) return;
   game.touch = true; pads.style.display = "block"; mouseFire = false;
   const el = document.getElementById("stickL"), knob = el.firstElementChild, st = T.move;
-  const set = (e) => { const r = el.getBoundingClientRect(), t = [...e.touches].find((q) => q.identifier === st.id); if (!t) return; let dx = (t.clientX - r.left - r.width / 2) / (r.width / 2), dy = (t.clientY - r.top - r.height / 2) / (r.height / 2); const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; } st.x = dx; st.y = dy; knob.style.transform = `translate(${dx * 34}px,${dy * 34}px)`; };
-  el.addEventListener("touchstart", (e) => { e.preventDefault(); start(); st.id = e.changedTouches[0].identifier; st.on = true; set(e); }, { passive: false });
-  el.addEventListener("touchmove", (e) => { e.preventDefault(); set(e); }, { passive: false });
   const still = (e, id) => [...e.touches].some((q) => q.identifier === id); // a finger that is really still down
-  const end = (e) => { e.preventDefault(); if (still(e, st.id)) return; st.on = false; st.x = st.y = 0; knob.style.transform = ""; };
+  // each stick follows only its own finger (by identifier), so the two thumbs never mix
+  const set = (t) => { const r = el.getBoundingClientRect(); let dx = (t.clientX - r.left - r.width / 2) / (r.width / 2), dy = (t.clientY - r.top - r.height / 2) / (r.height / 2); const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; } st.x = dx; st.y = dy; knob.style.transform = `translate(${dx * 34}px,${dy * 34}px)`; };
+  const mine = (e, id) => [...e.changedTouches].find((q) => q.identifier === id);
+  st.id = null;
+  el.addEventListener("touchstart", (e) => { e.preventDefault(); start(); if (st.id !== null) return; const t = e.changedTouches[0]; st.id = t.identifier; st.on = true; set(t); }, { passive: false });
+  el.addEventListener("touchmove", (e) => { e.preventDefault(); const t = mine(e, st.id); if (t) set(t); }, { passive: false });
+  const end = (e) => { e.preventDefault(); if (!mine(e, st.id)) return; st.id = null; st.on = false; st.x = st.y = 0; knob.style.transform = ""; };
   el.addEventListener("touchend", end, { passive: false }); el.addEventListener("touchcancel", end, { passive: false });
   const btn = (id, down, up) => { const b = document.getElementById(id); if (!b) return; let tid = null; const off = (e) => { e.preventDefault(); if (still(e, tid)) return; b.classList.remove("on"); up && up(); }; b.addEventListener("touchstart", (e) => { e.preventDefault(); if (game.paused) return; tid = e.changedTouches[0].identifier; start(); b.classList.add("on"); down(); }, { passive: false }); b.addEventListener("touchend", off, { passive: false }); b.addEventListener("touchcancel", off, { passive: false }); };
   btn("bNuke", () => (I.nukeP = true));
@@ -615,10 +618,10 @@ function touchSetup() {
   // right stick: drag = aim that way and fire while held; a short tap = one shot; a fast flick = the second move
   const rs = document.getElementById("stickR"), rk = rs.firstElementChild, A = (T.aim = { x: 0, y: 0, on: false, id: null });
   const aimSet = (t) => { const r = rs.getBoundingClientRect(); let dx = (t.clientX - r.left - r.width / 2) / (r.width / 2), dy = (t.clientY - r.top - r.height / 2) / (r.height / 2); const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; } A.x = dx; A.y = dy; A.m = Math.min(1, m); rk.style.transform = `translate(${dx * 34}px,${dy * 34}px)`; };
-  rs.addEventListener("touchstart", (e) => { e.preventDefault(); if (game.paused) return; start(); const t = e.changedTouches[0]; A.id = t.identifier; A.on = true; A.t0 = performance.now(); A.m = 0; aimSet(t); }, { passive: false });
+  rs.addEventListener("touchstart", (e) => { e.preventDefault(); if (game.paused || A.id !== null) return; start(); const t = e.changedTouches[0]; A.id = t.identifier; A.on = true; A.t0 = performance.now(); A.m = 0; aimSet(t); }, { passive: false });
   rs.addEventListener("touchmove", (e) => { e.preventDefault(); const t = [...e.changedTouches].find((q) => q.identifier === A.id); if (t) aimSet(t); }, { passive: false });
   const aimEnd = (e) => {
-    e.preventDefault(); if (still(e, A.id)) return;
+    e.preventDefault(); if (A.id === null || !mine(e, A.id)) return;
     const dt = performance.now() - A.t0;
     if (dt < 180 && A.m > 0.8) { T.flick = [A.x, A.y]; T.altFire = 2; } // a flick
     else if (dt < 200 && A.m < 0.3) T.tap = 2; // a tap
@@ -687,14 +690,13 @@ function readInput() {
   const h = game.hero, f = game.frame;
   // touch mode while any finger is down (a held stick + jump sends no new touch events), or touched lately
   if (game.touch) {
-    const m = T.move, M = Math.hypot(m.x, m.y), wasUp = T.up, wasDown = T.down;
+    const m = T.move, M = Math.hypot(m.x, m.y), wasUp = T.up;
     I.mx = Math.abs(m.x) > 0.25 ? Math.sign(m.x) * (h.fly ? Math.abs(m.x) : 1) : 0; I.my = Math.abs(m.y) > 0.3 ? m.y : 0;
     // pushed hard up: jump, and held there: fly; pushed to the rim: flash speed; hard down in the air: land / pound
-    T.up = m.on && m.y < -0.7; T.down = m.on && m.y > 0.8 && !h.onGround;
+    T.up = m.on && m.y < -0.7;
     if (T.up && !wasUp) I.jumpP = true;
-    I.jump = T.up || (h.fly && T.up);
-    if (T.down && !wasDown) I.poundP = true;
-    I.c = T.down || T.c;
+    I.jump = T.up;
+    I.c = !!T.c;
     I.dash = M > 0.95 && (Math.abs(m.x) > 0.5 || (h.fly && Math.abs(m.y) > 0.5));
     const A = T.aim || {};
     I.fire = T.fire || (A.on && A.m > 0.3) || !!T.tap; I.alt = WEAPONS[game.weapon].altHold ? !!T.alt : false;
