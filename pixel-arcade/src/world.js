@@ -231,7 +231,8 @@ export class World {
     const F = (lx, cy, m) => { if (lx >= 0 && lx < CW && cy >= 0 && cy < WH - 5) c.fg[lx * WH + cy] = m; };
     const B = (lx, cy, m) => { if (lx >= 0 && lx < CW && cy >= 0 && cy < WH - 5) c.bg[lx * WH + cy] = m; };
     const G = (lx, cy) => (lx >= 0 && lx < CW && cy >= 0 && cy < WH ? c.fg[lx * WH + cy] : 0);
-    const H = (lx) => c.hgt[Math.max(0, Math.min(CW - 1, lx))];
+    let Hf = null;
+    const H = (lx) => Hf ? Hf(lx) : c.hgt[Math.max(0, Math.min(CW - 1, lx))];
     const spawn = (type, lx, cy, extra) => self.spawns.push({ type, x: (x0 + lx) * CELL + 2, y: cy * CELL, ...extra });
     const biome = this.biomeAt(x0 + 16);
     let hmin = 999, hmax = 0;
@@ -436,6 +437,32 @@ export class World {
         for (let a = -10; a <= 10; a += 4) F(tx + a, base - 3, M.CRYSTAL);
         for (let i = 0; i < 4; i++) spawn("soldier", tx - 8 + i * 5, base - 1);
       }
+      // a whole city in the sky: a stone-and-road deck right across the zone, held up by the stalk, with streets on it
+      const SK = 150, onStalk = (lx) => { for (let cy = SK - 2; cy <= SK + 4; cy++) if (G(lx, cy) === M.STALK) return true; return false; };
+      for (let lx = 0; lx < CW; lx++) {
+        if (Math.abs(x0 + lx - ctr(SK)) <= half(SK)) continue;
+        F(lx, SK, M.ROAD); for (let k = 1; k <= 4; k++) F(lx, SK + k, k < 3 ? M.STONE : M.BASALT);
+        // vines hanging under it (they grow back too)
+        const hv = (hash(x0 + lx, 91) * 14) | 0; if (hash(x0 + lx, 92) < 0.35) for (let k = 5; k < 5 + hv; k++) if (!G(lx, SK + k)) F(lx, SK + k, M.STALK);
+      }
+      Hf = () => SK;
+      {
+        let lx = RI(1, 5);
+        while (lx < CW - 14) {
+          const k = R();
+          let w = k < 0.4 ? RI(14, 22) : RI(12, 18);
+          w = Math.min(w, CW - 2 - lx);
+          let clear = w >= 10;
+          for (let i = -1; i <= w && clear; i++) if (onStalk(lx + i)) clear = false;
+          if (!clear) { lx += 3; continue; }
+          for (let i = -1; i <= w; i++) for (let cy = SK - 120; cy < SK; cy++) if (G(lx + i, cy) === M.STALK) F(lx + i, cy, 0);
+          if (k < 0.3) shop(lx, w); else if (k < 0.85) tower(lx, w, RI(3, 9), RI(0, 2));
+          else { tree(lx + 3); lampPost(lx + 8); tree(lx + 12); }
+          lx += w + RI(2, 5);
+        }
+        if (R() < 0.5) spawn("car", RI(4, CW - 4), SK);
+      }
+      Hf = null;
       // floating islands up in space, with trees, crystals and drifting rocks round them
       if (R() < 0.7) {
         const ix = RI(14, CW - 14), iy = RI(8, 30), rw = RI(7, 12), rh = RI(4, 7);
@@ -521,7 +548,7 @@ export class World {
     this.destroyed++;
     this.queue.push(cx - 1, cy, cx + 1, cy, cx, cy - 1, cx, cy + 1);
     if (m === M.FUEL) this.fuel.push({ x: cx * CELL + 2, y: cy * CELL + 2, t: 0.05 + Math.random() * 0.18 });
-    if (m === M.STALK && this.regrow.length < 40000) this.regrow.push(cx, cy, this.clock + 1 + Math.random() * 1.5);
+    if (m === M.STALK && this.regrow.length < 40000) this.regrow.push(cx, cy, this.clock + 1 + Math.random());
     if (!quiet && this.hooks.debris) this.hooks.debris(m, cx * CELL + 2, cy * CELL + 2, vx, vy);
     return 1;
   }
@@ -601,7 +628,7 @@ export class World {
           const nx = cx + (d === 0 ? -1 : d === 1 ? 1 : 0), ny = cy + (d === 2 ? -1 : d === 3 ? 1 : 0);
           if (ny < 0) continue;
           const m = this.get(nx, ny);
-          if (m > 0 && m < 8) { anchored = true; break; }
+          if ((m > 0 && m < 8) || m === M.STALK) { anchored = true; break; }
           if (m >= 8 || this.getBg(nx, ny)) {
             const k = this.key(nx, ny), v = visited.get(k);
             if (v === undefined) { visited.set(k, id); stack.push(nx, ny); }

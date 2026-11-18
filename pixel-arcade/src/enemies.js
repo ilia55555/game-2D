@@ -368,7 +368,8 @@ export class Destroyer extends Ship {
 // ================================================================================================= THE RIVAL
 // OMEGA: a dark mirror of the hero. He flies, chases, rams straight through buildings, sweeps a burning eye beam,
 // hurls volleys of fireballs and dives down in ground-shaking slams.
-const omega = dressWith((c, row, col, t) => c === INK ? hex("#0a0408") : c === hex("#f53cd1") ? hex("#ff2a2a") : row <= 6 ? mix(hex("#1a0a10"), hex("#c03040"), t) : mix(hex("#140810"), hex("#5a1a2a"), t));
+// a war robot: gunmetal plating, red armour panels, cyan lights
+const omega = dressWith((c, row, col, t) => c === INK ? hex("#08090c") : c === hex("#f53cd1") ? hex("#40e8ff") : row <= 6 ? mix(hex("#2a2e38"), hex("#b8c2d0"), t) : (row >= 10 && row <= 15) || (row >= 22 && row <= 26) ? mix(hex("#5a0c10"), hex("#d83028"), t) : mix(hex("#1c2028"), hex("#7c8696"), t));
 const RIVAL = 1.35;
 export class Rival extends Enemy {
   constructor(g, x, y) {
@@ -417,7 +418,7 @@ export class Rival extends Enemy {
     if (this.y > (WH - LAVA) * CELL - 10) { this.y = (WH - LAVA) * CELL - 10; this.vy = -300; }
     // contact: he hits hard
     if (this.hitCd <= 0 && Math.abs(h.x - this.x) < 14 && Math.abs(h.cy - cy) < 26) { this.hitCd = 0.6; g.hurtHero(this.state === "dash" ? 22 : 8); h.vx += Math.sign(dx || 1) * 500; h.vy -= 250; g.shake(6); g.sfx("punch"); }
-    g.flashLight(this.x, cy, 50, 0xff3030ff, 0.5, 0.05);
+    g.flashLight(this.x, cy, 50, 0x40e8ffff, 0.5, 0.05); g.flashLight(this.x, this.y + 4, 26, 0x80d0ffff, 0.6, 0.05);
   }
   die() {
     const g = this.g;
@@ -429,8 +430,19 @@ export class Rival extends Enemy {
     if (this.state === "dash" || this.state === "slam" && this.st < 1.2) pose = { lean: 8, fx: 16, fy: -30, bx: 14, by: -26, ffx: -6, fbx: -10 };
     else if (this.state === "beam" || this.state === "volley") { const a = Math.atan2(this.g.hero.cy - (this.y - 22), (this.g.hero.x - this.x) * this.face); pose = { fx: 15 * Math.cos(a), fy: -26 + 15 * Math.sin(a), bx: 6, by: -18, ffx: 2, fbx: -4 }; }
     else pose = { lean: 3, fx: 8, fy: -16, bx: -6, by: -16, ffx: -3 + Math.sin(this.t * 4) * 2, fbx: -7 };
-    // a dark aura and a torn cape behind him
-    for (let i = 0; i < 6; i++) rect(f, Math.round(this.x - this.face * (4 + i * 2)), Math.round(this.y - 40 + i * 3 + Math.sin(this.t * 8 + i) * 2), 3, 10 - i, i & 1 ? K("#4a0a14") : K("#7a1020"));
+    // repulsor jets under the boots (and from the palms when it dashes)
+    const fl = this.t * 30, jet = (jx, jy, n) => { for (let i = 0; i < n; i++) rect(f, Math.round(jx - 2 + Math.sin(fl + i) ), Math.round(jy + i * 3), 4 - (i >> 1), 3, i < 1 ? K("#ffffff") : i < 3 ? K("#80f0ff") : K("#2a80ff")); };
+    jet(this.x - 4, this.y + 1, 4 + (Math.sin(fl) > 0 ? 1 : 0)); jet(this.x + 3, this.y + 1, 4 + (Math.cos(fl) > 0 ? 1 : 0));
+    if (this.state === "dash") jet(this.x - this.face * 10, this.y - 30, 3);
     drawPosed(f, this.x, this.y, this.face, pose, omega, this.flash > 0, RIVAL);
+    if (this.flash > 0) return;
+    // robot details: boxy helmet with a glowing visor slit, antenna, shoulder plates, a reactor in the chest
+    const X = Math.round(this.x), Y = Math.round(this.y), d = this.face;
+    rect(f, X - 5, Y - 61, 11, 3, K("#5a6270")); rect(f, X - 4, Y - 62, 9, 1, K("#9aa4b4"));
+    rect(f, X - 1 + d * 2, Y - 66, 1, 4, K("#9aa4b4")); rect(f, X - 1 + d * 2, Y - 67, 1, 1, (this.t * 3 | 0) & 1 ? K("#ff3030") : K("#601010"));
+    rect(f, X - 3 + d * 2, Y - 55, 6, 2, K("#40e8ff")); rect(f, X - 2 + d * 3, Y - 55, 3, 1, K("#ffffff"));
+    rect(f, X - 8, Y - 49, 5, 3, K("#7c8696")); rect(f, X + 4, Y - 49, 5, 3, K("#7c8696"));
+    const pulse = 0.5 + Math.sin(this.t * 6) * 0.5;
+    rect(f, X - 2, Y - 42, 4, 4, K("#2a80ff")); rect(f, X - 1, Y - 41, 2, 2, pulse > 0.5 ? K("#ffffff") : K("#a0f4ff"));
   }
 }
