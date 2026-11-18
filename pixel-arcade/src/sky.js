@@ -25,6 +25,7 @@ const THEMES = [
   [[220, 230, 240], [196, 210, 228], [240, 246, 252], [168, 186, 210], [250, 252, 255], [210, 222, 238], [180, 210, 255, 0.4], 0], // snow peaks
   [[110, 70, 66], [80, 50, 52], [255, 120, 40], [56, 36, 40], [255, 90, 30], [70, 44, 46], [200, 70, 40, 0.45], 0],              // volcanoes
   [[206, 220, 228], [184, 206, 220], [170, 196, 214], [160, 190, 210], [140, 176, 200], [180, 206, 222], [120, 180, 240, 0.35], 0], // open ocean
+  [[170, 196, 150], [120, 160, 104], [100, 140, 90], [74, 120, 70], [60, 100, 58], [96, 150, 84], [150, 200, 160, 0.25], 0], // beanstalk
 ];
 const cur = THEMES[0].map((v) => (Array.isArray(v) ? v.slice() : v));
 const pk = (a) => col(a[0] | 0, a[1] | 0, a[2] | 0);
@@ -93,7 +94,7 @@ export function drawSky(frame, camX, camY, time, biome = 0, dt = 0.016) {
       // nature: snow caps, lava glow at volcano tops
       for (let y = top; y < H; y++) C[y * W + x] = y - top < 3 && (biome === 5 || biome === 2) ? L2W : biome === 6 && h > 130 && y - top < 4 ? L3W : L3;
       // forests: a fringe of trees on the near hills
-      if (biome === 1 && top > 0) for (let y = top - (3 + ((hash(wx >> 2, 56) * 8) | 0)); y < top; y++) if (y >= 0) C[y * W + x] = L3W;
+      if ((biome === 1 || biome === 8) && top > 0) for (let y = top - (3 + ((hash(wx >> 2, 56) * 8) | 0)); y < top; y++) if (y >= 0) C[y * W + x] = L3W;
       continue;
     }
     for (let y = top; y < H; y++) C[y * W + x] = h > 30 && u % 5 === 2 && (y - top) % 7 > 4 ? (hash(u + blk * 40, (y - top) / 7 | 0) < 0.12 ? L3L : L3W) : L3;

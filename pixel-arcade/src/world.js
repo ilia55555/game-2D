@@ -9,17 +9,17 @@ export const CELL = 4, CW = 64, UP = 200, WH = 640 + UP, SEA = 146 + UP, ZONE = 
 export const WORLD_PX_H = WH * CELL;
 export const M = {
   AIR: 0, DIRT: 1, GRASS: 2, STONE: 3, SAND: 4, SNOW: 5, ROAD: 6, BEDROCK: 7,
-  CONCRETE: 8, BRICK: 9, GLASS: 10, STEEL: 11, WOOD: 12, LEAVES: 13, ROOF: 14, FUEL: 15, SIGN: 16, LAMP: 17, PINE: 18, BASALT: 19, MAGMA: 20, CACTUS: 21,
+  CONCRETE: 8, BRICK: 9, GLASS: 10, STEEL: 11, WOOD: 12, LEAVES: 13, ROOF: 14, FUEL: 15, SIGN: 16, LAMP: 17, PINE: 18, BASALT: 19, MAGMA: 20, CACTUS: 21, STALK: 22, CRYSTAL: 23,
 };
-const NM = 22;
+const NM = 24;
 //                 air dirt grass stone sand snow road bedrock conc brick glass steel wood leaves roof fuel sign lamp pine
-export const HP = [0, 2, 2, 5, 1, 1, 3, 255, 4, 3, 1, 7, 2, 1, 2, 1, 1, 1, 1, 5, 1, 1];
-export const SOLID = [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1];
-export const FLAM = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1];
+export const HP = [0, 2, 2, 5, 1, 1, 3, 255, 4, 3, 1, 7, 2, 1, 2, 1, 1, 1, 1, 5, 1, 1, 3, 2];
+export const SOLID = [0, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1];
+export const FLAM = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0];
 export const isStruct = (m) => (m >= 8 && m <= 18) || m === 21;
 const BASE = [
   0, 0x6b4a32, 0x5a9a3a, 0x7c7a84, 0xd9c07a, 0xf2f6fa, 0x4b4a55, 0xe8501a,
-  0xb9b0a0, 0xa65a3c, 0x86cfe0, 0x5c6676, 0x8a5a34, 0x3f8a3a, 0x8a3434, 0xd03a2c, 0xe8dcc0, 0xffe27a, 0x2c6a4a, 0x3a3238, 0xff7a1a, 0x4a8a3a,
+  0xb9b0a0, 0xa65a3c, 0x86cfe0, 0x5c6676, 0x8a5a34, 0x3f8a3a, 0x8a3434, 0xd03a2c, 0xe8dcc0, 0xffe27a, 0x2c6a4a, 0x3a3238, 0xff7a1a, 0x4a8a3a, 0x3fa83a, 0xc080ff,
 ];
 export const MAT_COLOR = BASE.map((c) => rgb(c >> 16, (c >> 8) & 255, c & 255));
 
@@ -63,6 +63,8 @@ function texel(m, x, y) {
     case M.SIGN: return y % 8 < 4 ? sh(0xd8402c, x % 4 === 3 ? 0.85 : 1) : sh(b, x % 4 === 3 ? 0.9 : 1);
     case M.BASALT: return sh(b, (x * 3 + y) % 11 === 0 || n < 0.1 ? 0.65 : n > 0.88 ? 1.25 : 1);
     case M.MAGMA: return n < 0.2 ? sh(0xfff07a, 1) : n < 0.55 ? sh(0xffa030, 1) : n > 0.9 ? sh(0x8a1a10, 1) : sh(b, 1);
+    case M.STALK: return sh(b, (x + (y >> 1)) % 8 < 2 ? 0.72 : x % 8 === 5 ? 1.25 : n > 0.9 ? 1.15 : 1);
+    case M.CRYSTAL: return sh(b, (x + y) % 6 === 0 ? 1.6 : (x - y + 16) % 5 === 0 ? 0.7 : 1);
     case M.CACTUS: return sh(b, x % 4 === 0 ? 0.75 : x % 4 === 2 ? 1.18 : 1);
     case M.LAMP: return sh(b, (x % 4 === 0 || y % 4 === 0) ? 0.85 : 1.1);
   }
@@ -83,10 +85,10 @@ const CAVE = new Uint32Array(256);
 for (let i = 0; i < 256; i++) { const n = hash(i % 16, (i >> 4) + 99); CAVE[i] = n < 0.15 ? rgb(34, 26, 30) : rgb(42, 33, 36); }
 
 // ---- zones and terrain height
-const CITY = 0, FOREST = 1, MOUNT = 2, SEAB = 3, DESERT = 4, SNOWY = 5, VOLCANO = 6, OCEAN = 7;
-export const BIOMES = { CITY, FOREST, MOUNT, SEAB, DESERT, SNOWY, VOLCANO, OCEAN };
-const RING = [CITY, CITY, FOREST, FOREST, MOUNT, MOUNT, CITY, DESERT, DESERT, DESERT, DESERT, CITY, FOREST, SNOWY, SNOWY, MOUNT, VOLCANO, VOLCANO, FOREST, CITY, SEAB, CITY, FOREST, OCEAN, OCEAN, OCEAN];
-export const BIOME_NAMES = ["CITY", "FOREST", "MOUNTAINS", "SEA", "DESERT", "SNOW PEAKS", "VOLCANOES", "OPEN OCEAN"];
+const CITY = 0, FOREST = 1, MOUNT = 2, SEAB = 3, DESERT = 4, SNOWY = 5, VOLCANO = 6, OCEAN = 7, BEAN = 8;
+export const BIOMES = { CITY, FOREST, MOUNT, SEAB, DESERT, SNOWY, VOLCANO, OCEAN, BEAN };
+const RING = [CITY, CITY, FOREST, BEAN, MOUNT, MOUNT, CITY, DESERT, DESERT, DESERT, DESERT, CITY, FOREST, SNOWY, SNOWY, MOUNT, VOLCANO, VOLCANO, FOREST, CITY, SEAB, CITY, FOREST, OCEAN, OCEAN, OCEAN];
+export const BIOME_NAMES = ["CITY", "FOREST", "MOUNTAINS", "SEA", "DESERT", "SNOW PEAKS", "VOLCANOES", "OPEN OCEAN", "BEANSTALK"];
 export class World {
   constructor(seed = 1337) {
     this.seed = seed;
@@ -111,7 +113,7 @@ export class World {
   hBiome(b, cx) {
     const s = this.seed;
     if (b === CITY) return 140 + UP;
-    if (b === FOREST) return UP + Math.round(138 - (fbm(cx / 26, s + 5) - 0.5) * 16);
+    if (b === FOREST || b === BEAN) return UP + Math.round(138 - (fbm(cx / 26, s + 5) - 0.5) * 16);
     if (b === MOUNT) { const r = 1 - Math.abs(fbm(cx / 70, s + 9) * 2 - 1); return UP + Math.round(134 - Math.pow(r, 1.6) * 70 - fbm(cx / 9, s + 12) * 7); }
     if (b === OCEAN) return UP + Math.round(300 - (fbm(cx / 30, s + 41) - 0.5) * 30);
     if (b === DESERT) return UP + Math.round(140 - Math.abs(Math.sin(cx / 23 + fbm(cx / 40, s + 21) * 4)) * 12 - fbm(cx / 60, s + 22) * 6);
@@ -403,6 +405,40 @@ export class World {
       if (r < 0.14 && flat) { cabin(3); tree(36, R() < 0.4); tree(52); }
       else if (r < 0.24) { watchTower(24); tree(6, true); tree(48); }
       else for (let lx = RI(4, 8); lx < CW - 6; lx += RI(10, 18)) tree(lx, R() < 0.3);
+    } else if (biome === BEAN) {
+      // the beanstalk: one giant vine from the ground up into space, in the middle of the zone
+      const zc = ((ci % ZONE) + ZONE) % ZONE;
+      if (zc === ZONE >> 1) {
+        const g = H(32), mid = (cy) => 32 + Math.round(Math.sin(cy / 37) * 12 + Math.sin(cy / 13) * 3);
+        for (let cy = g + 2; cy > 42; cy--) {
+          const c = mid(cy), w = cy > g - 40 ? 8 : 5 + Math.round((cy / g) * 3);
+          for (let dx = -w; dx <= w; dx++) F(c + dx, cy, M.STALK);
+          // a leaf every so often: a platform to stand on, curling out to one side
+          if (cy % 28 === 0 && cy < g - 20) { const sd = (cy / 28) & 1 ? 1 : -1; for (let k = 0; k < 18; k++) { const lx = c + sd * (w + k), ly = cy - Math.round(Math.sin((k / 18) * Math.PI) * 3); if (lx > 0 && lx < CW - 1) { F(lx, ly, M.STALK); if (k > 2 && k < 15) F(lx, ly - 1, M.STALK); } } }
+        }
+        // a castle in the clouds at the top
+        const tx = mid(44), base = 42;
+        for (let a = -14; a <= 14; a++) for (let b2 = 0; b2 < 3; b2++) F(tx + a, base + b2, M.STONE);
+        for (let a = -12; a <= 12; a++) for (let h = 1; h <= 14; h++) { const wall = Math.abs(a) > 10 || h > 12; F(tx + a, base - h, wall ? M.BRICK : (h % 5 === 2 && a % 4 === 0 ? M.GLASS : 0)); B(tx + a, base - h, M.BRICK); }
+        for (const a of [-12, 12, 0]) for (let h = 15; h <= (a ? 24 : 30); h++) for (let d = -2; d <= 2; d++) F(tx + a + d, base - h, h > (a ? 22 : 28) ? M.ROOF : M.BRICK);
+        for (let a = -10; a <= 10; a += 4) F(tx + a, base - 3, M.CRYSTAL);
+        for (let i = 0; i < 4; i++) spawn("soldier", tx - 8 + i * 5, base - 1);
+      } else {
+        // floating islands up in space, with trees, crystals and drifting rocks round them
+        const n = 1 + (R() < 0.5 ? 1 : 0);
+        for (let i = 0; i < n; i++) {
+          const ix = RI(14, CW - 14), iy = RI(20, 70), rw = RI(7, 12), rh = RI(4, 7);
+          for (let dy = -1; dy <= rh; dy++) for (let dx = -rw; dx <= rw; dx++) {
+            if ((dx * dx) / (rw * rw) + (Math.max(0, dy) * Math.max(0, dy)) / (rh * rh) > 1) continue;
+            F(ix + dx, iy + dy, dy === -1 ? M.GRASS : dy < 2 ? M.DIRT : hash(ix + dx, iy + dy) < 0.12 ? M.CRYSTAL : M.STONE);
+          }
+          if (R() < 0.6) { const th = RI(6, 11); for (let h = 2; h <= th; h++) B(ix, iy - h, M.WOOD); for (let dy = -4; dy <= 4; dy++) for (let dx = -5; dx <= 5; dx++) if (dx * dx / 25 + dy * dy / 16 <= 1) F(ix + dx, iy - th + dy, M.LEAVES); }
+          else for (let h = 2; h < 12; h++) for (let d = -Math.floor((12 - h) / 4); d <= Math.floor((12 - h) / 4); d++) F(ix + d + 4, iy - h, M.CRYSTAL);
+          if (R() < 0.5) spawn("soldier", ix, iy - 2);
+        }
+        for (let i = 0; i < 4; i++) { const ax = RI(3, CW - 4), ay = RI(10, 80), r = RI(1, 3); for (let dy = -r; dy <= r; dy++) for (let dx = -r; dx <= r; dx++) if (dx * dx + dy * dy <= r * r) F(ax + dx, ay + dy, R() < 0.5 ? M.BASALT : M.STONE); }
+        for (let lx = RI(4, 8); lx < CW - 6; lx += RI(12, 20)) tree(lx, R() < 0.3);
+      }
     } else if (biome === DESERT) {
       // cacti, and now and then a ruined sandstone shrine
       for (let lx = RI(2, 6); lx < CW - 4; lx += RI(6, 12)) {
