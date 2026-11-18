@@ -425,6 +425,8 @@ export class Rival extends Enemy {
       }
     }
     this.x += this.vx * dt; this.y += this.vy * dt;
+    // it never slips through the ground: it bores its way through, wrecking whatever it moves into
+    if ((this.digT = (this.digT || 0) - dt) <= 0 && boxHits(w, this.x, this.y, this.hw + 2, this.h)) { this.digT = 0.05; g.addScore(w.explode(this.x + Math.sign(this.vx) * 4, this.y - 19 + Math.sign(this.vy) * 8, 22, 12, { fire: 0.1, debris: 14, kick: 1.4 })); }
     if (this.y > (WH - LAVA) * CELL - 10) { this.y = (WH - LAVA) * CELL - 10; this.vy = -300; }
     // contact: he hits hard
     if (this.hitCd <= 0 && Math.abs(h.x - this.x) < 14 && Math.abs(h.cy - cy) < 26) { this.hitCd = 0.6; g.hurtHero(this.state === "dash" ? 22 : 8); h.vx += Math.sign(dx || 1) * 500; h.vy -= 250; g.shake(6); g.sfx("punch"); }

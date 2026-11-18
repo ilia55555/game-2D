@@ -66,7 +66,7 @@ class Game {
   }
   sfx(n, k) { sfx(n, k); }
   shake(a) { this.shakeAmp = Math.min(16, Math.max(this.shakeAmp, a)); }
-  moonImpact(x, y) { nuke(this, x, y); this.say("NUKE!", UI.red); }
+  moonImpact(x, y) { nuke(this, x, y); this.say("METEOR!", UI.red); }
   later(t, fn) { this.timers.push({ t, fn }); }
   flashLight(x, y, r, c, k, life = 0.25) { if (this.lights.length < 24) this.lights.push({ x, y, r, c, k, life, t: 0 }); }
   say(text, c = UI.gold) { this.banner = { text, t: 0, c }; }
@@ -79,8 +79,8 @@ class Game {
     this.comboN += n; this.comboT = 2.6; this.combo = 1 + Math.min(24, Math.floor(this.comboN / 120));
     this.heat = Math.min(5, this.heat + n / 900);
     const was = this.nuke;
-    this.nuke = Math.min(1, this.nuke + n / 14000);
-    if (was < 1 && this.nuke >= 1) { this.say("NUKE READY  [R]", UI.cyan); sfx("ready"); }
+    this.nuke = Math.min(1, this.nuke + n / 60000);
+    if (was < 1 && this.nuke >= 1) { this.say("METEOR READY  [R]", UI.cyan); sfx("ready"); }
     while (this.rank < RANKS.length && this.comboN >= RANKS[this.rank][0]) { this.say(RANKS[this.rank][1]); this.rank++; }
   }
 
@@ -277,7 +277,8 @@ class Game {
     if (near >= 12) return;
     let nS = 0, nH = 0, nT = 0, nJ = 0;
     for (const e of this.enemies) { if (Math.abs(e.x - h.x) > 700) continue; if (e.kind === "soldier") nS++; else if (e.kind === "heli") nH++; else if (e.kind === "tank") nT++; else if (e.kind === "jet") nJ++; }
-    const side = Math.random() < 0.5 ? -1 : 1, lv = Math.floor(this.heat);
+    const side = Math.random() < 0.5 ? -1 : 1, boss = this.rival && !this.rival.dead && this.enemies.includes(this.rival), lv = boss ? Math.min(1, Math.floor(this.heat)) : Math.floor(this.heat);
+    if (boss) this.spawnT = 9; // while OMEGA fights you, only a few soldiers drop in
     if (lv >= 1 && nS < 2 + lv) for (let i = 0; i < 1 + (lv >> 2); i++) { const x = h.x + side * rnd(160, 330) * (i & 1 ? -1 : 1); if (w.wet(Math.floor(x / CELL))) continue; this.enemies.push(new Soldier(this, x, this.paraY(x), true)); }
     if (lv >= 2 && nH < Math.ceil((lv - 1) / 2)) { const x = h.x + side * 460; this.enemies.push(new Heli(this, x, w.groundPx(x) - 200)); this.say("GUNSHIP INBOUND", UI.red); }
     if (lv >= 4 && nJ < lv - 3) { this.enemies.push(new Jet(this, h.x - side * 600, side)); if (!nJ) this.say("JETS INBOUND", UI.red); }
@@ -515,7 +516,7 @@ class Game {
     // health and nuke meters
     p.rect(8, 8, 124, 11, UI.ink); p.rect(10, 10, 120, 7, UI.panel); p.rect(10, 10, Math.max(0, h.hp) * 1.2, 7, h.hp < 35 ? UI.red : UI.green); p.rect(10, 10, Math.max(0, h.hp) * 1.2, 2, UI.white, 0.5);
     p.rect(8, 21, 124, 8, UI.ink); p.rect(10, 23, 120, 4, UI.panel); p.rect(10, 23, this.nuke * 120, 4, this.nuke >= 1 ? (Math.floor(this.time * 6) & 1 ? UI.cyan : UI.white) : UI.orange);
-    p.text(this.nuke >= 1 ? "NUKE READY - R" : "NUKE", 136, 23, this.nuke >= 1 ? UI.cyan : UI.dim, { outline: UI.ink });
+    p.text(this.nuke >= 1 ? "METEOR READY - R" : "METEOR", 136, 23, this.nuke >= 1 ? UI.cyan : UI.dim, { outline: UI.ink });
     // the rival's health, across the top while he's here
     const rv = this.rival;
     if (rv && !rv.dead && this.enemies.includes(rv)) { const bw = 220, bx = (W - bw) / 2, by = 46; p.rect(bx - 2, by - 2, bw + 4, 8, UI.ink); p.rect(bx, by, bw, 4, UI.panel); p.rect(bx, by, Math.max(0, rv.hp / rv.max) * bw, 4, UI.red); p.text("OMEGA", bx, by - 10, UI.red, { outline: UI.ink }); }
@@ -686,7 +687,7 @@ tapBtn(document.getElementById("pHome"), () => { location.reload(); });
 tapBtn(document.getElementById("pLaunch"), () => { location.href = "../index.html"; });
 tapBtn(rSize, () => { game.reticle.size = game.reticle.size % 5 + 1; showR(); });
 showR();
-tapBtn(document.getElementById("pHelp"), () => { togglePause(false); game.started = false; document.getElementById("help").classList.remove("hide"); });
+tapBtn(document.getElementById("pHelp"), () => { togglePause(false); game.started = false; showMode("ctrl"); document.getElementById("help").classList.remove("hide"); });
 document.addEventListener("visibilitychange", () => { if (document.hidden && game.started && !game.paused) togglePause(true); });
 
 function start() {
@@ -695,8 +696,15 @@ function start() {
   if (game.touch) goFull();
   document.getElementById("help").classList.add("hide");
 }
-document.getElementById("help").addEventListener("click", start);
-document.getElementById("help").addEventListener("touchend", (e) => { e.preventDefault(); touchSetup(); start(); }, { passive: false });
+// the title menu: STORY (coming), ENDLESS DEMOLITION (this game), CONTROLS; on the controls page a tap starts
+const helpEl = document.getElementById("help");
+const inCtrl = () => helpEl.classList.contains("ctrl");
+helpEl.addEventListener("click", () => { if (inCtrl()) start(); });
+helpEl.addEventListener("touchend", (e) => { e.preventDefault(); touchSetup(); if (inCtrl()) start(); }, { passive: false });
+const showMode = (m) => { helpEl.classList.toggle("menu", m === "menu"); helpEl.classList.toggle("ctrl", m === "ctrl"); };
+tapBtn(document.getElementById("mEndless"), () => start());
+tapBtn(document.getElementById("mCtrl"), () => showMode("ctrl"));
+tapBtn(document.getElementById("mStory"), () => { const i = document.querySelector("#mStory i"); i.animate?.([{ transform: "scale(1.3)" }, { transform: "scale(1)" }], 300); });
 
 function readInput() {
   const h = game.hero, f = game.frame;

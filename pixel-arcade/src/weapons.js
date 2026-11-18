@@ -29,6 +29,7 @@ function travel(g, s, dt, r = 2) {
   return null;
 }
 
+const PULL = 230;
 class VoidShot {
   constructor(g, x, y, tx, ty) { const a = Math.atan2(ty - y, tx - x); Object.assign(this, { g, x, y, tx, ty, vx: Math.cos(a) * 340, vy: Math.sin(a) * 340, open: false, t: 0, tick: 0 }); this.fx = createFx(voidOrb, { x, y: y + 60 }); }
   update(dt) {
@@ -37,11 +38,11 @@ class VoidShot {
     if (!this.open) {
       const hit = travel(g, this, dt, 4), near = Math.hypot(this.tx - this.x, this.ty - this.y) < 8;
       this.fx.options.x = this.x; this.fx.options.y = this.y + 28; this.fx.update(dt);
-      if (hit || near || this.t > 2.5) { this.open = true; this.t = 0; this.fx = createFx(blackHole, { x: this.x, y: this.y + 62 }); g.sfx("void"); g.parts.attract = { x: this.x, y: this.y, r: 150, k: 9000 }; }
+      if (hit || near || this.t > 2.5) { this.open = true; this.t = 0; this.fx = new ScaledFx(blackHole, { sx: 1.5, pad: 10 }); this.fx.pin(0, -62, this.x, this.y); g.sfx("void"); g.parts.attract = { x: this.x, y: this.y, r: PULL, k: 16000 }; }
       return true;
     }
     this.fx.update(dt);
-    const R = 40 + Math.min(1, this.t / 2) * 52;
+    const R = 50 + Math.min(1, this.t / 2) * 80;
     for (this.tick += dt; this.tick > 0.016; this.tick -= 0.016) {
       // rip the nearest thing along a random ray
       for (let k = 0; k < 5; k++) {
@@ -53,7 +54,18 @@ class VoidShot {
         }
       }
     }
-    g.eachEnemy(this.x, this.y, 150, (e, d) => { const k = 900 * dt / (d + 10); e.vx += (this.x - e.x) * k; e.vy += (this.y - (e.y - 10)) * k - 600 * dt; if (e.kind === "heli") { e.x += (this.x - e.x) * dt * 2; e.y += (this.y - e.y) * dt * 2; } if (d < 22) e.hurt(40 * dt); });
+    // everything inside the pull is dragged in and held there, spinning, until it collapses
+    for (const e of g.enemies) {
+      if (e.dead || e.wreck) continue;
+      const ey = e.y - (e.h || 10) / 2, d = Math.hypot(e.x - this.x, ey - this.y);
+      if (d > PULL) continue;
+      e.held = (e.held || 0) + dt; e.bh = this;
+      const k = Math.min(1, dt * (3 + 6 * (1 - d / PULL))), r = Math.max(6, d * (1 - k)), a = Math.atan2(ey - this.y, e.x - this.x) + dt * 4;
+      e.x = this.x + Math.cos(a) * r; e.y = this.y + Math.sin(a) * r + (e.h || 10) / 2; e.vx = 0; e.vy = 0;
+      e.hurt(d < 30 ? 50 * dt : 12 * dt);
+    }
+    // enemy fire bends in and is swallowed
+    for (let i = g.eshots.length - 1; i >= 0; i--) { const q = g.eshots[i], d = Math.hypot(q.x - this.x, q.y - this.y); if (d > PULL) continue; if (d < 14) { g.eshots.splice(i, 1); continue; } q.vx += (this.x - q.x) * dt * 8; q.vy += (this.y - q.y) * dt * 8; }
     g.shake(1.2);
     if (this.t < 3.6) return true;
     g.parts.attract = null;
@@ -119,20 +131,16 @@ export const WEAPONS = [
   PETS, // slot 0: summoned critters
 ];
 
-/** The ultimate. */
+/** The ultimate: a meteor out of space onto the aim (the old nuke's blast without the mushroom cloud). */
 export function nuke(g, x, y) {
   const w = g.world;
-  const s = new ScaledFx(nukeFx, { x, y, sx: 2.4 });
-  g.shots.push({ update(dt) { s.update(dt); return !s.done(); }, draw(f) { s.draw(f); } });
-  g.hero.inv = Math.max(g.hero.inv, 3);
-  g.sfx("nuke");
-  g.flash = 1.2; g.freeze = 0.12;
-  for (let k = 0; k < 16; k++) g.later(0.06 + k * 0.08, () => {
-    const r = 70 + k * 22;
-    g.addScore(w.explode(x, y - 24, r, 24, { fire: 0.6, debris: 160, kick: 1.9 }));
-    g.eachEnemy(x, y - 24, r + 20, (e, d) => e.hurt(200, (e.x - x) * 4, -300));
-    g.shake(18 - k * 0.7);
-    for (let i = 0; i < 16; i++) { const a = rnd(Math.PI, Math.PI * 2); g.parts.spawn(i & 1 ? PT.FLAME : PT.SMOKE, x + Math.cos(a) * r, y - 24 + Math.sin(a) * r * 0.8, Math.cos(a) * 80, Math.sin(a) * 80 - 30, rnd(0.6, 1.6), 0xff383038, rnd(4, 8)); }
-    if (g.hero.dead <= 0 && Math.hypot(g.hero.x - x, g.hero.cy - y) < r) g.hero.vy -= 60;
+  g.hero.inv = Math.max(g.hero.inv, 2);
+  g.sfx("bigboom"); g.flash = 0.8; g.freeze = 0.08;
+  for (let k = 0; k < 8; k++) g.later(0.04 + k * 0.07, () => {
+    const r = 50 + k * 18;
+    g.addScore(w.explode(x, y - 16, r, 22, { fire: 0.5, debris: 140, kick: 1.8 }));
+    g.eachEnemy(x, y - 16, r + 20, (e) => e.hurt(140, (e.x - x) * 4, -300));
+    g.shake(16 - k);
+    for (let i = 0; i < 14; i++) { const a = rnd(Math.PI, Math.PI * 2); g.parts.spawn(i & 1 ? PT.FLAME : PT.SMOKE, x + Math.cos(a) * r, y - 16 + Math.sin(a) * r * 0.8, Math.cos(a) * 80, Math.sin(a) * 80 - 30, rnd(0.6, 1.6), 0xff383038, rnd(4, 8)); }
   });
 }

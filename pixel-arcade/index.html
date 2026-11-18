@@ -78,6 +78,22 @@
   #pmenu button:hover, #pmenu button:active { color: #17121f; background: #ffc83c; box-shadow: var(--pxb), inset -4px -4px 0 #c08a1a, inset 4px 4px 0 #ffe27a; }
   #pause { border-radius: 0; border: 0; font-size: 12px; box-shadow: var(--pxb), inset -3px -3px 0 #000, inset 3px 3px 0 #3a3048; background: #17121fdd; }
   .btn { font-size: 8px; line-height: 1.6; }
+  #help.menu #ctrl { display: none; } #help.ctrl #modes { display: none; } #help.menu { cursor: default; }
+  #modes { display: grid; gap: 14px; margin: 22px 0 6px; }
+  html[lang=fa] #modes { direction: rtl; }
+  .mode { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 16px; background: #221c2c; border: 0; color: #fff8e8; cursor: pointer; font-family: var(--px); box-shadow: 0 -4px 0 #000, 0 4px 0 #000, -4px 0 0 #000, 4px 0 0 #000, inset -4px -4px 0 #120e18, inset 4px 4px 0 #3a3048; }
+  .mode b { font-size: 16px; font-weight: 400; } .mode i { font-style: normal; font-size: 8px; color: #8a8494; }
+  .mode:hover, .mode:active { background: #2e2640; } #mEndless b { color: #ffc83c; } #mStory b { color: #7ff3ff; } #mStory { opacity: .75; }
+  .mode.small { padding: 10px; } .mode.small b { font-size: 11px; }
+  .mode img.pxt { max-width: 100%; height: auto; }
+  @media (max-height: 520px) {
+    #help.menu #card { padding: 14px 18px; }
+    #help.menu h1 { font-size: 22px; }
+    #modes { grid-template-columns: 1fr 1.4fr 0.8fr; margin: 12px 0 4px; }
+    .mode { padding: 12px 8px; min-height: 92px; justify-content: center; }
+    .mode img.pxt { height: auto; max-height: 34px; width: auto; }
+    .mode i img.pxt { max-height: 22px; }
+  }
 </style>
 </head>
 <body>
@@ -90,10 +106,16 @@
 </div></div>
 <div id="pads">
   <div class="stick" id="stickL"><i></i></div><div class="stick" id="stickR"><i></i></div>
-  <div class="btn" id="bAlt">ALT</div><div class="btn" id="bC">C<br>LAND</div><div class="btn" id="bNuke">NUKE</div>
+  <div class="btn" id="bAlt">ALT</div><div class="btn" id="bC">C<br>LAND</div><div class="btn" id="bNuke">METEOR</div>
 </div>
-<div id="help"><div id="card">
-  <button class="lang" id="hLang">EN / FA</button><h1>NOVA<small>ENDLESS DEMOLITION</small></h1>
+<div id="help" class="menu"><div id="card">
+  <button class="lang" id="hLang">EN / FA</button><h1>NOVA</h1>
+  <div id="modes">
+    <button class="mode" id="mStory"><b data-px="13" data-col="#7ff3ff" data-fa="داستان" data-en="STORY">STORY</b><i data-px="9" data-col="#8a8494" data-fa="به‌زودی" data-en="COMING SOON">COMING SOON</i></button>
+    <button class="mode" id="mEndless"><b data-px="13" data-col="#ffc83c" data-fa="ویرانی بی‌پایان" data-en="ENDLESS DEMOLITION">ENDLESS DEMOLITION</b><i data-px="9" data-col="#d8d0c0" data-fa="شهر بی‌انتها، همه‌چیز تخریب‌پذیر" data-en="ENDLESS CITY, EVERYTHING BREAKS">ENDLESS CITY, EVERYTHING BREAKS</i></button>
+    <button class="mode small" id="mCtrl"><b data-px="10" data-col="#fff8e8" data-fa="راهنما" data-en="CONTROLS">CONTROLS</b></button>
+  </div>
+  <div id="ctrl">
   <p class="fa" data-fa="یک اَبَرقهرمان، یک شهرِ بی‌انتها، و هیچ چیزی که نشود خرابش کرد. ساختمان‌ها را از وسط ببُر تا فرو بریزند، با سرعتِ نور از دلِ دیوارها رد شو، از آسمان شهاب‌سنگ بیار و وقتی نوارِ هرج‌ومرج پُر شد، بمبِ اتمی را رها کن." data-en="One superhero, an endless city, and nothing that can't be wrecked. Slice buildings in half and watch them fall, tear through walls at light speed, call meteors down from the sky, and when the chaos meter fills, drop the nuke.">یک اَبَرقهرمان، یک شهرِ بی‌انتها، و هیچ چیزی که نشود خرابش کرد. ساختمان‌ها را از وسط ببُر تا فرو بریزند، با سرعتِ نور از دلِ دیوارها رد شو، از آسمان شهاب‌سنگ بیار و وقتی نوارِ هرج‌ومرج پُر شد، بمبِ اتمی را رها کن.</p>
   <table>
     <tr><td><kbd>A</kbd> <kbd>D</kbd> · <kbd>W</kbd> <kbd>S</kbd></td><td data-fa="حرکت · در پرواز: بالا و پایین" data-en="Move · while flying: up and down">حرکت · در پرواز: بالا و پایین</td></tr>
@@ -107,7 +129,8 @@
     <tr><td><kbd>R</kbd></td><td data-fa="بمبِ اتمی (وقتی نوار پُر است)" data-en="Nuke (when the meter is full)">بمبِ اتمی (وقتی نوار پُر است)</td></tr>
   </table>
   <div class="go" data-px="10" data-col="#ffc83c" data-fa="برای شروع کلیک یا لمس کن" data-en="CLICK / TAP TO START">CLICK / TAP TO START</div>
+  </div>
 </div></div>
-<script src="dist/game.js?v=1794964078653"></script>
+<script src="dist/game.js?v=1794965338671"></script>
 </body>
 </html>

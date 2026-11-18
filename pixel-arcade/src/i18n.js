@@ -6,7 +6,7 @@ try { lang = localStorage.getItem("nova-lang") || "fa"; } catch (e) { /* blocked
 export const getLang = () => lang;
 
 const FA = {
-  "NUKE": "بمب اتمی", "NUKE READY - R": "بمب آماده - R", "NUKE READY  [R]": "بمب اتمی آماده است [R]", "NUKE!": "انفجار اتمی!",
+  "METEOR": "شهاب‌سنگ", "METEOR READY - R": "شهاب‌سنگ آماده - R", "METEOR READY  [R]": "شهاب‌سنگ آماده است [R]", "METEOR!": "شهاب‌سنگ!", "NUKE": "بمب اتمی", "NUKE READY - R": "بمب آماده - R", "NUKE READY  [R]": "بمب اتمی آماده است [R]", "NUKE!": "انفجار اتمی!",
   "NOVA": "نووا", "OMEGA": "اُمگا", "NOVA DOWN": "نووا از پا افتاد", "OMEGA FALLS": "اُمگا نابود شد", "OMEGA HAS COME FOR YOU": "اُمگا به سراغت آمده",
   "FLARE! REINFORCEMENTS": "منور! نیروی کمکی", "SPEEDBOATS": "قایق‌های تندرو", "FRIGATE INBOUND": "ناوچه در راه است", "DESTROYER INBOUND": "ناوشکن در راه است",
   "GUNSHIP INBOUND": "بالگرد جنگی در راه است", "JETS INBOUND": "جنگنده‌ها در راهند", "MOONFALL!": "سقوط ماه!",
