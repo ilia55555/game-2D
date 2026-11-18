@@ -368,18 +368,27 @@ export class Destroyer extends Ship {
 // ================================================================================================= THE RIVAL
 // OMEGA: a dark mirror of the hero. He flies, chases, rams straight through buildings, sweeps a burning eye beam,
 // hurls volleys of fireballs and dives down in ground-shaking slams.
-// a war robot: gunmetal plating, red armour panels, cyan lights
-const omega = dressWith((c, row, col, t) => c === INK ? hex("#08090c") : c === hex("#f53cd1") ? hex("#40e8ff") : row <= 6 ? mix(hex("#2a2e38"), hex("#b8c2d0"), t) : (row >= 10 && row <= 15) || (row >= 22 && row <= 26) ? mix(hex("#5a0c10"), hex("#d83028"), t) : mix(hex("#1c2028"), hex("#7c8696"), t));
-const RIVAL = 1.35;
+// a war robot drawn the way NOVA is: same rig, same scale, same shading, re-dressed in armour plates
+const RB = { helm: [hex("#2a2e3a"), hex("#c8d0dc")], suit: [hex("#3a0c10"), hex("#e0322a")], legs: [hex("#1a1e28"), hex("#8a94a6")], joint: [hex("#3a3020"), hex("#e8c050")], eye: hex("#ff3030") };
+const omega = dressWith((c, row, col, t) => {
+  if (c === INK) return hex("#08090e");
+  if (c === hex("#f53cd1")) return RB.eye;
+  if (row <= 6) return (row === 3 || row === 4) && col >= 12 ? RB.eye : mix(RB.helm[0], RB.helm[1], t);
+  if (row >= 33 || (row >= 14 && row <= 17 && col <= 8)) return mix(RB.joint[0], RB.joint[1], t);
+  if (row === 17 || (row === 16 && col > 9)) return mix(RB.legs[0], RB.legs[1], t * 0.9);
+  if (row <= 16) return (row + col) % 7 === 0 ? mix(RB.helm[0], RB.helm[1], t * 0.7) : mix(RB.suit[0], RB.suit[1], t);
+  return (row % 5 === 0) ? mix(RB.helm[0], RB.helm[1], t * 0.6) : mix(RB.legs[0], RB.legs[1], t);
+});
+const RIVAL = 1;
 export class Rival extends Enemy {
   constructor(g, x, y) {
     super(g, x, y);
-    Object.assign(this, { hw: 7, h: 44, hp: 3200, max: 3200, mass: 30, kind: "rival", score: 25000, face: 1, state: "chase", st: 1.5, ph: 0, hitCd: 0 });
+    Object.assign(this, { hw: 6, h: 38, hp: 3200, max: 3200, mass: 30, kind: "rival", score: 25000, face: 1, state: "chase", st: 1.5, ph: 0, hitCd: 0 });
   }
   hurt(d, kx = 0, ky = 0) { super.hurt(d * 0.8, kx * 0.3, ky * 0.3); }
   pick() {
     const r = Math.random(), h = this.g.hero, far = Math.hypot(h.x - this.x, h.cy - this.y) > 260;
-    if (r < 0.3) { this.state = "dash"; this.st = 0.55; const a = Math.atan2(h.cy - (this.y - 22), h.x - this.x); this.dvx = Math.cos(a) * 760; this.dvy = Math.sin(a) * 760; this.g.sfx("dive"); }
+    if (r < 0.3) { this.state = "dash"; this.st = 0.55; const a = Math.atan2(h.cy - (this.y - 19), h.x - this.x); this.dvx = Math.cos(a) * 760; this.dvy = Math.sin(a) * 760; this.g.sfx("dive"); }
     else if (r < 0.5) { this.state = "beam"; this.st = 1.4; this.g.sfx("laser"); }
     else if (r < 0.7 || far) { this.state = "volley"; this.st = 1.1; this.n = 0; }
     else { this.state = "slam"; this.st = 2; this.sp = 0; }
@@ -387,7 +396,7 @@ export class Rival extends Enemy {
   update(dt) {
     const g = this.g, h = g.hero, w = g.world;
     this.t += dt; this.flash -= dt; this.hitCd -= dt;
-    const cy = this.y - 22, dx = h.x - this.x, dy = h.cy - cy;
+    const cy = this.y - 19, dx = h.x - this.x, dy = h.cy - cy;
     this.face = this.state === "dash" ? (this.dvx > 0 ? 1 : -1) : dx > 0 ? 1 : -1;
     const smash = (r) => { g.addScore(w.explode(this.x, cy, r, 10, { fire: 0.2, debris: 10, kick: 1.6 })); };
     if (h.dead > 0) { this.vy -= 40 * dt; this.y += this.vy * dt; return; }
@@ -423,27 +432,22 @@ export class Rival extends Enemy {
   }
   die() {
     const g = this.g;
-    g.blast(this.x, this.y - 22, 140, 18, { kind: "big" });
+    g.blast(this.x, this.y - 19, 140, 18, { kind: "big" });
     g.say("OMEGA FALLS", 0xff40e0ff); g.shake(18); g.flash = Math.max(g.flash, 0.6); g.addScore(this.score, this.x, this.y);
   }
   draw(f) {
     let pose;
     if (this.state === "dash" || this.state === "slam" && this.st < 1.2) pose = { lean: 8, fx: 16, fy: -30, bx: 14, by: -26, ffx: -6, fbx: -10 };
-    else if (this.state === "beam" || this.state === "volley") { const a = Math.atan2(this.g.hero.cy - (this.y - 22), (this.g.hero.x - this.x) * this.face); pose = { fx: 15 * Math.cos(a), fy: -26 + 15 * Math.sin(a), bx: 6, by: -18, ffx: 2, fbx: -4 }; }
+    else if (this.state === "beam" || this.state === "volley") { const a = Math.atan2(this.g.hero.cy - (this.y - 19), (this.g.hero.x - this.x) * this.face); pose = { fx: 15 * Math.cos(a), fy: -26 + 15 * Math.sin(a), bx: 6, by: -18, ffx: 2, fbx: -4 }; }
     else pose = { lean: 3, fx: 8, fy: -16, bx: -6, by: -16, ffx: -3 + Math.sin(this.t * 4) * 2, fbx: -7 };
     // repulsor jets under the boots (and from the palms when it dashes)
     const fl = this.t * 30, jet = (jx, jy, n) => { for (let i = 0; i < n; i++) rect(f, Math.round(jx - 2 + Math.sin(fl + i) ), Math.round(jy + i * 3), 4 - (i >> 1), 3, i < 1 ? K("#ffffff") : i < 3 ? K("#80f0ff") : K("#2a80ff")); };
-    jet(this.x - 4, this.y + 1, 4 + (Math.sin(fl) > 0 ? 1 : 0)); jet(this.x + 3, this.y + 1, 4 + (Math.cos(fl) > 0 ? 1 : 0));
+    jet(this.x - 4, this.y - 9, 4 + (Math.sin(fl) > 0 ? 1 : 0)); jet(this.x + 2, this.y - 9, 4 + (Math.cos(fl) > 0 ? 1 : 0));
     if (this.state === "dash") jet(this.x - this.face * 10, this.y - 30, 3);
     drawPosed(f, this.x, this.y, this.face, pose, omega, this.flash > 0, RIVAL);
     if (this.flash > 0) return;
-    // robot details: boxy helmet with a glowing visor slit, antenna, shoulder plates, a reactor in the chest
-    const X = Math.round(this.x), Y = Math.round(this.y), d = this.face;
-    rect(f, X - 5, Y - 61, 11, 3, K("#5a6270")); rect(f, X - 4, Y - 62, 9, 1, K("#9aa4b4"));
-    rect(f, X - 1 + d * 2, Y - 66, 1, 4, K("#9aa4b4")); rect(f, X - 1 + d * 2, Y - 67, 1, 1, (this.t * 3 | 0) & 1 ? K("#ff3030") : K("#601010"));
-    rect(f, X - 3 + d * 2, Y - 55, 6, 2, K("#40e8ff")); rect(f, X - 2 + d * 3, Y - 55, 3, 1, K("#ffffff"));
-    rect(f, X - 8, Y - 49, 5, 3, K("#7c8696")); rect(f, X + 4, Y - 49, 5, 3, K("#7c8696"));
-    const pulse = 0.5 + Math.sin(this.t * 6) * 0.5;
-    rect(f, X - 2, Y - 42, 4, 4, K("#2a80ff")); rect(f, X - 1, Y - 41, 2, 2, pulse > 0.5 ? K("#ffffff") : K("#a0f4ff"));
+    // the reactor in its chest, pulsing
+    const X = Math.round(this.x), Y = Math.round(this.y), pulse = Math.sin(this.t * 6) > 0;
+    rect(f, X - 1 + this.face, Y - 28, 2, 2, pulse ? K("#ffffff") : K("#80f0ff"));
   }
 }

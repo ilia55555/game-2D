@@ -213,7 +213,7 @@ export function strike(g, h, ax, ay, p) {
     g.later(i * T.hopDelay, () => {
       storm.add(new Arc(fx, fy, ex, ey, p * 0.85, life));
       g.flashLight(ex, ey, 20 + p * 30, GLOW, 0.8, 0.2);
-      if (p >= T.dustAt && (e.hp <= dmg || p > 0.9)) dust(g, e);
+      if (p >= T.dustAt && (e.hp <= dmg || (p > 0.9 && e.kind !== "rival"))) dust(g, e);
       else e.hurt(dmg, (ex - fx) * 0.5, -40 - p * 200);
       if (i % 3 === 0) g.sfx("laser");
     });
