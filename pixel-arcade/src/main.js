@@ -277,8 +277,8 @@ class Game {
     if (near >= 12) return;
     let nS = 0, nH = 0, nT = 0, nJ = 0;
     for (const e of this.enemies) { if (Math.abs(e.x - h.x) > 700) continue; if (e.kind === "soldier") nS++; else if (e.kind === "heli") nH++; else if (e.kind === "tank") nT++; else if (e.kind === "jet") nJ++; }
-    const side = Math.random() < 0.5 ? -1 : 1, boss = this.rival && !this.rival.dead && this.enemies.includes(this.rival), lv = boss ? Math.min(1, Math.floor(this.heat)) : Math.floor(this.heat);
-    if (boss) this.spawnT = 9; // while OMEGA fights you, only a few soldiers drop in
+    const side = Math.random() < 0.5 ? -1 : 1, boss = this.rival && !this.rival.dead && this.enemies.includes(this.rival), lv = boss ? Math.min(3, Math.floor(this.heat)) : Math.floor(this.heat);
+    if (boss) this.spawnT = 10; // while OMEGA fights you the army still comes, but thinly
     if (lv >= 1 && nS < 2 + lv) for (let i = 0; i < 1 + (lv >> 2); i++) { const x = h.x + side * rnd(160, 330) * (i & 1 ? -1 : 1); if (w.wet(Math.floor(x / CELL))) continue; this.enemies.push(new Soldier(this, x, this.paraY(x), true)); }
     if (lv >= 2 && nH < Math.ceil((lv - 1) / 2)) { const x = h.x + side * 460; this.enemies.push(new Heli(this, x, w.groundPx(x) - 200)); this.say("GUNSHIP INBOUND", UI.red); }
     if (lv >= 4 && nJ < lv - 3) { this.enemies.push(new Jet(this, h.x - side * 600, side)); if (!nJ) this.say("JETS INBOUND", UI.red); }

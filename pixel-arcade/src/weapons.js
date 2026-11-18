@@ -42,14 +42,14 @@ class VoidShot {
       return true;
     }
     this.fx.update(dt);
-    const R = 50 + Math.min(1, this.t / 2) * 80;
+    const R = 60 + Math.min(1, this.t / 1.5) * (PULL - 60);
     for (this.tick += dt; this.tick > 0.016; this.tick -= 0.016) {
       // rip the nearest thing along a random ray
-      for (let k = 0; k < 5; k++) {
+      for (let k = 0; k < 14; k++) {
         const a = rnd(0, Math.PI * 2), c = Math.cos(a), s = Math.sin(a);
         for (let d = 6; d < R; d += 3) {
           const cx = Math.floor((this.x + c * d) / CELL), cy = Math.floor((this.y + s * d) / CELL);
-          if (w.get(cx, cy)) { g.addScore(w.destroyCell(cx, cy, -c * 40, -s * 40)); break; }
+          if (w.get(cx, cy)) { g.addScore(w.destroyCell(cx, cy, -c * (120 + d), -s * (120 + d))); break; }
           if (w.getBg(cx, cy)) { w.destroyBg(cx, cy); break; }
         }
       }
@@ -63,6 +63,14 @@ class VoidShot {
       const k = Math.min(1, dt * (3 + 6 * (1 - d / PULL))), r = Math.max(6, d * (1 - k)), a = Math.atan2(ey - this.y, e.x - this.x) + dt * 4;
       e.x = this.x + Math.cos(a) * r; e.y = this.y + Math.sin(a) * r + (e.h || 10) / 2; e.vx = 0; e.vy = 0;
       e.hurt(d < 30 ? 50 * dt : 12 * dt);
+    }
+    // pieces of buildings already falling are torn apart into the hole
+    for (let n = w.islands.length - 1; n >= 0; n--) {
+      const isl = w.islands[n], ix = (isl.cx0 + isl.w / 2) * CELL, iy = isl.y + isl.h * CELL / 2;
+      if (Math.hypot(ix - this.x, iy - this.y) > PULL + Math.max(isl.w, isl.h) * 2) continue;
+      w.islands.splice(n, 1);
+      for (let y = 0; y < isl.h; y++) for (let x = 0; x < isl.w; x++) { const m = isl.fg[y * isl.w + x]; if (m && Math.random() < 0.5) { const px = (isl.cx0 + x) * CELL, py = isl.y + y * CELL; w.hooks.debris?.(m, px, py, (this.x - px) * 2, (this.y - py) * 2); } }
+      g.addScore(isl.n);
     }
     // enemy fire bends in and is swallowed
     for (let i = g.eshots.length - 1; i >= 0; i--) { const q = g.eshots[i], d = Math.hypot(q.x - this.x, q.y - this.y); if (d > PULL) continue; if (d < 14) { g.eshots.splice(i, 1); continue; } q.vx += (this.x - q.x) * dt * 8; q.vy += (this.y - q.y) * dt * 8; }
