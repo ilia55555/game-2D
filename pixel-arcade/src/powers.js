@@ -238,7 +238,7 @@ const BREATH_MAX = 620;
 class Breath extends HeldPower {
   constructor(g, h, kind) {
     const mod = kind === "fire" ? fireBreath : frostBreath;
-    super(g, new ScaledFx(mod, { sx: 0.1 }));
+    super(g, new ScaledFx(mod, { sx: 0.1, pad: 40 }));
     Object.assign(this, { h, kind, len: 0, L0: kind === "fire" ? 148 : 172, snd: 0 });
   }
   aimAt(ax, ay) { this.ax = ax; this.ay = ay; }

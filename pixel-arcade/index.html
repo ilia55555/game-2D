@@ -27,12 +27,11 @@
   .stick { position: absolute; left: calc(22px + env(safe-area-inset-left)); bottom: 22px; width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(255, 248, 232, .35); background: rgba(23, 18, 31, .25); pointer-events: auto; }
   .stick i { position: absolute; left: 36px; top: 36px; width: 48px; height: 48px; border-radius: 50%; background: rgba(255, 200, 60, .55); }
   .btn { position: absolute; width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(255, 248, 232, .45); background: rgba(23, 18, 31, .4); color: #fff8e8; font: 700 11px ui-monospace, monospace; display: flex; align-items: center; justify-content: center; text-align: center; pointer-events: auto; }
+  #stickR { left: auto; right: calc(22px + env(safe-area-inset-right)); } #stickR i { background: rgba(255, 74, 60, .6); }
+  .btn.sm { width: 40px; height: 40px; }
+  #bPrev { left: calc(50% - 150px); top: 8px; } #bNext { left: calc(50% + 110px); top: 8px; }
+  #bNuke { right: calc(12px + env(safe-area-inset-right)); top: 80px; width: 48px; height: 48px; border-color: #ff4a3c; color: #ff8a7c; }
   .btn.on { background: rgba(255, 200, 60, .6); }
-  #bAlt { border-radius: 14px; width: 64px; height: 64px; box-shadow: 0 0 0 10px rgba(255,248,232,.05); }
-  #bJump { right: calc(24px + env(safe-area-inset-right)); bottom: 24px; width: 72px; height: 72px; }
-  #bAlt { right: calc(110px + env(safe-area-inset-right)); bottom: 24px; }
-  #bC { right: calc(24px + env(safe-area-inset-right)); bottom: 110px; }
-  #bNuke { right: calc(24px + env(safe-area-inset-right)); bottom: 182px; border-color: #ff4a3c; color: #ff8a7c; }
   #pause { position: fixed; right: calc(10px + env(safe-area-inset-right)); top: 10px; z-index: 6; width: 40px; height: 40px; border: 2px solid #fff6; border-radius: 6px; background: #0e0c14cc; color: #fff; font: bold 14px monospace; cursor: pointer; }
   #pause:hover { border-color: #fff; }
   #pmenu { position: fixed; inset: 0; z-index: 5; display: none; align-items: center; justify-content: center; background: rgba(14, 12, 20, .72); }
@@ -74,8 +73,8 @@
 <button id="pause" title="Pause (Esc)">&#10074;&#10074;</button>
 <div id="pmenu"><div class="box"><h2 data-fa="مکث" data-en="PAUSED">PAUSED</h2><button id="pResume" data-fa="ادامه" data-en="RESUME">RESUME</button><button id="pFull" data-fa="تمام‌صفحه" data-en="FULLSCREEN">FULLSCREEN</button><button id="rShape">AIM: CROSS</button><button id="rSize">AIM SIZE: 2</button><button id="pLang">EN / فا</button><button id="pHelp" data-fa="راهنما" data-en="CONTROLS">CONTROLS</button></div></div>
 <div id="pads">
-  <div class="stick" id="stickL"><i></i></div>
-  <div class="btn" id="bJump">JUMP<br>FLY</div><div class="btn" id="bAlt">ALT</div><div class="btn" id="bC">C<br>LAND</div><div class="btn" id="bNuke">NUKE</div>
+  <div class="stick" id="stickL"><i></i></div><div class="stick" id="stickR"><i></i></div>
+  <div class="btn sm" id="bPrev">&#9664;</div><div class="btn sm" id="bNext">&#9654;</div><div class="btn" id="bNuke">NUKE</div>
 </div>
 <div id="help"><div id="card">
   <button class="lang" id="hLang">EN / فا</button><h1>NOVA<small>ENDLESS DEMOLITION</small></h1>

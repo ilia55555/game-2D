@@ -55,7 +55,7 @@ export class ScaledFx {
       base = sm;
     }
     const c = Math.cos(this.angle), s = Math.sin(this.angle), fl = this.flip ? -1 : 1;
-    const C = f.color, L = f.light, BC = B.color, BL = B.light, ox = this.ox, oy = this.oy;
+    const C = f.color, L = f.light, BC = B.color, BL = B.light, ox = this.ox, oy = this.oy, EM = 1 / Math.max(4, Math.min(BW, BH) * 0.3);
     for (let Y = Y0; Y < Y1; Y++) {
       const dy0 = Y + 0.5 + FY - this.y;
       for (let X = X0; X < X1; X++) {
@@ -75,8 +75,11 @@ export class ScaledFx {
           }
         }
         if (li & 0xffffff) {
+          // light fades out towards the buffer's edges, so a glow cut off by the buffer never shows as a box
+          const e = Math.min(bx, BW - 1 - bx, by, BH - 1 - by) * EM, f = e >= 1 ? 1 : e * e * (3 - 2 * e);
+          if (f <= 0) continue;
           const d = L[i];
-          const r = Math.min(255, (d & 255) + (li & 255)), g = Math.min(255, ((d >>> 8) & 255) + ((li >>> 8) & 255)), b = Math.min(255, ((d >>> 16) & 255) + ((li >>> 16) & 255));
+          const r = Math.min(255, (d & 255) + (li & 255) * f), g = Math.min(255, ((d >>> 8) & 255) + ((li >>> 8) & 255) * f), b = Math.min(255, ((d >>> 16) & 255) + ((li >>> 16) & 255) * f);
           L[i] = (0xff000000 | (b << 16) | (g << 8) | r) >>> 0;
         }
       }
