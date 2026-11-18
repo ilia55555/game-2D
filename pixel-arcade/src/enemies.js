@@ -374,9 +374,18 @@ const RIVAL = 1.35;
 export class Rival extends Enemy {
   constructor(g, x, y) {
     super(g, x, y);
-    Object.assign(this, { hw: 7, h: 44, hp: 3200, max: 3200, mass: 30, kind: "rival", score: 25000, face: 1, state: "chase", st: 1.5, ph: 0, hitCd: 0 });
+    Object.assign(this, { hw: 7, h: 44, hp: 6000, max: 6000, mass: 30, kind: "rival", dmgBudget: 0, score: 25000, face: 1, state: "chase", st: 1.5, ph: 0, hitCd: 0 });
   }
-  hurt(d, kx = 0, ky = 0) { super.hurt(d * 0.8, kx * 0.3, ky * 0.3); }
+  // armoured: every hit is softened and capped, and it can't lose more than so much a second, so area weapons,
+  // beams and nukes can't melt it in a moment: the fight lasts the best part of a minute
+  hurt(d, kx = 0, ky = 0) {
+    const t = this.g.time || 0;
+    this.dmgBudget = Math.min(260, (this.dmgBudget ?? 260) + (t - (this.dmgT ?? t)) * 220); this.dmgT = t;
+    const dd = Math.min(d * 0.35, 70, this.dmgBudget);
+    if (dd <= 0) { this.flash = 0.04; return; }
+    this.dmgBudget -= dd;
+    super.hurt(dd, kx * 0.3, ky * 0.3);
+  }
   pick() {
     const r = Math.random(), h = this.g.hero, far = Math.hypot(h.x - this.x, h.cy - this.y) > 260;
     if (r < 0.3) { this.state = "dash"; this.st = 0.55; const a = Math.atan2(h.cy - (this.y - 22), h.x - this.x); this.dvx = Math.cos(a) * 760; this.dvy = Math.sin(a) * 760; this.g.sfx("dive"); }
