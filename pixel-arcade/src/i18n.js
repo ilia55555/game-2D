@@ -31,7 +31,7 @@ function glyphs(str, k) {
   let g = cache.get(key);
   if (g) return g;
   cv = cv || document.createElement("canvas");
-  const size = 9 * k + 2, ctx = cv.getContext("2d", { willReadFrequently: true });
+  const size = 11 * k + 2, ctx = cv.getContext("2d", { willReadFrequently: true });
   ctx.font = `700 ${size}px Vazirmatn, Tahoma, sans-serif`;
   const w = Math.ceil(ctx.measureText(str).width) + 4, h = Math.ceil(size * 1.7);
   cv.width = w; cv.height = h;
@@ -79,8 +79,8 @@ function pixImg(str, color, px) {
 /** Set an element's label: Persian as pixel art, English as text in the pixel font. */
 export function label(el, en, fa, color, px = 11, k = 2) {
   if (lang !== "fa") { el.textContent = en; return; }
-  const im = pixImg(fa, color || getComputedStyle(el).color.replace(/rgba?\((\d+), (\d+), (\d+).*/, (m, r, g, b) => "#" + [r, g, b].map((v) => (+v).toString(16).padStart(2, "0")).join("")), px);
-  el.innerHTML = `<img class="pxt" src="${im.src}" width="${im.w * k}" height="${im.h * k}" alt="${fa}">`;
+  const im = pixImg(fa, color || getComputedStyle(el).color.replace(/rgba?\((\d+), (\d+), (\d+).*/, (m, r, g, b) => "#" + [r, g, b].map((v) => (+v).toString(16).padStart(2, "0")).join("")), px * 2);
+  el.innerHTML = `<img class="pxt" src="${im.src}" width="${Math.round(im.w * k / 2)}" height="${Math.round(im.h * k / 2)}" alt="${fa}">`;
 }
 
 // the HTML: elements carry data-fa / data-en (those with data-px are drawn as pixel text in Persian)
