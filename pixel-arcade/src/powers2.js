@@ -86,7 +86,7 @@ class Sonic {
   update(dt) {
     const g = this.g, w = g.world;
     this.t += dt;
-    if ((this.sent || 0) < 3 && this.t >= (this.sent || 0) * 0.09) { this.sent = (this.sent || 0) + 1; this.waves.push({ r: 6, hit: new Set() }); }
+    if ((this.sent || 0) < 7 && this.t >= (this.sent || 0) * 0.07) { this.sent = (this.sent || 0) + 1; this.waves.push({ r: 6, hit: new Set() }); }
     for (const v of this.waves) {
       v.r += 480 * dt;
       const half = 0.22 + v.r / 1100;
@@ -103,7 +103,7 @@ class Sonic {
       }
     }
     this.waves = this.waves.filter((v) => v.r < 430);
-    return (this.sent || 0) < 3 || this.waves.length > 0;
+    return (this.sent || 0) < 7 || this.waves.length > 0;
   }
   draw(f) {
     const p = painterFor(f); p.place(0, 0);

@@ -62,9 +62,11 @@
   #pmenu .box { max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); overflow: auto; box-sizing: border-box; }
   #pmenu button { min-height: 44px; display: flex; align-items: center; justify-content: center; }
   @media (max-height: 520px) {
-    #pmenu .box { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; padding: 14px 18px; min-width: 0; width: min(520px, calc(100vw - 32px)); }
+    #pmenu .box { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px 12px; padding: 12px 16px; min-width: 0; width: min(640px, calc(100vw - 32px)); }
+    #pmenu img.pxt { height: 26px; width: auto; }
     #pmenu h2 { grid-column: 1 / -1; margin: 0; font-size: 14px; }
-    #pmenu button { padding: 8px; font-size: 9px; min-height: 40px; }
+    #pmenu h2 img.pxt { height: 34px; }
+    #pmenu button { padding: 6px; font-size: 8px; min-height: 36px; }
   }
   kbd { border-radius: 0; border: 2px solid #6a6078; border-bottom-width: 4px; font-size: 9px; padding: 3px 5px; }
   .go { font-size: 13px; text-shadow: 3px 3px 0 #000; }
@@ -78,7 +80,7 @@
 <body>
 <canvas id="game"></canvas>
 <button id="pause" title="Pause (Esc)">&#10074;&#10074;</button>
-<div id="pmenu"><div class="box"><h2 data-px="13" data-col="#ffc83c" data-fa="مکث" data-en="PAUSED">PAUSED</h2><button id="pResume" data-px data-col="#fff8e8" data-fa="ادامه" data-en="RESUME">RESUME</button><button id="pFull" data-px data-col="#fff8e8" data-fa="تمام‌صفحه" data-en="FULLSCREEN">FULLSCREEN</button><button id="rShape">AIM: CROSS</button><button id="rSize">AIM SIZE: 2</button><button id="pLang">EN / FA</button><button id="pHelp" data-px data-col="#fff8e8" data-fa="راهنما" data-en="CONTROLS">CONTROLS</button></div></div>
+<div id="pmenu"><div class="box"><h2 data-px="13" data-col="#ffc83c" data-fa="مکث" data-en="PAUSED">PAUSED</h2><button id="pResume" data-px data-col="#fff8e8" data-fa="ادامه" data-en="RESUME">RESUME</button><button id="pFull" data-px data-col="#fff8e8" data-fa="تمام‌صفحه" data-en="FULLSCREEN">FULLSCREEN</button><button id="rShape">AIM: CROSS</button><button id="rColor">AIM COLOR</button><button id="rSize">AIM SIZE: 2</button><button id="pHome" data-px data-col="#ff8a7c" data-fa="منوی اصلی" data-en="MAIN MENU">MAIN MENU</button><button id="pLang">EN / FA</button><button id="pHelp" data-px data-col="#fff8e8" data-fa="راهنما" data-en="CONTROLS">CONTROLS</button></div></div>
 <div id="pads">
   <div class="stick" id="stickL"><i></i></div><div class="stick" id="stickR"><i></i></div>
   <div class="btn" id="bAlt">ALT</div><div class="btn" id="bC">C<br>LAND</div><div class="btn" id="bNuke">NUKE</div>
@@ -99,6 +101,6 @@
   </table>
   <div class="go" data-px="10" data-col="#ffc83c" data-fa="برای شروع کلیک یا لمس کن" data-en="CLICK / TAP TO START">CLICK / TAP TO START</div>
 </div></div>
-<script src="dist/game.js?v=1794963111651"></script>
+<script src="dist/game.js?v=1794963447566"></script>
 </body>
 </html>

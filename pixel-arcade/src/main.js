@@ -39,6 +39,8 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 const scaleC = (c, k) => 0xff000000 | (Math.min(255, ((c >> 16) & 255) * k) << 16) | (Math.min(255, ((c >> 8) & 255) * k) << 8) | Math.min(255, (c & 255) * k);
 const K = hex;
 const UI = { white: K("#fff8e8"), ink: K("#17121f"), red: K("#ff4a3c"), gold: K("#ffc83c"), cyan: K("#7ff3ff"), dim: K("#8a8494"), green: K("#6cdc5a"), orange: K("#ff8a2a"), panel: K("#221c2c") };
+// the aim mark's colours: [pixel colour, css colour, english, persian]
+const RET_COL = [["#fff8e8", "WHITE", "سفید"], ["#ff4a3c", "RED", "قرمز"], ["#6cdc5a", "GREEN", "سبز"], ["#7ff3ff", "CYAN", "فیروزه‌ای"], ["#ffc83c", "YELLOW", "زرد"], ["#ff60e0", "PINK", "صورتی"]].map(([h, en, fa]) => [K(h), h, en, fa]);
 const RANKS = [[250, "DEMOLITION!"], [700, "RAMPAGE!"], [1500, "DEVASTATION!"], [3000, "CATACLYSM!"], [6000, "APOCALYPSE!"], [12000, "EXTINCTION EVENT!"]];
 
 class Game {
@@ -323,7 +325,7 @@ class Game {
   }
   /** The aim mark, in the shape and size picked in the settings. */
   drawReticle(p, mx, my) {
-    const o = this.reticle || { shape: "cross", size: 2 }, k = o.size, c = UI.white, ink = UI.ink;
+    const o = this.reticle || { shape: "cross", size: 2 }, k = o.size, c = RET_COL[o.color || 0][0], ink = UI.ink;
     const dot = (x, y, w, h, col) => { p.rect(x - 1, y - 1, w + 2, h + 2, ink, 0.6); p.rect(x, y, w, h, col); };
     if (o.shape === "cross" || o.shape === "plus") {
       const g = o.shape === "cross" ? 1 + k : 0, L = 2 + k * 2;
@@ -660,11 +662,11 @@ tapBtn(document.getElementById("pFull"), () => { if (document.fullscreenElement)
 // kept in localStorage and, in case that is wiped or blocked, in a cookie too
 const loadSet = () => { let v = null; try { v = localStorage.getItem("nova-reticle"); } catch (e) { /* blocked */ } if (!v) { const m = document.cookie.match(/(?:^|; )nova-reticle=([^;]*)/); if (m) v = decodeURIComponent(m[1]); } try { return JSON.parse(v); } catch (e) { return null; } };
 const saveSet = (o) => { const v = JSON.stringify(o); try { localStorage.setItem("nova-reticle", v); } catch (e) { /* blocked */ } try { document.cookie = "nova-reticle=" + encodeURIComponent(v) + "; max-age=31536000; path=/; SameSite=Lax"; } catch (e) { /* blocked */ } };
-{ const r = loadSet(); if (r && r.shape) game.reticle = { shape: r.shape, size: Math.max(1, Math.min(5, +r.size || 2)) }; }
+{ const r = loadSet(); if (r && r.shape) game.reticle = { shape: r.shape, size: Math.max(1, Math.min(5, +r.size || 2)), color: (+r.color || 0) % RET_COL.length }; }
 game.reticle = game.reticle || { shape: "cross", size: 2 };
-const SHAPES = ["cross", "plus", "circle", "x", "dot"], rShape = document.getElementById("rShape"), rSize = document.getElementById("rSize");
+const SHAPES = ["cross", "plus", "circle", "x", "dot"], rShape = document.getElementById("rShape"), rSize = document.getElementById("rSize"), rColor = document.getElementById("rColor");
 const FA_SH = { cross: "ضربدری", plus: "بعلاوه", circle: "دایره", x: "ایکس", dot: "نقطه" };
-const showR = () => { label(rShape, "AIM: " + game.reticle.shape.toUpperCase(), "نشانه: " + FA_SH[game.reticle.shape], "#fff8e8"); label(rSize, "AIM SIZE: " + game.reticle.size, "اندازهٔ نشانه: " + game.reticle.size, "#fff8e8"); saveSet(game.reticle); };
+const showR = () => { label(rShape, "AIM: " + game.reticle.shape.toUpperCase(), "نشانه: " + FA_SH[game.reticle.shape], "#fff8e8"); const rc = RET_COL[game.reticle.color || 0]; rColor.style.color = rc[1]; label(rColor, "AIM COLOR: " + rc[2], "رنگ نشانه: " + rc[3], rc[1]); label(rSize, "AIM SIZE: " + game.reticle.size, "اندازهٔ نشانه: " + game.reticle.size, "#fff8e8"); saveSet(game.reticle); };
 let flipT = 0;
 const flipLang = () => { const n = performance.now(); if (n - flipT < 350) return; flipT = n; setLang(getLang() === "fa" ? "en" : "fa"); showR(); };
 if (document.fonts) document.fonts.ready.then(() => { applyHtml(); showR(); });
@@ -672,6 +674,8 @@ tapBtn(document.getElementById("pLang"), flipLang);
 tapBtn(document.getElementById("hLang"), flipLang);
 applyHtml();
 tapBtn(rShape, () => { game.reticle.shape = SHAPES[(SHAPES.indexOf(game.reticle.shape) + 1) % SHAPES.length]; showR(); });
+tapBtn(rColor, () => { game.reticle.color = ((game.reticle.color || 0) + 1) % RET_COL.length; showR(); });
+tapBtn(document.getElementById("pHome"), () => { location.href = "../index.html"; });
 tapBtn(rSize, () => { game.reticle.size = game.reticle.size % 5 + 1; showR(); });
 showR();
 tapBtn(document.getElementById("pHelp"), () => { togglePause(false); game.started = false; document.getElementById("help").classList.remove("hide"); });
