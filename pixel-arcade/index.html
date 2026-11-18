@@ -23,8 +23,14 @@
   .go { margin-top: 16px; text-align: center; color: #ffc83c; font-size: 16px; letter-spacing: 2px; animation: blink 1s steps(2) infinite; }
   @keyframes blink { 50% { opacity: .25; } }
   canvas { position: fixed; left: 0; top: 0; touch-action: none; }
+  .stick u { position: absolute; left: 59px; top: -58px; width: 2px; height: 58px; background: linear-gradient(rgba(255,248,232,.5), rgba(255,248,232,0)); pointer-events: none; }
+  .stick .lk { position: absolute; width: 34px; height: 34px; border-radius: 50%; border: 2px solid rgba(255,248,232,.4); background: rgba(23,18,31,.35); color: rgba(255,248,232,.7); font: 14px/30px sans-serif; text-align: center; pointer-events: none; }
+  #lkU { left: 43px; top: -96px; } #lkL { left: -50px; top: 43px; } #lkR { left: 136px; top: 43px; }
+  .stick .lk.on { background: rgba(255,200,60,.7); color: #17121f; border-color: #ffe27a; }
+  .stick .lk.lock { background: rgba(64,232,255,.75); color: #17121f; border-color: #c0f8ff; }
+  .stick.over { border-color: #ffe27a; }
   #pads { display: none; position: fixed; inset: 0; z-index: 4; pointer-events: none; }
-  .stick { position: absolute; left: calc(22px + env(safe-area-inset-left)); bottom: 22px; width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(255, 248, 232, .35); background: rgba(23, 18, 31, .25); pointer-events: auto; }
+  .stick { position: absolute; left: calc(72px + env(safe-area-inset-left)); bottom: 22px; width: 120px; height: 120px; border-radius: 50%; border: 2px solid rgba(255, 248, 232, .35); background: rgba(23, 18, 31, .25); pointer-events: auto; }
   .stick i { position: absolute; left: 36px; top: 36px; width: 48px; height: 48px; border-radius: 50%; background: rgba(255, 200, 60, .55); }
   .btn { position: absolute; width: 58px; height: 58px; border-radius: 50%; border: 2px solid rgba(255, 248, 232, .45); background: rgba(23, 18, 31, .4); color: #fff8e8; font: 700 11px ui-monospace, monospace; display: flex; align-items: center; justify-content: center; text-align: center; pointer-events: auto; }
   .btn.on { background: rgba(255, 200, 60, .6); }
@@ -48,7 +54,7 @@
 <button id="pause" title="Pause (Esc)">&#10074;&#10074;</button>
 <div id="pmenu"><div class="box"><h2>PAUSED</h2><button id="pResume">RESUME</button><button id="pFull">FULLSCREEN</button><button id="rShape">AIM: CROSS</button><button id="rSize">AIM SIZE: 2</button><button id="pHelp">CONTROLS</button></div></div>
 <div id="pads">
-  <div class="stick" id="stickL"><i></i></div>
+  <div class="stick" id="stickL"><b class="lk" id="lkU">&#9650;</b><b class="lk" id="lkL">&#9664;</b><b class="lk" id="lkR">&#9654;</b><u></u><i></i></div>
   <div class="btn" id="bJump">JUMP<br>FLY</div><div class="btn" id="bAlt">ALT</div><div class="btn" id="bC">C<br>LAND</div><div class="btn" id="bNuke">NUKE</div>
 </div>
 <div id="help"><div id="card">

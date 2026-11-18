@@ -593,11 +593,22 @@ function touchSetup() {
   if (game.touch) return;
   game.touch = true; pads.style.display = "block"; mouseFire = false;
   const el = document.getElementById("stickL"), knob = el.firstElementChild, st = T.move;
-  const set = (e) => { const r = el.getBoundingClientRect(), t = [...e.touches].find((q) => q.identifier === st.id); if (!t) return; let dx = (t.clientX - r.left - r.width / 2) / (r.width / 2), dy = (t.clientY - r.top - r.height / 2) / (r.height / 2); const m = Math.hypot(dx, dy); if (m > 1) { dx /= m; dy /= m; } st.x = dx; st.y = dy; knob.style.transform = `translate(${dx * 34}px,${dy * 34}px)`; };
-  el.addEventListener("touchstart", (e) => { e.preventDefault(); start(); st.id = e.changedTouches[0].identifier; st.on = true; set(e); }, { passive: false });
+  // pulled out past the ring: up = fly, left / right = flash speed, while held; let go out there and it locks on
+  const lk = { up: document.getElementById("lkU"), left: document.getElementById("lkL"), right: document.getElementById("lkR") };
+  T.showZone = () => { for (const k in lk) { lk[k].classList.toggle("on", st.over === k); lk[k].classList.toggle("lock", T.lock === k); } el.classList.toggle("over", !!st.over); };
+  const set = (e) => {
+    const r = el.getBoundingClientRect(), t = [...e.touches].find((q) => q.identifier === st.id); if (!t) return;
+    let dx = (t.clientX - r.left - r.width / 2) / (r.width / 2), dy = (t.clientY - r.top - r.height / 2) / (r.height / 2); const m = Math.hypot(dx, dy);
+    const was = st.over;
+    st.over = m > 1.35 ? (-dy > Math.abs(dx) * 0.8 ? "up" : dx < 0 ? "left" : "right") : null;
+    if (st.over === "up" && was !== "up") I.jumpP = true;
+    if (m > 1) { dx /= m; dy /= m; } st.x = dx; st.y = dy; knob.style.transform = `translate(${dx * 34}px,${dy * 34}px)`;
+    T.showZone();
+  };
+  el.addEventListener("touchstart", (e) => { e.preventDefault(); start(); st.id = e.changedTouches[0].identifier; st.on = true; T.lock = null; st.over = null; set(e); T.showZone(); }, { passive: false });
   el.addEventListener("touchmove", (e) => { e.preventDefault(); set(e); }, { passive: false });
   const still = (e, id) => [...e.touches].some((q) => q.identifier === id); // a finger that is really still down
-  const end = (e) => { e.preventDefault(); if (still(e, st.id)) return; st.on = false; st.x = st.y = 0; knob.style.transform = ""; };
+  const end = (e) => { e.preventDefault(); if (still(e, st.id)) return; st.on = false; T.lock = st.over; if (T.lock) T.lockFace = T.lock === "left" ? -1 : T.lock === "right" ? 1 : game.hero.face || 1; st.over = null; T.showZone(); st.x = st.y = 0; knob.style.transform = ""; };
   el.addEventListener("touchend", end, { passive: false }); el.addEventListener("touchcancel", end, { passive: false });
   const btn = (id, down, up) => { const b = document.getElementById(id); let tid = null; const off = (e) => { e.preventDefault(); if (still(e, tid)) return; b.classList.remove("on"); up && up(); }; b.addEventListener("touchstart", (e) => { e.preventDefault(); if (game.paused) return; tid = e.changedTouches[0].identifier; start(); b.classList.add("on"); down(); }, { passive: false }); b.addEventListener("touchend", off, { passive: false }); b.addEventListener("touchcancel", off, { passive: false }); };
   btn("bJump", () => { I.jumpP = true; T.jump = true; }, () => (T.jump = false));
@@ -671,6 +682,15 @@ function readInput() {
     if (T.altFire && --T.altFire === 0) { I.altP = true; }
     // the jump button doubles as the flash: held while steering
     I.dash = T.jump && (I.mx !== 0 || (h.fly && I.my !== 0));
+    // past the ring (held) or locked there after letting go
+    const z = m.on ? m.over : T.lock;
+    if (z === "up") {
+      I.jump = true;
+      if (m.on) { I.my = -1; I.mx = Math.abs(m.x) > 0.25 ? Math.sign(m.x) : 0; }
+      else { I.mx = T.lockFace; I.my = 0; }
+      I.dash = h.fly;
+    } else if (z) { I.mx = z === "left" ? -1 : 1; I.dash = true; if (!m.on) I.my = 0; }
+    if (T.lock && (h.dead > 0 || game.paused)) { T.lock = null; T.showZone?.(); }
   } else {
     I.mx = (keys.has("KeyD") || keys.has("ArrowRight") ? 1 : 0) - (keys.has("KeyA") || keys.has("ArrowLeft") ? 1 : 0);
     I.my = (keys.has("KeyS") || keys.has("ArrowDown") ? 1 : 0) - (keys.has("KeyW") || keys.has("ArrowUp") ? 1 : 0);
