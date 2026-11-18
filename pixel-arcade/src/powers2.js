@@ -3,7 +3,7 @@
 // the sky and slammed down.
 import { ScaledFx } from "./scaled.js";
 import { PT } from "./particles.js";
-import { CELL, SEA } from "./world.js";
+import { CELL, SEA, M } from "./world.js";
 const SEA_PX = SEA * CELL;
 import { Arc } from "./thor.js";
 import { painterFor, fit } from "../vendor/pixelfx/src/core/index.js";
@@ -358,7 +358,15 @@ class Vine extends Power {
         }
       }
     });
-    for (const e of g.enemies) if (live(e) && !this.hit.has(e) && Math.abs(e.x - this.x) < half + e.hw && e.y > goal && e.y - e.h < this.y) { this.hit.add(e); e.hurt(80, rnd(-200, 200), -700); }
+    for (const e of g.enemies) if (live(e) && Math.abs(e.x - this.x) < half + e.hw && e.y > goal && e.y - e.h < this.y) { if (!this.hit.has(e)) { this.hit.add(e); e.hurt(80, rnd(-200, 200), -700); } else e.hurt(90 * dt); }
+    // the lashed vine lying along its arc: whatever runs into it is hurt too
+    if (this.lashed && this.t < 1.6) {
+      const L = 79 * k * 0.9;
+      for (let i = 1; i <= 8; i++) {
+        const a = -Math.PI / 2 + this.side * (i / 8) * 1.4, x = this.x + Math.cos(a) * L * (0.5 + i / 16), y = this.y + Math.sin(a) * L * (0.5 + i / 16);
+        g.eachEnemy(x, y, 8 + 3 * k, (e) => { if (live(e)) e.hurt(90 * dt); });
+      }
+    }
     // the lash: it comes crashing down to one side
     if (!this.lashed && this.t > 0.62) {
       this.lashed = true;
@@ -432,6 +440,7 @@ export function addThorAlt(M) {
 /** The ultimate: the hero rises a little and, arms raised, drags a burning moon down out of space onto the aim.
  *  It comes in slantwise from either side; the camera rides along with it. The ring on the ground marks the blast. */
 export const MOON_R = 280;
+const NATURE = new Set([M.DIRT, M.GRASS, M.STONE, M.SAND, M.SNOW, M.BEDROCK, M.BASALT, M.MAGMA]);
 export class Moon {
   constructor(g, h, tx, ty) {
     const v = view(g), dir = Math.random() < 0.5 ? 1 : -1;
@@ -459,7 +468,17 @@ export class Moon {
       const step = sp * dt, d = Math.hypot(this.tx - this.x, this.ty - this.y);
       this.s.aim(a);
       g.camFocus = { x: this.x + (this.tx - this.x) * 0.35, y: this.y + (this.ty - this.y) * 0.35, t: 0.2 };
-      if (d <= step + 6 || (this.t > 0.3 && g.world.solidPx(this.x, this.y))) { g.camFocus = { x: this.tx, y: this.ty - 80, t: 1.6 }; this.impact(); return false; }
+      if (this.y > view(g).t - 60) {
+        g.eachEnemy(this.x, this.y, 30 * this.k * 0.6, (e) => { if (live(e)) e.hurt(400, this.vx * 0.3, this.vy * 0.3); });
+        ticks(this, dt, () => {
+          const w = g.world, cx = Math.floor(this.x / CELL), cy = Math.floor(this.y / CELL), R = Math.round(this.k * 2.2);
+          for (let j = -R; j <= R; j++) for (let i = -R; i <= R; i++) { if (i * i + j * j > R * R) continue; const m = w.get(cx + i, cy + j); if (m && !NATURE.has(m)) g.addScore(w.destroyCell(cx + i, cy + j, this.vx * 0.4 + rnd(-150, 150), this.vy * 0.2 - rnd(100, 300))); else if (!m && w.getBg(cx + i, cy + j)) w.destroyBg(cx + i, cy + j); }
+        });
+      }
+      const gm = g.world.get(Math.floor(this.x / CELL), Math.floor(this.y / CELL));
+      const ground = this.t > 0.15 && this.y > view(g).t - 60 && gm && NATURE.has(gm);
+      if (ground) { this.tx = this.x; this.ty = this.y; }
+      if (d <= step + 6 || ground) { g.camFocus = { x: this.tx, y: this.ty - 80, t: 1.6 }; this.impact(); return false; }
       this.x += this.vx * dt; this.y += this.vy * dt;
       for (let i = 0; i < 3; i++) g.parts.spawn(i ? PT.FLAME : PT.SMOKE, this.x + rnd(-10, 10), this.y + rnd(-10, 10), -this.vx * 0.1, -this.vy * 0.1, rnd(0.4, 0.9), 0xff383038, i ? 5 : 8);
       g.shake(2 + this.t * 2);

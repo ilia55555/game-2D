@@ -414,12 +414,20 @@ class ArcBeam extends Power {
 class StarFall extends Power {
   constructor(g, x, y) {
     // tall enough that the stars start above the top of the screen; either way across
-    const top = view(g).t - 40, sy = Math.max(1.5, (y - top) / 150), flip = Math.random() < 0.5;
+    const top = view(g).t - 4, sy = Math.max(0.6, (y - top) / 124), flip = Math.random() < 0.5;
     super(g, new ScaledFx(starFall, { x, y, sx: 1.7, sy, flip, pad: 4 }));
     this.x = x; this.y = y; this.n = 0; this.top = top; this.flip = flip;
   }
-  step() {
+  step(dt) {
     const g = this.g;
+    if (this.t > 0.15 && this.t < 1.7) {
+      const sl = 0.38 * 1.7 / this.sy, half = 46 * 1.7 + 14;
+      for (const e of g.enemies) {
+        if (!live(e) || mid(e) < this.top || e.y - e.h > this.y + 4) continue;
+        const cx = this.x + (this.flip ? 1 : -1) * (this.y - mid(e)) * sl;
+        if (Math.abs(e.x - cx) < half + e.hw) { e.hurt(45 * dt); if (Math.random() < 0.15) g.fxKind("spark", e.x, mid(e)); }
+      }
+    }
     while (this.n < 11 && this.t >= 0.42 + this.n * 0.105) {
       const x = this.x + rnd(-46, 46) * 1.7, y = g.world.surfaceY(x, this.y - 80);
       g.addScore(g.world.explode(x, y - 4, 20, 10, { fire: 0.3, debris: 14, kick: 1.3 }));
@@ -579,6 +587,14 @@ class SkyBeam extends Power {
   }
   step(dt) {
     const g = this.g, w = g.world;
+    if (this.t > 0.35) {
+      const bw = Math.max(this.w, 8) + 6;
+      this.hit = this.hit || new Set();
+      for (const e of g.enemies) if (live(e) && Math.abs(e.x - this.x) < bw + e.hw && e.y > this.top && e.y - e.h < this.depth) {
+        if (!this.hit.has(e)) { this.hit.add(e); e.hurt(40, 0, 200); g.fxKind("spark", e.x, mid(e)); }
+        e.hurt(90 * dt);
+      }
+    }
     if (this.t < 0.5) return;
     const k = Math.floor((this.t - 0.5) / 0.06);
     this.w = Math.min(30, 5 + (this.t - 0.5) * 22);

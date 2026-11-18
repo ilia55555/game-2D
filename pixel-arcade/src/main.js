@@ -138,7 +138,8 @@ class Game {
       this.flashLight(x, y, r * 2.2, 0xff50a0ff, 0.8, 0.3);
       if (this.world.inWater(x, y + 8)) for (let i = 0; i < r / 2; i++) P.spawn(PT.DROP, x + rnd(-r, r) * 0.6, SEA * CELL, rnd(-90, 90), rnd(-420, -120), 2, i & 1 ? 0xfffff0d0 : 0xffd8a868, 1 + (i & 1));
     }
-    this.fxKind(o.kind ?? "small", x, y, o);
+    if (o.metal) this.fxKind("small", x, y, { ...o, size: o.size ?? Math.max(1.2, r / 38) });
+    else this.fxKind(o.kind ?? "small", x, y, o);
     return n;
   }
 
@@ -299,7 +300,13 @@ class Game {
         if (Math.random() < 0.5) this.parts.spawn(PT.DROP, s.x, s.y, rnd(-10, 10), -rnd(10, 40), 0.5, 0xfffff0d0, 1);
       }
       if (s.fx) { s.fx.update(dt); s.fx.aim(Math.atan2(s.vy, s.vx)); }
-      if (s.type === "rocket") { const a = Math.atan2(h.cy - s.y, h.x - s.x), sp = Math.min(330, Math.hypot(s.vx, s.vy) + 200 * dt); const ca = Math.atan2(s.vy, s.vx); let d = a - ca; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283; const na = ca + Math.max(-1.6 * dt, Math.min(1.6 * dt, d)); s.vx = Math.cos(na) * sp; s.vy = Math.sin(na) * sp; this.parts.spawn(PT.SMOKE, s.x, s.y, 0, 0, 0.5, 0xffa09ca0, 3); }
+      if (s.type === "rocket" && !s.decoy && h.fly && h.dashing && h.ghosts.length && Math.hypot(s.x - h.x, s.y - h.cy) < 420) {
+        const gh = h.ghosts[0]; s.decoy = { x: gh.x + rnd(-30, 30), y: gh.y - 16 + rnd(-30, 30) };
+        for (let k = 0; k < 6; k++) this.parts.spawn(PT.SPARK, gh.x, gh.y - 16, rnd(-160, 160), rnd(-120, 120), rnd(0.4, 0.9), 0xff40d0ff);
+        this.flashLight(gh.x, gh.y - 16, 30, 0xff40c0ff, 0.7, 0.2);
+      }
+      if (s.type === "rocket" && s.decoy) { s.decoy.y += 60 * dt; s.life = Math.min(s.life, 2); }
+      if (s.type === "rocket") { const tg = s.decoy || { x: h.x, y: h.cy }, a = Math.atan2(tg.y - s.y, tg.x - s.x), sp = Math.min(330, Math.hypot(s.vx, s.vy) + 200 * dt); const ca = Math.atan2(s.vy, s.vx); let d = a - ca; while (d > Math.PI) d -= 6.283; while (d < -Math.PI) d += 6.283; const na = ca + Math.max(-1.6 * dt, Math.min(1.6 * dt, d)); s.vx = Math.cos(na) * sp; s.vy = Math.sin(na) * sp; this.parts.spawn(PT.SMOKE, s.x, s.y, 0, 0, 0.5, 0xffa09ca0, 3); }
       let hit = false;
       const n = Math.max(1, Math.ceil(Math.hypot(s.vx, s.vy) * dt / 3));
       for (let k = 0; k < n && !hit; k++) {
@@ -679,11 +686,12 @@ const SHAPES = ["cross", "plus", "circle", "x", "dot"], rShape = document.getEle
 const FA_SH = { cross: "ضربدری", plus: "بعلاوه", circle: "دایره", x: "ایکس", dot: "نقطه" };
 const showR = () => { label(rShape, "AIM: " + game.reticle.shape.toUpperCase(), "نشانه: " + FA_SH[game.reticle.shape], "#fff8e8"); const rc = RET_COL[game.reticle.color || 0]; rColor.style.color = rc[1]; label(rColor, "AIM COLOR: " + rc[2], "رنگ نشانه: " + rc[3], rc[1]); label(rSize, "AIM SIZE: " + game.reticle.size, "اندازهٔ نشانه: " + game.reticle.size, "#fff8e8"); saveSet(game.reticle); };
 let flipT = 0;
-const flipLang = () => { const n = performance.now(); if (n - flipT < 350) return; flipT = n; setLang(getLang() === "fa" ? "en" : "fa"); showR(); };
-if (document.fonts) document.fonts.ready.then(() => { applyHtml(); showR(); });
+const showLang = () => { for (const id of ["pLang", "hLang"]) { const el = document.getElementById(id); if (el) label(el, "LANGUAGE: EN", "زبان: FA", id === "hLang" ? "#17121f" : "#7ff3ff", 13); } };
+const flipLang = () => { const n = performance.now(); if (n - flipT < 350) return; flipT = n; setLang(getLang() === "fa" ? "en" : "fa"); showR(); showLang(); };
+if (document.fonts) document.fonts.ready.then(() => { applyHtml(); showR(); showLang(); });
 tapBtn(document.getElementById("pLang"), flipLang);
 tapBtn(document.getElementById("hLang"), flipLang);
-applyHtml();
+applyHtml(); showLang();
 tapBtn(rShape, () => { game.reticle.shape = SHAPES[(SHAPES.indexOf(game.reticle.shape) + 1) % SHAPES.length]; showR(); });
 tapBtn(rColor, () => { game.reticle.color = ((game.reticle.color || 0) + 1) % RET_COL.length; showR(); });
 tapBtn(document.getElementById("pHome"), () => { location.reload(); });
