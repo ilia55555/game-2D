@@ -25,6 +25,7 @@ import * as fireball from "../vendor/pixelfx/src/fx/fire/fireball.js";
 import * as fireTornado from "../vendor/pixelfx/src/fx/fire/fire-tornado.js";
 import * as healFx from "../vendor/pixelfx/src/fx/holy/heal-aoe.js";
 import * as sunburst from "../vendor/pixelfx/src/fx/holy/sunburst.js";
+import * as divineShield from "../vendor/pixelfx/src/fx/holy/divine-shield.js";
 import * as holyPillar from "../vendor/pixelfx/src/fx/holy/holy-pillar.js";
 
 const rnd = (a, b) => a + Math.random() * (b - a);
@@ -525,6 +526,28 @@ class Heal extends Power {
   step() { this.s.x = this.h.x; this.s.y = this.h.y; }
 }
 
+/** Tap: a 20 s divine shield round the hero (after a burst of healing light). Nothing gets through it; 20 s cooldown. */
+export const SHIELD_T = 20;
+class Shield extends Power {
+  constructor(g, h) {
+    super(g, new ScaledFx(divineShield, { x: h.x, y: h.y, sx: 1.1 }));
+    this.h = h; this.on = false;
+  }
+  update(dt) {
+    const g = this.g;
+    if (this.t < 0.45) { this.t += dt; this.s.x = this.h.x; this.s.y = this.h.y; return true; }
+    if (!this.on) { this.on = true; g.sfx("ready"); }
+    return super.update(dt);
+  }
+  step() {
+    const g = this.g, h = this.h;
+    this.s.x = h.x; this.s.y = h.y;
+    if (g.shieldT <= 0) this.end();
+    if (Math.random() < 0.1) g.flashLight(h.x, h.y - 24, 50, 0xff60d0ff, 0.25, 0.08);
+  }
+  draw(f) { if (this.on) super.draw(f); }
+}
+
 /** Hold: the hero shines like a sun. It heals him while held, and the light spreads wider and burns hotter. */
 class Radiance extends HeldPower {
   constructor(g, h) { super(g, new ScaledFx(sunburst, { sx: 0.5 })); this.h = h; this.p = 0; this.burnT = new Map(); }
@@ -613,7 +636,11 @@ export const INFERNO = {
 };
 export const RADIANCE = {
   name: "RADIANCE", col: 0xff80f0ff, cd: 0.7, altCd: 1.3,
-  tap(g, h) { g.shots.push(new Heal(g, h)); },
+  tap(g, h) {
+    if ((g.shieldCd || 0) > 0) { g.sfx("swap"); return; }
+    g.shieldCd = SHIELD_T; g.shieldT = SHIELD_T;
+    g.shots.push(new Heal(g, h)); g.shots.push(new Shield(g, h));
+  },
   hold(g, h, ax, ay, t) { held(g, "sun", () => new Radiance(g, h)).follow(t); },
   release(g) { g.held?.sun?.end(); },
   alt(g, h, ax, ay) { g.shots.push(new SkyBeam(g, ax, ay)); },

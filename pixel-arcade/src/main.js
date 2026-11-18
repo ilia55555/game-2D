@@ -204,7 +204,7 @@ class Game {
   }
   hurtHero(d) {
     const h = this.hero;
-    if (h.inv > 0 || h.dead > 0) return;
+    if (h.inv > 0 || h.dead > 0 || this.shieldT > 0) return;
     h.hp -= d; h.hurtT = 0; this.hurtFlash = 0.35; sfx("hurt"); this.shake(3); if (this.touch && navigator.vibrate) try { navigator.vibrate(Math.min(80, 15 + d * 3)); } catch (e) { /* no vibration */ }
     if (h.hp > 0) return;
     h.dead = 2.4; h.fly = false; h.pounding = false;
@@ -305,6 +305,7 @@ class Game {
       for (let k = 0; k < n && !hit; k++) {
         s.x += s.vx * dt / n; s.y += s.vy * dt / n;
         if (w.solidPx(s.x, s.y)) hit = true;
+        else if (this.shieldT > 0 && h.dead <= 0 && Math.hypot(s.x - h.x, (s.y - (h.y - 24)) * 1.1) < 34) { hit = true; this.parts.spawn(PT.SPARK, s.x, s.y, -s.vx * 0.3, -s.vy * 0.3, 0.4, 0xff60e0ff); }
         else if (h.dead <= 0 && Math.abs(s.x - h.x) < 7 && s.y > h.y - 34 && s.y < h.y) { hit = true; if (s.type === "bullet" || s.type === "pellet") this.hurtHero(s.type === "pellet" ? 2 : 3); }
         else if (this.pets) { const p = this.pets.find((q) => q.hits(s.x, s.y, 2)); if (p) { hit = true; if (s.type === "bullet" || s.type === "pellet") p.hurt(3); } }
       }
@@ -369,6 +370,7 @@ class Game {
       // the molten floor of the world: it burns and throws you back up
       if (h.y > (WH - LAVA) * CELL - 3) { h.inv = 0; this.hurtHero(12); h.vy = -650; for (let i = 0; i < 12; i++) this.parts.spawn(PT.FLAME, h.x + rnd(-6, 6), h.y, rnd(-60, 60), -rnd(60, 200), rnd(0.3, 0.6), 0, 3); }
       if (I.punchP) this.punch();
+      this.shieldT = Math.max(0, (this.shieldT || 0) - dt); this.shieldCd = Math.max(0, (this.shieldCd || 0) - dt);
       this.cd -= dt; this.altCd = (this.altCd || 0) - dt;
       const wp = WEAPONS[this.weapon];
       // right click: the power's second move, or a punch if it has none
@@ -537,6 +539,7 @@ class Game {
       p.text(String((i + 1) % 10), x + bw / 2 - 1, y0 + (sel ? -1 : 1) + (big ? 2 : 0), sel ? UI.white : UI.dim, { font: "big", align: "center", scale: big ? 2 : 1 });
     }
     t(WEAPONS[this.weapon].name, W / 2, y0 - 16, UI.white, { align: "center" });
+    if (this.shieldCd > 0 && WEAPONS[this.weapon].name === "RADIANCE") t("SHIELD " + Math.ceil(this.shieldCd) + "s", W / 2, y0 - 26, this.shieldT > 0 ? UI.cyan : UI.dim, { align: "center" });
     if (this.cd > 0.15 && WEAPONS[this.weapon].cd > 0.5) p.rect(W / 2 - 20, y0 - 6, 40 * (1 - this.cd / WEAPONS[this.weapon].cd), 2, UI.cyan);
     if (this.banner) { const b = this.banner, k = b.t < 0.12 ? 3 : 2, a = b.t > 1.5 ? 1 - (b.t - 1.5) / 0.5 : 1; t(b.text, W / 2, 70 - (k - 2) * 4, b.c, { align: "center", scale: k, a }); }
     this.drawReticle(p, Math.round(this.I.aimX - camX), Math.round(this.I.aimY - camY));
